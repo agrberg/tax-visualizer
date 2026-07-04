@@ -34,7 +34,7 @@ function App() {
 
   return (
     <TooltipProvider delayDuration={200}>
-      <div className="mx-auto max-w-6xl px-4 py-8">
+      <div className="mx-auto max-w-7xl px-4 py-8">
         <header className="mb-6">
           <h1 className="text-2xl font-bold tracking-tight">
             {TAX_YEAR} Federal Tax Bracket Visualizer
@@ -63,17 +63,23 @@ function App() {
                 <CardTitle className="text-base">Where your income goes</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="flex flex-wrap justify-center gap-10 sm:justify-start">
-                  <OrdinaryTower result={result} axisMax={axisMax} />
-                  <CapitalGainsTower result={result} axisMax={axisMax} />
+                <div className="grid gap-8 xl:grid-cols-[1fr_18rem]">
+                  <div className="flex flex-wrap justify-center gap-8 sm:justify-start">
+                    <OrdinaryTower result={result} axisMax={axisMax} />
+                    <CapitalGainsTower result={result} axisMax={axisMax} />
+                  </div>
+                  <div className="space-y-2">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      Threshold surtaxes
+                    </div>
+                    <SurchargeIndicators
+                      niit={result.niit}
+                      additionalMedicare={result.additionalMedicare}
+                    />
+                  </div>
                 </div>
               </CardContent>
             </Card>
-
-            <SurchargeIndicators
-              niit={result.niit}
-              additionalMedicare={result.additionalMedicare}
-            />
 
             <Card>
               <CardHeader>

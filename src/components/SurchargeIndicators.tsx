@@ -64,7 +64,7 @@ interface Props {
 
 export function SurchargeIndicators({ niit, additionalMedicare }: Props) {
   return (
-    <div className="grid gap-3 sm:grid-cols-2">
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
       <Indicator
         title="Net Investment Income Tax"
         description="3.8% surtax on the lesser of net investment income and MAGI over the threshold."
