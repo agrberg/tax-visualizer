@@ -14,6 +14,7 @@ import {
   type BracketFill,
   type IncomeLayer,
   type IncomeSource,
+  type MarginalScenario,
   type OrdinaryBracket,
   type SourceBreakdown,
   type SurchargeResult,
@@ -241,6 +242,28 @@ export function calculateTax(inputRaw: TaxInput): TaxResult {
     ordinaryLayers,
     preferentialLayers,
   }
+}
+
+/**
+ * Marginal cost of the next $1 by income type, with surtaxes layered in.
+ * A surtax applies to the next dollar once its income is already over the threshold.
+ */
+export function marginalNextDollar(result: TaxResult): MarginalScenario[] {
+  const niitRate = result.niit.incomeOverThreshold > 0 ? result.niit.rate : 0
+  const medicareRate =
+    result.additionalMedicare.incomeOverThreshold > 0 ? result.additionalMedicare.rate : 0
+
+  const make = (
+    key: MarginalScenario['key'],
+    baseRate: number,
+    surRate: number,
+  ): MarginalScenario => ({ key, baseRate, surRate, totalRate: baseRate + surRate })
+
+  return [
+    make('wages', result.marginalOrdinaryRate, medicareRate),
+    make('ordinaryInvestment', result.marginalOrdinaryRate, niitRate),
+    make('preferential', result.marginalCapitalGainsRate, niitRate),
+  ]
 }
 
 interface BreakdownArgs {

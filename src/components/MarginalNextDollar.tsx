@@ -1,54 +1,27 @@
-import type { TaxResult } from '@/tax/types'
+import { marginalNextDollar } from '@/tax/calculate'
+import type { MarginalScenario, TaxResult } from '@/tax/types'
 
 const cents = (rate: number) => `${(rate * 100).toFixed(1)}¢`
 
-interface Scenario {
-  key: string
-  label: string
-  baseRate: number
-  baseLabel: string
-  surRate: number
-  surLabel: string
+const LABELS: Record<MarginalScenario['key'], { label: string; baseLabel: string; surLabel: string }> = {
+  wages: { label: 'Wages / earned income', baseLabel: 'income tax', surLabel: "Add'l Medicare" },
+  ordinaryInvestment: {
+    label: 'Interest · non-qual. div. · ST gains',
+    baseLabel: 'income tax',
+    surLabel: 'NIIT',
+  },
+  preferential: { label: 'Qualified div. · LT gains', baseLabel: 'cap-gains tax', surLabel: 'NIIT' },
 }
 
 /** What the next $1 of each income type costs in tax, with surtaxes broken out. */
 export function MarginalNextDollar({ result }: { result: TaxResult }) {
-  // Surtaxes on the next dollar apply once the relevant income is over its threshold.
-  const niitMarginal = result.niit.incomeOverThreshold > 0 ? result.niit.rate : 0
-  const medicareMarginal =
-    result.additionalMedicare.incomeOverThreshold > 0 ? result.additionalMedicare.rate : 0
-
-  const scenarios: Scenario[] = [
-    {
-      key: 'wages',
-      label: 'Wages / earned income',
-      baseRate: result.marginalOrdinaryRate,
-      baseLabel: 'income tax',
-      surRate: medicareMarginal,
-      surLabel: "Add'l Medicare",
-    },
-    {
-      key: 'ordinaryInvestment',
-      label: 'Interest · non-qual. div. · ST gains',
-      baseRate: result.marginalOrdinaryRate,
-      baseLabel: 'income tax',
-      surRate: niitMarginal,
-      surLabel: 'NIIT',
-    },
-    {
-      key: 'preferential',
-      label: 'Qualified div. · LT gains',
-      baseRate: result.marginalCapitalGainsRate,
-      baseLabel: 'cap-gains tax',
-      surRate: niitMarginal,
-      surLabel: 'NIIT',
-    },
-  ]
+  const scenarios = marginalNextDollar(result)
 
   return (
     <div className="space-y-4">
-      {scenarios.map((s) => {
-        const total = s.baseRate + s.surRate
+      {scenarios.map((scenario) => {
+        const s = { ...scenario, ...LABELS[scenario.key] }
+        const total = s.totalRate
         const kept = Math.max(0, 1 - total)
         return (
           <div key={s.key}>

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { calculateTax } from './calculate'
-import type { TaxInput, IncomeSource } from './types'
+import { calculateTax, marginalNextDollar } from './calculate'
+import type { TaxInput, IncomeSource, MarginalScenario } from './types'
 
 function input(overrides: Partial<TaxInput>): TaxInput {
   return {
@@ -123,6 +123,40 @@ describe('per-source and overall aggregation', () => {
     const r = calculateTax(input({ wages: 250000 }))
     // wages tax = ordinary tax + additional medicare 450
     expect(sourceTax(r, 'wages')).toBeCloseTo(r.ordinaryTax + 450, 2)
+  })
+})
+
+describe('marginal cost of the next dollar', () => {
+  const rate = (scenarios: MarginalScenario[], key: MarginalScenario['key']) =>
+    scenarios.find((s) => s.key === key)!
+
+  it('layers both surtaxes onto the next dollar for a high earner (MFJ)', () => {
+    // MAGI 641000 > 250000 (NIIT on), wages 500000 > 250000 (Medicare on)
+    const r = calculateTax(
+      input({
+        filingStatus: 'mfj',
+        wages: 500000,
+        interest: 10000,
+        nonQualifiedDividends: 20000,
+        shortTermGains: 1000,
+        qualifiedDividends: 10000,
+        longTermGains: 100000,
+      }),
+    )
+    const m = marginalNextDollar(r)
+    // marginal ordinary 32%, cap-gains 15%
+    expect(rate(m, 'wages').totalRate).toBeCloseTo(0.329, 5) // 32% + 0.9% Medicare
+    expect(rate(m, 'ordinaryInvestment').totalRate).toBeCloseTo(0.358, 5) // 32% + 3.8% NIIT
+    expect(rate(m, 'preferential').totalRate).toBeCloseTo(0.188, 5) // 15% + 3.8% NIIT
+  })
+
+  it('adds no surtaxes below the thresholds', () => {
+    const r = calculateTax(input({ wages: 100000 })) // single, no investment income
+    const m = marginalNextDollar(r)
+    expect(rate(m, 'wages').totalRate).toBe(0.22) // 22% ordinary, no Medicare
+    expect(rate(m, 'ordinaryInvestment').totalRate).toBe(0.22) // 22% ordinary, no NIIT
+    expect(rate(m, 'preferential').totalRate).toBe(0.15) // 15% cap gains, no NIIT
+    expect(rate(m, 'wages').surRate).toBe(0)
   })
 })
 

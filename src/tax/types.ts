@@ -73,6 +73,14 @@ export interface SourceBreakdown {
   effectiveRate: number
 }
 
+/** The next-dollar marginal cost for one income type: base rate + surtax. */
+export interface MarginalScenario {
+  key: 'wages' | 'ordinaryInvestment' | 'preferential'
+  baseRate: number
+  surRate: number
+  totalRate: number
+}
+
 /**
  * A source's taxable slice positioned in the stack, for the towers.
  * `base` is the cumulative taxable income at the bottom of this layer.
