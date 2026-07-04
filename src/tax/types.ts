@@ -112,6 +112,34 @@ export interface IncomeLayer {
   tax: number // income tax on this slice (excludes surcharges)
 }
 
+/**
+ * Everything one taxing jurisdiction (federal today; a state later) produces from the
+ * shared classified income. `capitalGainsFills` is empty and the bump is null for a
+ * jurisdiction with no preferential ladder.
+ */
+export interface JurisdictionResult {
+  key: string
+  standardDeduction: number
+  preferentialDeduction: number
+  ordinaryTaxable: number
+  preferentialTaxable: number
+  taxableIncome: number
+  ordinaryFills: BracketFill[]
+  capitalGainsFills: BracketFill[]
+  capitalGainsBaseline: number
+  roomAt0: number
+  roomAt15: number
+  ordinaryTax: number
+  capitalGainsTax: number
+  /** This jurisdiction's total tax: income tax + its surcharges. */
+  tax: number
+  surcharges: SurchargeResult[]
+  marginalOrdinaryRate: number
+  marginalCapitalGainsRate: number
+  marginalGainsBump: GainsBump | null
+  layers: { ordinary: IncomeLayer[]; preferential: IncomeLayer[] }
+}
+
 export interface TaxResult {
   filingStatus: FilingStatus
   taxYear: number
