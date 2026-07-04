@@ -21,6 +21,8 @@ import {
   type TaxResult,
 } from './types'
 import { bracketsToBands, fillBands, marginalRateAt, taxOverRange, type Band } from './engine'
+import { classifyIncome } from './income'
+import { applyDeduction } from './deduction'
 
 function capitalGainsBands(filingStatus: TaxInput['filingStatus']): Band[] {
   const { rate0Max, rate15Max } = CAPITAL_GAINS_BREAKPOINTS[filingStatus]
@@ -32,40 +34,23 @@ function capitalGainsBands(filingStatus: TaxInput['filingStatus']): Band[] {
 }
 
 export function calculateTax(inputRaw: TaxInput): TaxResult {
-  const input: TaxInput = {
-    ...inputRaw,
-    wages: Math.max(0, inputRaw.wages),
-    interest: Math.max(0, inputRaw.interest),
-    nonQualifiedDividends: Math.max(0, inputRaw.nonQualifiedDividends),
-    shortTermGains: Math.max(0, inputRaw.shortTermGains),
-    qualifiedDividends: Math.max(0, inputRaw.qualifiedDividends),
-    longTermGains: Math.max(0, inputRaw.longTermGains),
-  }
-  const { filingStatus } = input
+  const { filingStatus } = inputRaw
   const ordBands = bracketsToBands(ORDINARY_BRACKETS[filingStatus])
   const cgBands = capitalGainsBands(filingStatus)
   const deduction = STANDARD_DEDUCTION[filingStatus]
 
-  const ordinaryAmounts: Record<string, number> = {
-    wages: input.wages,
-    interest: input.interest,
-    nonQualifiedDividends: input.nonQualifiedDividends,
-    shortTermGains: input.shortTermGains,
-  }
-  const preferentialAmounts: Record<string, number> = {
-    qualifiedDividends: input.qualifiedDividends,
-    longTermGains: input.longTermGains,
-  }
+  const { ordinaryAmounts, preferentialAmounts, ordinaryIncome, preferentialIncome, totalIncome, netInvestmentIncome } =
+    classifyIncome(inputRaw)
 
-  const ordinaryIncome = ORDINARY_SOURCES.reduce((s, k) => s + ordinaryAmounts[k], 0)
-  const preferentialIncome = PREFERENTIAL_SOURCES.reduce((s, k) => s + preferentialAmounts[k], 0)
-  const totalIncome = ordinaryIncome + preferentialIncome
-
-  // Standard deduction applies to ordinary income first; leftover reduces preferential income.
-  const deductionOnOrdinary = Math.min(deduction, ordinaryIncome)
-  const leftoverDeduction = deduction - deductionOnOrdinary
-  const ordinaryTaxable = ordinaryIncome - deductionOnOrdinary
-  const preferentialTaxable = Math.max(0, preferentialIncome - leftoverDeduction)
+  // Standard deduction applies to ordinary income first; leftover shields preferential income.
+  const {
+    deductionOnOrdinary,
+    leftoverDeduction,
+    ordinaryTaxable,
+    preferentialTaxable,
+    preferentialDeduction,
+    shieldFraction,
+  } = applyDeduction(deduction, ordinaryIncome, preferentialIncome)
   const taxableIncome = ordinaryTaxable + preferentialTaxable
 
   // Ordinary brackets filled from the bottom.
@@ -106,12 +91,6 @@ export function calculateTax(inputRaw: TaxInput): TaxResult {
 
   // --- Surcharges ---
   // NIIT: net investment income = everything except wages (MAGI approximated as total income).
-  const netInvestmentIncome =
-    input.interest +
-    input.nonQualifiedDividends +
-    input.shortTermGains +
-    input.qualifiedDividends +
-    input.longTermGains
   const magi = totalIncome
   const niitThreshold = NIIT_THRESHOLD[filingStatus]
   const niitOver = Math.max(0, magi - niitThreshold)
@@ -130,13 +109,13 @@ export function calculateTax(inputRaw: TaxInput): TaxResult {
 
   // Additional Medicare Tax: on earned income (wages) over the threshold.
   const medicareThreshold = ADDITIONAL_MEDICARE_THRESHOLD[filingStatus]
-  const medicareOver = Math.max(0, input.wages - medicareThreshold)
+  const medicareOver = Math.max(0, ordinaryAmounts.wages - medicareThreshold)
   const medicareAmount = medicareOver * ADDITIONAL_MEDICARE_RATE
   const additionalMedicare: SurchargeResult = {
     applies: medicareAmount > 0,
     rate: ADDITIONAL_MEDICARE_RATE,
     threshold: medicareThreshold,
-    incomeMeasured: input.wages,
+    incomeMeasured: ordinaryAmounts.wages,
     incomeOverThreshold: medicareOver,
     taxedAmount: medicareOver,
     amount: medicareAmount,
@@ -165,11 +144,8 @@ export function calculateTax(inputRaw: TaxInput): TaxResult {
     }
   }
 
-  // Preferential stack: leftover deduction shields income proportionally (qualified
-  // dividends and LTCG are one pool taxed identically, so an ordering would be arbitrary),
-  // then the taxable remainder stacks on the ordinary baseline.
-  const preferentialDeduction = Math.min(leftoverDeduction, preferentialIncome)
-  const shieldFraction = preferentialIncome > 0 ? preferentialDeduction / preferentialIncome : 0
+  // Preferential stack: the leftover deduction shields income proportionally (see
+  // applyDeduction), then the taxable remainder stacks on the ordinary baseline.
   const preferentialLayers: IncomeLayer[] = []
   {
     let base = capitalGainsBaseline
