@@ -1,7 +1,10 @@
+import { useState } from 'react'
 import { ORDINARY_BRACKETS } from '@/tax/brackets'
 import { SOURCE_META, formatCurrency, formatPercent } from '@/tax/format'
-import type { TaxResult } from '@/tax/types'
+import type { IncomeSource, TaxResult } from '@/tax/types'
 import { TOWER_HEIGHT, pct } from './tower'
+import { BracketBreakdown, HoverTooltip, HoveredSlice } from './TowerParts'
+import { useTooltip } from './use-tooltip'
 
 interface Props {
   result: TaxResult
@@ -11,6 +14,9 @@ interface Props {
 export function OrdinaryTower({ result, axisMax }: Props) {
   const layers = result.ordinaryLayers.filter((l) => l.taxableAmount > 0)
   const brackets = ORDINARY_BRACKETS[result.filingStatus]
+  const tip = useTooltip()
+  const [hovered, setHovered] = useState<IncomeSource | null>(null)
+  const hoveredLayer = layers.find((l) => l.source === hovered)
 
   return (
     <div className="flex flex-col items-center">
@@ -22,49 +28,53 @@ export function OrdinaryTower({ result, axisMax }: Props) {
         </div>
       </div>
 
-      <div className="flex items-end gap-2">
-        {/* the column */}
-        <div
-          className="relative w-28 rounded-md border bg-muted/40"
-          style={{ height: TOWER_HEIGHT }}
-        >
-          {/* bracket boundary lines */}
-          {brackets.map((b) =>
-            b.min > 0 && b.min <= axisMax ? (
-              <div
-                key={b.rate}
-                className="absolute inset-x-0 border-t border-dashed border-foreground/25"
-                style={{ bottom: `${pct(b.min, axisMax)}%` }}
-              >
-                <span className="absolute -top-2 right-1 bg-background/80 px-1 text-[10px] text-muted-foreground">
-                  {formatPercent(b.rate, 0)}
-                </span>
-              </div>
-            ) : null,
-          )}
+      <div
+        className="relative w-28 rounded-md border bg-muted/40"
+        style={{ height: TOWER_HEIGHT }}
+        onMouseMove={tip.onMove}
+        onMouseLeave={() => {
+          tip.onLeave()
+          setHovered(null)
+        }}
+      >
+        {/* source-colored slices, stacked bottom → top */}
+        {layers.map((layer) => {
+          const meta = SOURCE_META[layer.source]
+          return (
+            <div
+              key={layer.source}
+              className={`absolute inset-x-0 ${meta.fill} ${
+                hovered && hovered !== layer.source ? 'opacity-40' : 'opacity-95'
+              } transition-opacity`}
+              style={{
+                bottom: `${pct(layer.base, axisMax)}%`,
+                height: `${pct(layer.taxableAmount, axisMax)}%`,
+              }}
+              onMouseEnter={() => setHovered(layer.source)}
+            />
+          )
+        })}
 
-          {/* source-colored slices, stacked bottom → top */}
-          {layers.map((layer) => {
-            const meta = SOURCE_META[layer.source]
-            return (
-              <div
-                key={layer.source}
-                className={`absolute inset-x-0 ${meta.fill} opacity-90`}
-                style={{
-                  bottom: `${pct(layer.base, axisMax)}%`,
-                  height: `${pct(layer.taxableAmount, axisMax)}%`,
-                }}
-                title={`${meta.label}: ${formatCurrency(layer.taxableAmount)} taxable`}
-              />
-            )
-          })}
-
-          {result.ordinaryTaxable === 0 && (
-            <div className="absolute inset-x-0 bottom-0 p-2 text-center text-[11px] text-muted-foreground">
-              No ordinary taxable income
+        {/* bracket boundary lines, drawn ON TOP so they read through the fills */}
+        {brackets.map((b) =>
+          b.min > 0 && b.min <= axisMax ? (
+            <div
+              key={b.rate}
+              className="pointer-events-none absolute inset-x-0 z-10 border-t border-dashed border-white/80 mix-blend-plus-lighter"
+              style={{ bottom: `${pct(b.min, axisMax)}%` }}
+            >
+              <span className="absolute -top-2.5 right-1 rounded bg-background/85 px-1 text-[10px] font-medium text-foreground">
+                {formatPercent(b.rate, 0)}
+              </span>
             </div>
-          )}
-        </div>
+          ) : null,
+        )}
+
+        {result.ordinaryTaxable === 0 && (
+          <div className="absolute inset-x-0 bottom-0 p-2 text-center text-[11px] text-muted-foreground">
+            No ordinary taxable income
+          </div>
+        )}
       </div>
 
       {/* legend */}
@@ -80,6 +90,18 @@ export function OrdinaryTower({ result, axisMax }: Props) {
           )
         })}
       </div>
+
+      <HoverTooltip visible={tip.visible} pos={tip.pos}>
+        {hoveredLayer && (
+          <HoveredSlice
+            label={SOURCE_META[hoveredLayer.source].label}
+            swatch={SOURCE_META[hoveredLayer.source].swatch}
+            taxable={hoveredLayer.taxableAmount}
+            tax={hoveredLayer.tax}
+          />
+        )}
+        <BracketBreakdown title="Tax by bracket" fills={result.ordinaryFills} total={result.ordinaryTax} />
+      </HoverTooltip>
     </div>
   )
 }

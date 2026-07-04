@@ -1,7 +1,10 @@
+import { useState } from 'react'
 import { CAPITAL_GAINS_BREAKPOINTS } from '@/tax/brackets'
 import { SOURCE_META, formatCurrency } from '@/tax/format'
-import type { TaxResult } from '@/tax/types'
+import type { IncomeSource, TaxResult } from '@/tax/types'
 import { TOWER_HEIGHT, pct } from './tower'
+import { BracketBreakdown, HoverTooltip, HoveredSlice } from './TowerParts'
+import { useTooltip } from './use-tooltip'
 
 interface Props {
   result: TaxResult
@@ -13,11 +16,19 @@ export function CapitalGainsTower({ result, axisMax }: Props) {
   const baseline = result.capitalGainsBaseline
   const topOfGains = baseline + result.preferentialTaxable
   const layers = result.preferentialLayers.filter((l) => l.taxableAmount > 0)
+  const tip = useTooltip()
+  const [hovered, setHovered] = useState<IncomeSource | null>(null)
+  const hoveredLayer = layers.find((l) => l.source === hovered)
 
   const bands = [
     { label: '0%', color: 'bg-green-500/12', from: 0, to: rate0Max },
     { label: '15%', color: 'bg-amber-500/12', from: rate0Max, to: rate15Max },
     { label: '20%', color: 'bg-red-500/12', from: rate15Max, to: axisMax },
+  ]
+  // Band dividers drawn on top so every rate reads through the fills.
+  const dividers = [
+    { value: rate0Max, label: '0% ceiling' },
+    { value: rate15Max, label: '15% ceiling' },
   ]
 
   return (
@@ -29,7 +40,15 @@ export function CapitalGainsTower({ result, axisMax }: Props) {
         </div>
       </div>
 
-      <div className="relative w-28 rounded-md border" style={{ height: TOWER_HEIGHT }}>
+      <div
+        className="relative w-28 rounded-md border"
+        style={{ height: TOWER_HEIGHT }}
+        onMouseMove={tip.onMove}
+        onMouseLeave={() => {
+          tip.onLeave()
+          setHovered(null)
+        }}
+      >
         {/* rate-band backgrounds */}
         {bands.map((band) => {
           const bottom = pct(band.from, axisMax)
@@ -40,11 +59,7 @@ export function CapitalGainsTower({ result, axisMax }: Props) {
               key={band.label}
               className={`absolute inset-x-0 ${band.color}`}
               style={{ bottom: `${bottom}%`, height: `${height}%` }}
-            >
-              <span className="absolute right-1 top-1 text-[10px] font-medium text-muted-foreground">
-                {band.label}
-              </span>
-            </div>
+            />
           )
         })}
 
@@ -53,7 +68,6 @@ export function CapitalGainsTower({ result, axisMax }: Props) {
           <div
             className="absolute inset-x-0 bottom-0 bg-[repeating-linear-gradient(45deg,transparent,transparent_4px,rgba(120,120,120,0.18)_4px,rgba(120,120,120,0.18)_8px)]"
             style={{ height: `${pct(Math.min(baseline, axisMax), axisMax)}%` }}
-            title={`Ordinary taxable income: ${formatCurrency(baseline)}`}
           />
         )}
 
@@ -65,7 +79,6 @@ export function CapitalGainsTower({ result, axisMax }: Props) {
               bottom: `${pct(topOfGains, axisMax)}%`,
               height: `${pct(rate0Max - topOfGains, axisMax)}%`,
             }}
-            title={`Room at 0%: ${formatCurrency(result.roomAt0)}`}
           />
         )}
 
@@ -75,22 +88,39 @@ export function CapitalGainsTower({ result, axisMax }: Props) {
           return (
             <div
               key={layer.source}
-              className={`absolute inset-x-0 ${meta.fill} opacity-90`}
+              className={`absolute inset-x-0 ${meta.fill} ${
+                hovered && hovered !== layer.source ? 'opacity-40' : 'opacity-95'
+              } transition-opacity`}
               style={{
                 bottom: `${pct(layer.base, axisMax)}%`,
                 height: `${pct(layer.taxableAmount, axisMax)}%`,
               }}
-              title={`${meta.label}: ${formatCurrency(layer.taxableAmount)} taxable`}
+              onMouseEnter={() => setHovered(layer.source)}
             />
           )
         })}
 
-        {/* baseline marker */}
+        {/* baseline marker: top of ordinary income */}
         {baseline > 0 && baseline <= axisMax && (
           <div
-            className="absolute inset-x-0 border-t-2 border-foreground/40"
+            className="pointer-events-none absolute inset-x-0 z-10 border-t-2 border-foreground/50"
             style={{ bottom: `${pct(baseline, axisMax)}%` }}
           />
+        )}
+
+        {/* band dividers + labels on top */}
+        {dividers.map((d) =>
+          d.value > 0 && d.value <= axisMax ? (
+            <div
+              key={d.label}
+              className="pointer-events-none absolute inset-x-0 z-10 border-t border-dashed border-foreground/40"
+              style={{ bottom: `${pct(d.value, axisMax)}%` }}
+            >
+              <span className="absolute -top-2.5 right-1 rounded bg-background/85 px-1 text-[10px] font-medium text-foreground">
+                {d.label}
+              </span>
+            </div>
+          ) : null,
         )}
       </div>
 
@@ -121,6 +151,22 @@ export function CapitalGainsTower({ result, axisMax }: Props) {
           )
         })}
       </div>
+
+      <HoverTooltip visible={tip.visible} pos={tip.pos}>
+        {hoveredLayer && (
+          <HoveredSlice
+            label={SOURCE_META[hoveredLayer.source].label}
+            swatch={SOURCE_META[hoveredLayer.source].swatch}
+            taxable={hoveredLayer.taxableAmount}
+            tax={hoveredLayer.tax}
+          />
+        )}
+        <BracketBreakdown
+          title="Tax by rate"
+          fills={result.capitalGainsFills}
+          total={result.capitalGainsTax}
+        />
+      </HoverTooltip>
     </div>
   )
 }
