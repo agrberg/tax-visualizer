@@ -66,9 +66,17 @@ export function CapitalGainsTower({ result, axisMax }: Props) {
         {/* space occupied by ordinary income (why gains stack where they do) */}
         {baseline > 0 && (
           <div
-            className="absolute inset-x-0 bottom-0 bg-[repeating-linear-gradient(45deg,transparent,transparent_4px,rgba(120,120,120,0.18)_4px,rgba(120,120,120,0.18)_8px)]"
+            className="absolute inset-x-0 bottom-0 flex items-center justify-center bg-[repeating-linear-gradient(45deg,transparent,transparent_4px,rgba(120,120,120,0.18)_4px,rgba(120,120,120,0.18)_8px)]"
             style={{ height: `${pct(Math.min(baseline, axisMax), axisMax)}%` }}
-          />
+          >
+            <span className="rounded bg-white/80 px-1.5 py-1 text-center text-[10px] font-medium leading-tight text-neutral-700 shadow-sm">
+              Ordinary income
+              <br />
+              fills these first
+              <br />
+              {formatCurrency(baseline)}
+            </span>
+          </div>
         )}
 
         {/* room remaining at 0% (between the gains top and the 0% ceiling) */}
@@ -116,7 +124,7 @@ export function CapitalGainsTower({ result, axisMax }: Props) {
               className="pointer-events-none absolute inset-x-0 z-10 border-t border-dashed border-foreground/40"
               style={{ bottom: `${pct(d.value, axisMax)}%` }}
             >
-              <span className="absolute -top-2.5 right-1 rounded bg-background/85 px-1 text-[10px] font-medium text-foreground">
+              <span className="absolute -top-2.5 right-1 rounded bg-white px-1 text-[10px] font-medium text-black shadow-sm ring-1 ring-black/5">
                 {d.label}
               </span>
             </div>
@@ -126,6 +134,18 @@ export function CapitalGainsTower({ result, axisMax }: Props) {
 
       {/* room stats */}
       <div className="mt-3 w-40 space-y-1 text-xs">
+        {baseline > 0 && (
+          <div className="flex justify-between">
+            <span className="flex items-center gap-1.5">
+              <span
+                className="size-2.5 rounded-sm border border-dashed border-neutral-400 bg-neutral-200"
+                aria-hidden
+              />{' '}
+              Ordinary income
+            </span>
+            <span className="font-medium">{formatCurrency(baseline)}</span>
+          </div>
+        )}
         <div className="flex justify-between">
           <span className="flex items-center gap-1.5">
             <span className="size-2.5 rounded-full bg-green-500" aria-hidden /> Room at 0%

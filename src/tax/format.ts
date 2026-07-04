@@ -38,8 +38,8 @@ export const SOURCE_META: Record<IncomeSource, SourceMeta> = {
     label: 'Wages / earned income',
     short: 'Wages',
     hint: 'W-2 wages and self-employment income, taxed at ordinary marginal rates.',
-    fill: 'bg-emerald-500',
-    swatch: 'bg-emerald-500',
+    fill: 'bg-green-500',
+    swatch: 'bg-green-500',
   },
   interest: {
     label: 'Taxable interest',
@@ -83,4 +83,24 @@ export function capitalGainsRateColor(rate: number): string {
   if (rate === 0) return 'bg-green-500'
   if (rate === 0.15) return 'bg-amber-500'
   return 'bg-red-500'
+}
+
+/** Green shade for a wages slice, darkening as the ordinary rate rises. */
+export function wagesBracketFill(rate: number): string {
+  switch (rate) {
+    case 0.1:
+      return 'bg-green-200'
+    case 0.12:
+      return 'bg-green-300'
+    case 0.22:
+      return 'bg-green-400'
+    case 0.24:
+      return 'bg-green-500'
+    case 0.32:
+      return 'bg-green-600'
+    case 0.35:
+      return 'bg-green-700'
+    default:
+      return 'bg-green-800'
+  }
 }

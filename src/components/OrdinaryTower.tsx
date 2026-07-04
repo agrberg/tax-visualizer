@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { ORDINARY_BRACKETS } from '@/tax/brackets'
-import { SOURCE_META, formatCurrency, formatPercent } from '@/tax/format'
+import { SOURCE_META, formatCurrency, formatPercent, wagesBracketFill } from '@/tax/format'
 import type { IncomeSource, TaxResult } from '@/tax/types'
 import { TOWER_HEIGHT, pct } from './tower'
 import { BracketBreakdown, HoverTooltip, HoveredSlice } from './TowerParts'
@@ -37,15 +37,32 @@ export function OrdinaryTower({ result, axisMax }: Props) {
           setHovered(null)
         }}
       >
-        {/* source-colored slices, stacked bottom → top */}
+        {/* source-colored slices, stacked bottom → top. Wages is split by bracket
+            into green shades so its marginal structure is visible. */}
         {layers.map((layer) => {
+          const dim = hovered && hovered !== layer.source ? 'opacity-40' : 'opacity-95'
+          if (layer.source === 'wages') {
+            const top = layer.base + layer.taxableAmount
+            return brackets.map((b) => {
+              const lo = Math.max(b.min, layer.base)
+              const hi = Math.min(b.max, top)
+              const amount = hi - lo
+              if (amount <= 0) return null
+              return (
+                <div
+                  key={`wages-${b.rate}`}
+                  className={`absolute inset-x-0 ${wagesBracketFill(b.rate)} ${dim} transition-opacity`}
+                  style={{ bottom: `${pct(lo, axisMax)}%`, height: `${pct(amount, axisMax)}%` }}
+                  onMouseEnter={() => setHovered('wages')}
+                />
+              )
+            })
+          }
           const meta = SOURCE_META[layer.source]
           return (
             <div
               key={layer.source}
-              className={`absolute inset-x-0 ${meta.fill} ${
-                hovered && hovered !== layer.source ? 'opacity-40' : 'opacity-95'
-              } transition-opacity`}
+              className={`absolute inset-x-0 ${meta.fill} ${dim} transition-opacity`}
               style={{
                 bottom: `${pct(layer.base, axisMax)}%`,
                 height: `${pct(layer.taxableAmount, axisMax)}%`,
@@ -60,10 +77,10 @@ export function OrdinaryTower({ result, axisMax }: Props) {
           b.min > 0 && b.min <= axisMax ? (
             <div
               key={b.rate}
-              className="pointer-events-none absolute inset-x-0 z-10 border-t border-dashed border-white/80 mix-blend-plus-lighter"
+              className="pointer-events-none absolute inset-x-0 z-10 border-t border-dashed border-white/70"
               style={{ bottom: `${pct(b.min, axisMax)}%` }}
             >
-              <span className="absolute -top-2.5 right-1 rounded bg-background/85 px-1 text-[10px] font-medium text-foreground">
+              <span className="absolute -top-2.5 right-1 rounded bg-white px-1 text-[10px] font-medium text-black shadow-sm ring-1 ring-black/5">
                 {formatPercent(b.rate, 0)}
               </span>
             </div>
