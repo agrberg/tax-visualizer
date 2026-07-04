@@ -89,11 +89,11 @@ function Indicator({ title, description, surcharge, children }: IndicatorProps) 
           {title}
           <span
             className={cn(
-              'rounded px-1.5 py-0.5 text-[10px] font-medium uppercase',
+              'shrink-0 whitespace-nowrap rounded px-1.5 py-0.5 text-[10px] font-medium uppercase',
               on ? 'bg-amber-500 text-white' : 'bg-muted text-muted-foreground',
             )}
           >
-            {on ? 'Applies' : 'Not triggered'}
+            {on ? 'Applies' : 'Inactive'}
           </span>
         </div>
         <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>
