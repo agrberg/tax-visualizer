@@ -120,6 +120,8 @@ export function calculateTax(inputRaw: TaxInput): TaxResult {
   const topOfGains = capitalGainsBaseline + preferentialTaxable
   const roomAt0 = Math.max(0, rate0Max - topOfGains)
   const roomAt15 = Math.max(0, rate15Max - topOfGains)
+  // Rate the next preferential dollar would be taxed at (where the stack currently tops out).
+  const marginalCapitalGainsRate = topOfGains < rate0Max ? 0 : topOfGains < rate15Max ? 0.15 : 0.2
 
   // --- Surcharges ---
   // NIIT: net investment income = everything except wages (MAGI approximated as total income).
@@ -138,9 +140,11 @@ export function calculateTax(inputRaw: TaxInput): TaxResult {
     applies: niitAmount > 0,
     rate: NIIT_RATE,
     threshold: niitThreshold,
+    incomeMeasured: magi,
     incomeOverThreshold: niitOver,
     taxedAmount: niitBase,
     amount: niitAmount,
+    investmentIncome: netInvestmentIncome,
   }
 
   // Additional Medicare Tax: on earned income (wages) over the threshold.
@@ -151,6 +155,7 @@ export function calculateTax(inputRaw: TaxInput): TaxResult {
     applies: medicareAmount > 0,
     rate: ADDITIONAL_MEDICARE_RATE,
     threshold: medicareThreshold,
+    incomeMeasured: input.wages,
     incomeOverThreshold: medicareOver,
     taxedAmount: medicareOver,
     amount: medicareAmount,
@@ -231,6 +236,7 @@ export function calculateTax(inputRaw: TaxInput): TaxResult {
     totalTax,
     effectiveRate: totalIncome > 0 ? totalTax / totalIncome : 0,
     marginalOrdinaryRate: marginalRate(ordinaryTaxable, ORDINARY_BRACKETS[filingStatus]),
+    marginalCapitalGainsRate,
     sourceBreakdown,
     ordinaryLayers,
     preferentialLayers,

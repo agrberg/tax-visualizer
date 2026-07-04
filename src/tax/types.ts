@@ -54,11 +54,15 @@ export interface SurchargeResult {
   applies: boolean
   rate: number
   threshold: number
-  /** Income (MAGI or earned) measured against the threshold. */
+  /** The income measured against the threshold (MAGI for NIIT, wages for Medicare). */
+  incomeMeasured: number
+  /** Amount of that income over the threshold. */
   incomeOverThreshold: number
   /** The dollar base the rate is actually applied to (amount = taxedAmount * rate). */
   taxedAmount: number
   amount: number
+  /** NIIT only: net investment income, the other candidate for the taxed base. */
+  investmentIncome?: number
 }
 
 /** Per-source contribution and its own effective rate, for the overall breakdown. */
@@ -111,6 +115,7 @@ export interface TaxResult {
 
   effectiveRate: number // total tax / total income
   marginalOrdinaryRate: number // rate on the next ordinary dollar
+  marginalCapitalGainsRate: number // band the next preferential dollar lands in
 
   sourceBreakdown: SourceBreakdown[]
   /** Ordinary sources as taxable slices, bottom → top (for the ordinary tower). */

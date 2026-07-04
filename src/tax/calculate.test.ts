@@ -28,6 +28,8 @@ describe('ordinary income only', () => {
     expect(r.capitalGainsTax).toBe(0)
     expect(r.totalTax).toBeCloseTo(13170, 2)
     expect(r.marginalOrdinaryRate).toBe(0.22)
+    // taxable income 83900 sits in the 15% cap-gains band (single 0% ends at 49450)
+    expect(r.marginalCapitalGainsRate).toBe(0.15)
     expect(r.effectiveRate).toBeCloseTo(0.1317, 4)
     expect(r.roomAt0).toBe(0)
     expect(r.roomAt15).toBeCloseTo(545500 - 83900, 2)
