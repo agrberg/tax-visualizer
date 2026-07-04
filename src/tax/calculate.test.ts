@@ -144,10 +144,30 @@ describe('marginal cost of the next dollar', () => {
       }),
     )
     const m = marginalNextDollar(r)
-    // marginal ordinary 32%, cap-gains 15%
+    // marginal ordinary 32%, cap-gains 15%; MAGI-over (391k) exceeds NII (141k),
+    // so a wage dollar does NOT drag more NII under the cap — Medicare only.
     expect(rate(m, 'wages').totalRate).toBeCloseTo(0.329, 5) // 32% + 0.9% Medicare
+    expect(rate(m, 'wages').surtaxes.map((s) => s.label)).toEqual(["Add'l Medicare"])
     expect(rate(m, 'ordinaryInvestment').totalRate).toBeCloseTo(0.358, 5) // 32% + 3.8% NIIT
     expect(rate(m, 'preferential').totalRate).toBeCloseTo(0.188, 5) // 15% + 3.8% NIIT
+  })
+
+  it('charges NIIT on the next wage dollar when the MAGI cap is binding (below NII)', () => {
+    // MAGI 294k over by 44k < NII 80k → raising wages pulls more NII under the cap
+    const r = calculateTax(
+      input({
+        filingStatus: 'mfj',
+        wages: 214000,
+        interest: 6000,
+        nonQualifiedDividends: 10000,
+        qualifiedDividends: 64000,
+      }),
+    )
+    const m = marginalNextDollar(r)
+    expect(rate(m, 'wages').totalRate).toBeCloseTo(0.258, 5) // 22% + 3.8% NIIT (wages < 250k, no Medicare)
+    expect(rate(m, 'wages').surtaxes.map((s) => s.label)).toEqual(['NIIT'])
+    expect(rate(m, 'ordinaryInvestment').totalRate).toBeCloseTo(0.258, 5)
+    expect(rate(m, 'preferential').totalRate).toBeCloseTo(0.188, 5)
   })
 
   it('adds no surtaxes below the thresholds', () => {

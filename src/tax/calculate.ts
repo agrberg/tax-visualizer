@@ -246,23 +246,40 @@ export function calculateTax(inputRaw: TaxInput): TaxResult {
 
 /**
  * Marginal cost of the next $1 by income type, with surtaxes layered in.
- * A surtax applies to the next dollar once its income is already over the threshold.
+ *
+ * NIIT taxes min(net investment income, MAGI − threshold), so which surtaxes hit the
+ * next dollar depends on the income type AND which side of that min is binding:
+ * - An investment dollar always incurs NIIT once MAGI is over the threshold.
+ * - A wage dollar incurs NIIT only when the MAGI-over-threshold cap is below net
+ *   investment income (raising MAGI then pulls more NII under the cap).
  */
 export function marginalNextDollar(result: TaxResult): MarginalScenario[] {
-  const niitRate = result.niit.incomeOverThreshold > 0 ? result.niit.rate : 0
-  const medicareRate =
+  const magiOver = result.niit.incomeOverThreshold
+  const nii = result.niit.investmentIncome ?? 0
+  const niitRate = result.niit.rate
+
+  const niitOnInvestment = magiOver > 0 ? niitRate : 0
+  const niitOnWages = magiOver > 0 && magiOver < nii ? niitRate : 0
+  const medicareOnWages =
     result.additionalMedicare.incomeOverThreshold > 0 ? result.additionalMedicare.rate : 0
 
-  const make = (
+  const build = (
     key: MarginalScenario['key'],
     baseRate: number,
-    surRate: number,
-  ): MarginalScenario => ({ key, baseRate, surRate, totalRate: baseRate + surRate })
+    defs: { label: string; rate: number }[],
+  ): MarginalScenario => {
+    const surtaxes = defs.filter((s) => s.rate > 0)
+    const surRate = surtaxes.reduce((sum, s) => sum + s.rate, 0)
+    return { key, baseRate, surtaxes, surRate, totalRate: baseRate + surRate }
+  }
 
   return [
-    make('wages', result.marginalOrdinaryRate, medicareRate),
-    make('ordinaryInvestment', result.marginalOrdinaryRate, niitRate),
-    make('preferential', result.marginalCapitalGainsRate, niitRate),
+    build('wages', result.marginalOrdinaryRate, [
+      { label: "Add'l Medicare", rate: medicareOnWages },
+      { label: 'NIIT', rate: niitOnWages },
+    ]),
+    build('ordinaryInvestment', result.marginalOrdinaryRate, [{ label: 'NIIT', rate: niitOnInvestment }]),
+    build('preferential', result.marginalCapitalGainsRate, [{ label: 'NIIT', rate: niitOnInvestment }]),
   ]
 }
 

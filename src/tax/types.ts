@@ -73,10 +73,11 @@ export interface SourceBreakdown {
   effectiveRate: number
 }
 
-/** The next-dollar marginal cost for one income type: base rate + surtax. */
+/** The next-dollar marginal cost for one income type: base rate + surtaxes. */
 export interface MarginalScenario {
   key: 'wages' | 'ordinaryInvestment' | 'preferential'
   baseRate: number
+  surtaxes: { label: string; rate: number }[]
   surRate: number
   totalRate: number
 }
