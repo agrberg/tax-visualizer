@@ -207,4 +207,90 @@ describe('filing status differences', () => {
     expect(r.ordinaryTax).toBeCloseTo(7640, 2)
     expect(r.marginalOrdinaryRate).toBe(0.12)
   })
+
+  it('uses HoH brackets, deduction, and LTCG breakpoints', () => {
+    const r = calculateTax(input({ filingStatus: 'hoh', wages: 100000, longTermGains: 100000 }))
+    // taxable = 100000 - 24150 = 75850
+    expect(r.ordinaryTaxable).toBe(75850)
+    // 10%*17700 + 12%*(67450-17700) + 22%*(75850-67450) = 1770 + 5970 + 1848
+    expect(r.ordinaryTax).toBeCloseTo(9588, 2)
+    expect(r.marginalOrdinaryRate).toBe(0.22)
+    // gains stack from 75850; HoH 0% ends at 66200 (already passed) -> all in 15%
+    expect(r.capitalGainsTax).toBeCloseTo(15000, 2) // 100000 * 15%
+    expect(r.roomAt0).toBe(0)
+  })
+
+  it('uses MFS brackets and deduction', () => {
+    const r = calculateTax(input({ filingStatus: 'mfs', wages: 60000 }))
+    // taxable = 60000 - 16100 = 43900
+    expect(r.ordinaryTaxable).toBe(43900)
+    // 10%*12400 + 12%*(43900-12400) = 1240 + 3780
+    expect(r.ordinaryTax).toBeCloseTo(5020, 2)
+    expect(r.marginalOrdinaryRate).toBe(0.12)
+  })
+
+  it('reaches the MFS 20% LTCG band at its lower breakpoint', () => {
+    // MFS 15% top is 306850; big gains cross into 20%
+    const r = calculateTax(input({ filingStatus: 'mfs', longTermGains: 400000 }))
+    // deduction 16100 spills onto gains -> 383900 taxable
+    expect(r.preferentialTaxable).toBe(383900)
+    const fill20 = r.capitalGainsFills.find((f) => f.rate === 0.2)!
+    expect(fill20.amountInBracket).toBeCloseTo(383900 - 306850, 2) // 77050 at 20%
+  })
+})
+
+describe('income classification and NIIT branches', () => {
+  it('taxes short-term gains and non-qualified dividends as ordinary income', () => {
+    const r = calculateTax(input({ shortTermGains: 40000, nonQualifiedDividends: 10000 }))
+    expect(r.preferentialIncome).toBe(0)
+    expect(r.ordinaryIncome).toBe(50000)
+    // single: taxable 33900 -> 10%*12400 + 12%*(33900-12400)
+    expect(r.ordinaryTaxable).toBe(33900)
+    expect(r.ordinaryTax).toBeCloseTo(3820, 2)
+    expect(r.capitalGainsTax).toBe(0)
+  })
+
+  it('taxes NIIT on net investment income when it is the binding lesser', () => {
+    // single: MAGI 305000, over 105000, but NII is only 5000 -> NII binds
+    const r = calculateTax(input({ wages: 300000, interest: 5000 }))
+    expect(r.niit.incomeOverThreshold).toBe(105000)
+    expect(r.niit.investmentIncome).toBe(5000)
+    expect(r.niit.taxedAmount).toBe(5000)
+    expect(r.niit.amount).toBeCloseTo(190, 2) // 5000 * 3.8%
+    // Additional Medicare: wages 300000 over 200000 -> 100000 * 0.9%
+    expect(r.additionalMedicare.amount).toBeCloseTo(900, 2)
+  })
+
+  it('does not add NIIT to the next wage dollar when NII is the binding lesser', () => {
+    const r = calculateTax(input({ wages: 300000, interest: 5000 }))
+    const m = marginalNextDollar(r)
+    const wages = m.find((s) => s.key === 'wages')!
+    // 35% ordinary + 0.9% Medicare, but NO NIIT (raising wages can't pull more than NII allows)
+    expect(wages.totalRate).toBeCloseTo(0.359, 5)
+    expect(wages.surtaxes.map((s) => s.label)).toEqual(["Add'l Medicare"])
+  })
+
+  it('reaches a 20% + NIIT marginal rate on the next preferential dollar', () => {
+    const r = calculateTax(input({ longTermGains: 600000 })) // single
+    const m = marginalNextDollar(r)
+    // taxable gains 583900 > 545500 -> 20% band; MAGI over threshold -> +3.8% NIIT
+    expect(r.marginalCapitalGainsRate).toBe(0.2)
+    expect(m.find((s) => s.key === 'preferential')!.totalRate).toBeCloseTo(0.238, 5)
+  })
+})
+
+describe('edge cases', () => {
+  it('handles zero income without dividing by zero', () => {
+    const r = calculateTax(input({}))
+    expect(r.totalIncome).toBe(0)
+    expect(r.totalTax).toBe(0)
+    expect(r.effectiveRate).toBe(0)
+    expect(r.marginalOrdinaryRate).toBe(0) // still inside the deduction
+  })
+
+  it('clamps negative inputs to zero', () => {
+    const r = calculateTax(input({ wages: -5000, interest: -100 }))
+    expect(r.totalIncome).toBe(0)
+    expect(r.ordinaryIncome).toBe(0)
+  })
 })
