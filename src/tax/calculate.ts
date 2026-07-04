@@ -121,8 +121,23 @@ export function calculateTax(inputRaw: TaxInput): TaxResult {
   const topOfGains = capitalGainsBaseline + preferentialTaxable
   const roomAt0 = Math.max(0, rate0Max - topOfGains)
   const roomAt15 = Math.max(0, rate15Max - topOfGains)
+
+  // The next dollar is shielded while the standard deduction is not yet used up.
+  const nextOrdinaryDollarShielded = leftoverDeduction > 0 // ordinary income below the deduction
+  const nextPreferentialDollarShielded = leftoverDeduction > preferentialIncome // total below the deduction
+
+  // Rate the next ordinary dollar would be taxed at (0 while still inside the deduction).
+  const marginalOrdinaryRate = nextOrdinaryDollarShielded
+    ? 0
+    : marginalRate(ordinaryTaxable, ORDINARY_BRACKETS[filingStatus])
   // Rate the next preferential dollar would be taxed at (where the stack currently tops out).
-  const marginalCapitalGainsRate = topOfGains < rate0Max ? 0 : topOfGains < rate15Max ? 0.15 : 0.2
+  const marginalCapitalGainsRate = nextPreferentialDollarShielded
+    ? 0
+    : topOfGains < rate0Max
+      ? 0
+      : topOfGains < rate15Max
+        ? 0.15
+        : 0.2
 
   // --- Surcharges ---
   // NIIT: net investment income = everything except wages (MAGI approximated as total income).
@@ -236,7 +251,7 @@ export function calculateTax(inputRaw: TaxInput): TaxResult {
     additionalMedicare,
     totalTax,
     effectiveRate: totalIncome > 0 ? totalTax / totalIncome : 0,
-    marginalOrdinaryRate: marginalRate(ordinaryTaxable, ORDINARY_BRACKETS[filingStatus]),
+    marginalOrdinaryRate,
     marginalCapitalGainsRate,
     sourceBreakdown,
     ordinaryLayers,

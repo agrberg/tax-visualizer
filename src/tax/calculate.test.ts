@@ -35,11 +35,17 @@ describe('ordinary income only', () => {
     expect(r.roomAt15).toBeCloseTo(545500 - 83900, 2)
   })
 
-  it('marginal rate is the lowest bracket when taxable income is zero', () => {
-    const r = calculateTax(input({ wages: 10000 }))
+  it('marginal ordinary rate is 0 while income is still inside the standard deduction', () => {
+    const r = calculateTax(input({ wages: 10000 })) // single, deduction 15000
     expect(r.ordinaryTaxable).toBe(0)
     expect(r.ordinaryTax).toBe(0)
-    expect(r.marginalOrdinaryRate).toBe(0.1)
+    // the next ordinary dollar just uses up more deduction — it is not taxed
+    expect(r.marginalOrdinaryRate).toBe(0)
+  })
+
+  it('marginal ordinary rate is the current bracket once past the deduction', () => {
+    const r = calculateTax(input({ wages: 100000 })) // single, taxable 84900 in 22% bracket
+    expect(r.marginalOrdinaryRate).toBe(0.22)
   })
 })
 
@@ -168,6 +174,18 @@ describe('marginal cost of the next dollar', () => {
     expect(rate(m, 'wages').surtaxes.map((s) => s.label)).toEqual(['NIIT'])
     expect(rate(m, 'ordinaryInvestment').totalRate).toBeCloseTo(0.258, 5)
     expect(rate(m, 'preferential').totalRate).toBeCloseTo(0.188, 5)
+  })
+
+  it('charges 0 on the next dollar while everything is inside the standard deduction', () => {
+    // MFJ, ordinary 24000 < 32200 deduction; preferential also partly shielded
+    const r = calculateTax(
+      input({ filingStatus: 'mfj', wages: 15000, interest: 4000, nonQualifiedDividends: 5000, qualifiedDividends: 60000 }),
+    )
+    const m = marginalNextDollar(r)
+    expect(rate(m, 'wages').totalRate).toBe(0)
+    expect(rate(m, 'ordinaryInvestment').totalRate).toBe(0)
+    // gains top out at 51800 taxable, well inside the 0% cap-gains band
+    expect(rate(m, 'preferential').totalRate).toBe(0)
   })
 
   it('adds no surtaxes below the thresholds', () => {
