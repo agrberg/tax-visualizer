@@ -101,6 +101,8 @@ export interface TaxResult {
   ordinaryIncome: number
   preferentialIncome: number
   standardDeduction: number
+  /** Portion of the standard deduction that spilled onto preferential income (shielded at 0%). */
+  preferentialDeduction: number
   ordinaryTaxable: number
   preferentialTaxable: number
   taxableIncome: number

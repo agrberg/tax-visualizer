@@ -20,7 +20,8 @@ export function axisMaxFor(result: TaxResult): number {
   const topOfGains = result.capitalGainsBaseline + result.preferentialTaxable
   let base = Math.max(topOfGains, result.ordinaryTaxable)
   if (result.preferentialIncome > 0) base = Math.max(base, rate0Max)
-  base *= 1.08
+  // The shielded-deduction band sits below everything, so include it in the axis.
+  base = (base + result.preferentialDeduction) * 1.08
   return Math.max(50000, Math.ceil(base / 10000) * 10000)
 }
 

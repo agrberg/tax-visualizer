@@ -200,16 +200,17 @@ export function calculateTax(inputRaw: TaxInput): TaxResult {
     }
   }
 
-  // Preferential stack: leftover deduction, then stacked on the ordinary baseline.
+  // Preferential stack: leftover deduction shields income proportionally (qualified
+  // dividends and LTCG are one pool taxed identically, so an ordering would be arbitrary),
+  // then the taxable remainder stacks on the ordinary baseline.
+  const preferentialDeduction = Math.min(leftoverDeduction, preferentialIncome)
+  const shieldFraction = preferentialIncome > 0 ? preferentialDeduction / preferentialIncome : 0
   const preferentialLayers: IncomeLayer[] = []
   {
-    let deductionLeft = leftoverDeduction
     let base = capitalGainsBaseline
     for (const source of PREFERENTIAL_SOURCES) {
       const amount = preferentialAmounts[source]
-      const absorbed = Math.min(deductionLeft, amount)
-      deductionLeft -= absorbed
-      const taxableAmount = amount - absorbed
+      const taxableAmount = amount * (1 - shieldFraction)
       preferentialLayers.push({
         source,
         taxableAmount,
@@ -237,6 +238,7 @@ export function calculateTax(inputRaw: TaxInput): TaxResult {
     ordinaryIncome,
     preferentialIncome,
     standardDeduction: deduction,
+    preferentialDeduction,
     ordinaryTaxable,
     preferentialTaxable,
     taxableIncome,

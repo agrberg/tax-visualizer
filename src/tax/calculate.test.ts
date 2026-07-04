@@ -86,7 +86,29 @@ describe('standard deduction spilling onto preferential income', () => {
     expect(r.ordinaryTaxable).toBe(0)
     // leftover deduction 6100 reduces the 8000 of qualified dividends to 1900 taxable
     expect(r.preferentialTaxable).toBe(1900)
+    expect(r.preferentialDeduction).toBe(6100)
     expect(r.totalTax).toBe(0)
+  })
+
+  it('shields preferential income proportionally, not sequentially by source', () => {
+    // MFJ: ordinary 24000 < 32200; leftover 8200 spills onto 20000 of preferential
+    const r = calculateTax(
+      input({
+        filingStatus: 'mfj',
+        wages: 15000,
+        interest: 4000,
+        nonQualifiedDividends: 5000,
+        qualifiedDividends: 10000,
+        longTermGains: 10000,
+      }),
+    )
+    expect(r.preferentialDeduction).toBe(8200)
+    // both sources reduced by the same 41% (8200/20000), not qual div first
+    const qual = r.preferentialLayers.find((l) => l.source === 'qualifiedDividends')!
+    const lt = r.preferentialLayers.find((l) => l.source === 'longTermGains')!
+    expect(qual.taxableAmount).toBeCloseTo(5900, 2)
+    expect(lt.taxableAmount).toBeCloseTo(5900, 2)
+    expect(r.preferentialTaxable).toBeCloseTo(11800, 2)
   })
 })
 

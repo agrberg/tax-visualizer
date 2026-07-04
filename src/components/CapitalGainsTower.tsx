@@ -20,15 +20,19 @@ export function CapitalGainsTower({ result, axisMax }: Props) {
   const [hovered, setHovered] = useState<IncomeSource | null>(null)
   const hoveredLayer = layers.find((l) => l.source === hovered)
 
-  // Rate zones with their real dollar ranges.
+  // Standard deduction that spilled onto preferential income sits below the brackets (0%).
+  const offset = result.preferentialDeduction
+  // Position (%) of a taxable-income value, shifted up by the shielded deduction.
+  const posPct = (taxableValue: number) => pct(offset + taxableValue, axisMax)
+
+  // Rate zones with their real dollar ranges (taxable income).
   const bands = [
     { rate: 0, label: '0%', tint: 'bg-green-500/15', from: 0, to: rate0Max },
     { rate: 0.15, label: '15%', tint: 'bg-amber-500/15', from: rate0Max, to: rate15Max },
     { rate: 0.2, label: '20%', tint: 'bg-red-500/15', from: rate15Max, to: Infinity },
   ]
-  // Dollar boundaries between zones, drawn on top with the amount.
   const dividers = [rate0Max, rate15Max]
-  const fifteenOffAxis = rate15Max > axisMax
+  const fifteenOffAxis = offset + rate15Max > axisMax
 
   return (
     <div className="flex flex-col items-center">
@@ -48,48 +52,68 @@ export function CapitalGainsTower({ result, axisMax }: Props) {
           setHovered(null)
         }}
       >
-        {/* rate-zone backgrounds (show through as "room" above the ordinary baseline) */}
+        {/* rate-zone backgrounds (show through as "room" above the gains) */}
         {bands.map((band) => {
-          const bottom = pct(band.from, axisMax)
-          const height = pct(Math.min(band.to, axisMax) - band.from, axisMax)
-          if (height <= 0) return null
+          const vFrom = offset + band.from
+          const vTo = Math.min(offset + band.to, axisMax)
+          if (vTo <= vFrom) return null
           return (
             <div
               key={band.label}
               className={`absolute inset-x-0 ${band.tint}`}
-              style={{ bottom: `${bottom}%`, height: `${height}%` }}
+              style={{ bottom: `${pct(vFrom, axisMax)}%`, height: `${pct(vTo - vFrom, axisMax)}%` }}
             />
           )
         })}
 
-        {/* room remaining at 0% (between the gains top and the 0% ceiling) */}
-        {topOfGains < rate0Max && rate0Max <= axisMax && (
+        {/* standard-deduction spill: shields the bottom of preferential income at 0% */}
+        {offset > 0 && (
           <div
-            className="absolute inset-x-0 border border-dashed border-green-600/50 bg-green-500/10"
+            className="absolute inset-x-0 bottom-0 flex items-end justify-center pb-1"
             style={{
-              bottom: `${pct(topOfGains, axisMax)}%`,
-              height: `${pct(rate0Max - topOfGains, axisMax)}%`,
-            }}
-          />
-        )}
-
-        {/* ordinary income occupancy: uniform gray hatch so it reads as one used-up block */}
-        {baseline > 0 && (
-          <div
-            className="absolute inset-x-0 bottom-0 flex items-end justify-center pb-2"
-            style={{
-              height: `${pct(Math.min(baseline, axisMax), axisMax)}%`,
+              height: `${pct(Math.min(offset, axisMax), axisMax)}%`,
               backgroundColor: '#e5e5e5',
               backgroundImage:
                 'repeating-linear-gradient(45deg, transparent, transparent 5px, rgba(113,113,122,0.30) 5px, rgba(113,113,122,0.30) 10px)',
             }}
           >
             <span className="z-20 rounded bg-white/85 px-1.5 py-0.5 text-center text-[10px] font-medium leading-tight text-neutral-700 shadow-sm">
+              Deduction spillover · 0%
+              <br />
+              {formatCurrency(offset)}
+            </span>
+          </div>
+        )}
+
+        {/* ordinary income occupancy (only when it has taxable income; then offset is 0) */}
+        {baseline > 0 && (
+          <div
+            className="absolute inset-x-0 flex items-center justify-center"
+            style={{
+              bottom: `${posPct(0)}%`,
+              height: `${pct(Math.min(baseline, axisMax), axisMax)}%`,
+              backgroundColor: '#e5e5e5',
+              backgroundImage:
+                'repeating-linear-gradient(45deg, transparent, transparent 5px, rgba(113,113,122,0.30) 5px, rgba(113,113,122,0.30) 10px)',
+            }}
+          >
+            <span className="rounded bg-white/85 px-1.5 py-0.5 text-center text-[10px] font-medium leading-tight text-neutral-700 shadow-sm">
               Ordinary income
               <br />
               {formatCurrency(baseline)}
             </span>
           </div>
+        )}
+
+        {/* room remaining at 0% (between the gains top and the 0% ceiling) */}
+        {topOfGains < rate0Max && offset + rate0Max <= axisMax && (
+          <div
+            className="absolute inset-x-0 border border-dashed border-green-600/50 bg-green-500/10"
+            style={{
+              bottom: `${posPct(topOfGains)}%`,
+              height: `${pct(rate0Max - topOfGains, axisMax)}%`,
+            }}
+          />
         )}
 
         {/* preferential gains, stacked on the baseline, colored by source */}
@@ -102,7 +126,7 @@ export function CapitalGainsTower({ result, axisMax }: Props) {
                 hovered && hovered !== layer.source ? 'opacity-40' : 'opacity-95'
               } transition-opacity`}
               style={{
-                bottom: `${pct(layer.base, axisMax)}%`,
+                bottom: `${posPct(layer.base)}%`,
                 height: `${pct(layer.taxableAmount, axisMax)}%`,
               }}
               onMouseEnter={() => setHovered(layer.source)}
@@ -112,8 +136,8 @@ export function CapitalGainsTower({ result, axisMax }: Props) {
 
         {/* rate-zone labels on the left edge, centered in each visible zone */}
         {bands.map((band) => {
-          const lo = band.from
-          const hi = Math.min(band.to, axisMax)
+          const lo = offset + band.from
+          const hi = Math.min(offset + band.to, axisMax)
           if (hi - lo <= 0) return null
           const centerPct = pct((lo + hi) / 2, axisMax)
           return (
@@ -128,20 +152,20 @@ export function CapitalGainsTower({ result, axisMax }: Props) {
         })}
 
         {/* baseline marker: top of ordinary income / where gains start */}
-        {baseline > 0 && baseline <= axisMax && (
+        {baseline > 0 && offset + baseline <= axisMax && (
           <div
             className="pointer-events-none absolute inset-x-0 z-10 border-t-2 border-foreground/50"
-            style={{ bottom: `${pct(baseline, axisMax)}%` }}
+            style={{ bottom: `${posPct(baseline)}%` }}
           />
         )}
 
         {/* dollar boundaries between zones, drawn on top */}
         {dividers.map((value) =>
-          value > 0 && value <= axisMax ? (
+          value > 0 && offset + value <= axisMax ? (
             <div
               key={value}
               className="pointer-events-none absolute inset-x-0 z-10 border-t border-dashed border-foreground/50"
-              style={{ bottom: `${pct(value, axisMax)}%` }}
+              style={{ bottom: `${posPct(value)}%` }}
             >
               <span className="absolute -top-2.5 right-1 rounded bg-white px-1 text-[10px] font-medium text-black shadow-sm ring-1 ring-black/5">
                 {formatCurrency(value)}
@@ -160,6 +184,18 @@ export function CapitalGainsTower({ result, axisMax }: Props) {
 
       {/* room stats */}
       <div className="mt-3 w-40 space-y-1 text-xs">
+        {offset > 0 && (
+          <div className="flex justify-between">
+            <span className="flex items-center gap-1.5">
+              <span
+                className="size-2.5 rounded-sm border border-dashed border-neutral-400 bg-neutral-200"
+                aria-hidden
+              />{' '}
+              Deduction spillover
+            </span>
+            <span className="font-medium">{formatCurrency(offset)}</span>
+          </div>
+        )}
         {baseline > 0 && (
           <div className="flex justify-between">
             <span className="flex items-center gap-1.5">
