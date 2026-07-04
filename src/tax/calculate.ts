@@ -11,47 +11,16 @@ import {
 import {
   ORDINARY_SOURCES,
   PREFERENTIAL_SOURCES,
-  type BracketFill,
   type IncomeLayer,
   type IncomeSource,
   type MarginalComponent,
   type MarginalScenario,
-  type OrdinaryBracket,
   type SourceBreakdown,
   type SurchargeResult,
   type TaxInput,
   type TaxResult,
 } from './types'
-
-/** A tax band over a taxable-income range [min, max) at a flat rate. */
-interface Band {
-  rate: number
-  min: number
-  max: number
-}
-
-/** Fill `amount` of income sitting on top of `base` into `bands`, returning per-band fills. */
-function fillBands(base: number, amount: number, bands: Band[]): BracketFill[] {
-  const start = base
-  const end = base + amount
-  return bands.map((band) => {
-    const lo = Math.max(band.min, start)
-    const hi = Math.min(band.max, end)
-    const amountInBracket = Math.max(0, hi - lo)
-    return {
-      rate: band.rate,
-      min: band.min,
-      max: band.max,
-      amountInBracket,
-      taxInBracket: amountInBracket * band.rate,
-    }
-  })
-}
-
-/** Total tax on the income range [start, start+amount) integrated over `bands`. */
-function taxOverRange(start: number, amount: number, bands: Band[]): number {
-  return fillBands(start, amount, bands).reduce((acc, f) => acc + f.taxInBracket, 0)
-}
+import { bracketsToBands, fillBands, marginalRateAt, taxOverRange, type Band } from './engine'
 
 function capitalGainsBands(filingStatus: TaxInput['filingStatus']): Band[] {
   const { rate0Max, rate15Max } = CAPITAL_GAINS_BREAKPOINTS[filingStatus]
@@ -60,15 +29,6 @@ function capitalGainsBands(filingStatus: TaxInput['filingStatus']): Band[] {
     { rate: 0.15, min: rate0Max, max: rate15Max },
     { rate: 0.2, min: rate15Max, max: Number.POSITIVE_INFINITY },
   ]
-}
-
-function ordinaryBands(brackets: OrdinaryBracket[]): Band[] {
-  return brackets.map((b) => ({ rate: b.rate, min: b.min, max: b.max }))
-}
-
-function marginalRate(taxable: number, brackets: OrdinaryBracket[]): number {
-  const bracket = brackets.find((b) => taxable >= b.min && taxable < b.max)
-  return (bracket ?? brackets[brackets.length - 1]).rate
 }
 
 export function calculateTax(inputRaw: TaxInput): TaxResult {
@@ -82,8 +42,7 @@ export function calculateTax(inputRaw: TaxInput): TaxResult {
     longTermGains: Math.max(0, inputRaw.longTermGains),
   }
   const { filingStatus } = input
-  const brackets = ORDINARY_BRACKETS[filingStatus]
-  const ordBands = ordinaryBands(brackets)
+  const ordBands = bracketsToBands(ORDINARY_BRACKETS[filingStatus])
   const cgBands = capitalGainsBands(filingStatus)
   const deduction = STANDARD_DEDUCTION[filingStatus]
 
@@ -134,9 +93,7 @@ export function calculateTax(inputRaw: TaxInput): TaxResult {
   // Rate the next preferential dollar would be taxed at (where the stack currently tops out).
   const marginalCapitalGainsRate = nextPreferentialDollarShielded ? 0 : cgRateAt(topOfGains)
   // Ordinary income-tax rate on the next ordinary dollar (0 while inside the deduction).
-  const marginalOrdinaryRate = nextOrdinaryDollarShielded
-    ? 0
-    : marginalRate(ordinaryTaxable, ORDINARY_BRACKETS[filingStatus])
+  const marginalOrdinaryRate = nextOrdinaryDollarShielded ? 0 : marginalRateAt(ordinaryTaxable, ordBands)
 
   // The "capital-gains bump": the next ordinary dollar also moves a gain dollar between
   // preferential bands. Inside the deduction it un-shields a gain onto the top of the stack
