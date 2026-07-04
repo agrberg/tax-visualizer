@@ -14,6 +14,7 @@ import {
   type BracketFill,
   type IncomeLayer,
   type IncomeSource,
+  type MarginalComponent,
   type MarginalScenario,
   type OrdinaryBracket,
   type SourceBreakdown,
@@ -126,22 +127,25 @@ export function calculateTax(inputRaw: TaxInput): TaxResult {
   const nextOrdinaryDollarShielded = leftoverDeduction > 0 // ordinary income below the deduction
   const nextPreferentialDollarShielded = leftoverDeduction > preferentialIncome // total below the deduction
 
+  // Cap-gains rate at a given taxable-income position on the preferential ladder.
+  const cgRateAt = (pos: number): number =>
+    pos < rate0Max ? 0 : pos < rate15Max ? 0.15 : 0.2
+
   // Rate the next preferential dollar would be taxed at (where the stack currently tops out).
-  const marginalCapitalGainsRate = nextPreferentialDollarShielded
-    ? 0
-    : topOfGains < rate0Max
-      ? 0
-      : topOfGains < rate15Max
-        ? 0.15
-        : 0.2
-  // Rate the next ordinary dollar would be taxed at. While it is inside the deduction it
-  // pays no ordinary tax — but the deduction is one shared pool, so consuming a dollar of
-  // it un-shields a preferential dollar that lands at the top of the gains stack. Its true
-  // marginal cost is therefore the top-of-stack gains rate (which is 0 when there is no
-  // gain to displace or the deduction still has genuine slack).
+  const marginalCapitalGainsRate = nextPreferentialDollarShielded ? 0 : cgRateAt(topOfGains)
+  // Ordinary income-tax rate on the next ordinary dollar (0 while inside the deduction).
   const marginalOrdinaryRate = nextOrdinaryDollarShielded
-    ? marginalCapitalGainsRate
+    ? 0
     : marginalRate(ordinaryTaxable, ORDINARY_BRACKETS[filingStatus])
+
+  // The "capital-gains bump": the next ordinary dollar also moves a gain dollar between
+  // preferential bands. Inside the deduction it un-shields a gain onto the top of the stack
+  // (0% → top-of-stack rate); past the deduction it lifts the whole stack by $1, so its top
+  // dollar climbs a band while its bottom dollar drops out (bottom-rate → top-rate).
+  const bumpFrom = nextOrdinaryDollarShielded ? 0 : cgRateAt(capitalGainsBaseline)
+  const bumpTo = nextOrdinaryDollarShielded ? marginalCapitalGainsRate : cgRateAt(topOfGains)
+  const marginalGainsBump =
+    bumpTo > bumpFrom ? { rate: bumpTo - bumpFrom, fromRate: bumpFrom, toRate: bumpTo } : null
 
   // --- Surcharges ---
   // NIIT: net investment income = everything except wages (MAGI approximated as total income).
@@ -259,6 +263,7 @@ export function calculateTax(inputRaw: TaxInput): TaxResult {
     effectiveRate: totalIncome > 0 ? totalTax / totalIncome : 0,
     marginalOrdinaryRate,
     marginalCapitalGainsRate,
+    marginalGainsBump,
     sourceBreakdown,
     ordinaryLayers,
     preferentialLayers,
@@ -284,23 +289,36 @@ export function marginalNextDollar(result: TaxResult): MarginalScenario[] {
   const medicareOnWages =
     result.additionalMedicare.incomeOverThreshold > 0 ? result.additionalMedicare.rate : 0
 
+  // The capital-gains bump rides on ordinary dollars only (it lifts the gains stack).
+  const bump = result.marginalGainsBump
+  const pct = (r: number) => `${Math.round(r * 100)}%`
+  const bumpComponent: MarginalComponent | null = bump
+    ? { label: `pushes a gain ${pct(bump.fromRate)}→${pct(bump.toRate)}`, rate: bump.rate, tone: 'bump' }
+    : null
+
   const build = (
     key: MarginalScenario['key'],
     baseRate: number,
-    defs: { label: string; rate: number }[],
+    defs: (MarginalComponent | null)[],
   ): MarginalScenario => {
-    const surtaxes = defs.filter((s) => s.rate > 0)
+    const surtaxes = defs.filter((s): s is MarginalComponent => s !== null && s.rate > 0)
     const surRate = surtaxes.reduce((sum, s) => sum + s.rate, 0)
     return { key, baseRate, surtaxes, surRate, totalRate: baseRate + surRate }
   }
 
+  const surtax = (label: string, rate: number): MarginalComponent => ({ label, rate, tone: 'surtax' })
+
   return [
     build('wages', result.marginalOrdinaryRate, [
-      { label: "Add'l Medicare", rate: medicareOnWages },
-      { label: 'NIIT', rate: niitOnWages },
+      surtax("Add'l Medicare", medicareOnWages),
+      surtax('NIIT', niitOnWages),
+      bumpComponent,
     ]),
-    build('ordinaryInvestment', result.marginalOrdinaryRate, [{ label: 'NIIT', rate: niitOnInvestment }]),
-    build('preferential', result.marginalCapitalGainsRate, [{ label: 'NIIT', rate: niitOnInvestment }]),
+    build('ordinaryInvestment', result.marginalOrdinaryRate, [
+      surtax('NIIT', niitOnInvestment),
+      bumpComponent,
+    ]),
+    build('preferential', result.marginalCapitalGainsRate, [surtax('NIIT', niitOnInvestment)]),
   ]
 }
 

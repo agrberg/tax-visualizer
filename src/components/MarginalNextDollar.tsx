@@ -37,10 +37,12 @@ export function MarginalNextDollar({ result }: { result: TaxResult }) {
               {s.surtaxes.map((su) => (
                 <div
                   key={su.label}
-                  className="flex items-center justify-center bg-amber-500"
+                  className={`flex items-center justify-center ${su.tone === 'bump' ? 'bg-violet-500' : 'bg-amber-500'}`}
                   style={{ width: `${su.rate * 100}%` }}
                   title={`${cents(su.rate)} ${su.label}`}
-                />
+                >
+                  {su.rate >= 0.08 ? cents(su.rate) : ''}
+                </div>
               ))}
               <div
                 className="flex items-center justify-center bg-emerald-500"
@@ -52,7 +54,7 @@ export function MarginalNextDollar({ result }: { result: TaxResult }) {
             <div className="mt-1 text-xs text-muted-foreground">
               {cents(s.baseRate)} {meta.baseLabel}
               {s.surtaxes.map((su) => (
-                <span key={su.label}>
+                <span key={su.label} className={su.tone === 'bump' ? 'text-violet-600' : undefined}>
                   {' + '}
                   {cents(su.rate)} {su.label}
                 </span>

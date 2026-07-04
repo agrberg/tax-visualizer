@@ -73,13 +73,30 @@ export interface SourceBreakdown {
   effectiveRate: number
 }
 
-/** The next-dollar marginal cost for one income type: base rate + surtaxes. */
+/** One add-on to the base marginal rate: a surtax (NIIT/Medicare) or a cap-gains bump. */
+export interface MarginalComponent {
+  label: string
+  rate: number
+  tone: 'surtax' | 'bump'
+}
+
+/** The next-dollar marginal cost for one income type: base rate + add-on components. */
 export interface MarginalScenario {
   key: 'wages' | 'ordinaryInvestment' | 'preferential'
   baseRate: number
-  surtaxes: { label: string; rate: number }[]
+  surtaxes: MarginalComponent[]
   surRate: number
   totalRate: number
+}
+
+/**
+ * Extra capital-gains tax that one more ordinary dollar triggers by lifting the gains
+ * stack — the "capital-gains bump". Null when the next ordinary dollar displaces nothing.
+ */
+export interface GainsBump {
+  rate: number // fromRate → toRate spread
+  fromRate: number // band the displaced gain dollar leaves
+  toRate: number // band it enters
 }
 
 /**
@@ -125,8 +142,9 @@ export interface TaxResult {
   totalTax: number
 
   effectiveRate: number // total tax / total income
-  marginalOrdinaryRate: number // rate on the next ordinary dollar
+  marginalOrdinaryRate: number // ordinary income-tax rate on the next ordinary dollar
   marginalCapitalGainsRate: number // band the next preferential dollar lands in
+  marginalGainsBump: GainsBump | null // cap-gains tax an ordinary dollar triggers by lifting the stack
 
   sourceBreakdown: SourceBreakdown[]
   /** Ordinary sources as taxable slices, bottom → top (for the ordinary tower). */

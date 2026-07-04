@@ -210,23 +210,53 @@ describe('marginal cost of the next dollar', () => {
     expect(rate(m, 'preferential').totalRate).toBe(0)
   })
 
-  it('charges the top-of-stack gains rate on a shielded ordinary dollar that displaces the deduction', () => {
+  it('bumps a shielded ordinary dollar that un-shields a gain onto the top of the stack', () => {
     // MFJ, ordinary 31200 < 32200 deduction → 1000 of deduction spills onto the gains.
-    // A wage/interest dollar is inside the deduction, but consuming it un-shields a
-    // qualified-dividend dollar that lands at the top of the stack (already in 15%).
+    // A wage/interest dollar is inside the deduction (0% ordinary tax), but consuming it
+    // un-shields a qualified-dividend dollar that lands at the top of the stack (in 15%).
     const r = calculateTax(
       input({ filingStatus: 'mfj', wages: 22200, interest: 4000, nonQualifiedDividends: 5000, qualifiedDividends: 100000 }),
     )
     expect(r.ordinaryTaxable).toBe(0)
     expect(r.preferentialTaxable).toBe(99000) // 100000 - 1000 spilled deduction
-    // 98900 at 0%, 100 at 15% → the stack tops out in the 15% band
-    expect(r.marginalCapitalGainsRate).toBe(0.15)
-    // so the next shielded ordinary dollar really costs 15%, not 0
-    expect(r.marginalOrdinaryRate).toBe(0.15)
+    expect(r.marginalCapitalGainsRate).toBe(0.15) // 98900 at 0%, 100 at 15%
+    expect(r.marginalOrdinaryRate).toBe(0) // the dollar itself is inside the deduction
+    expect(r.marginalGainsBump).toEqual({ rate: 0.15, fromRate: 0, toRate: 0.15 })
     const m = marginalNextDollar(r)
-    expect(rate(m, 'wages').totalRate).toBe(0.15)
-    expect(rate(m, 'ordinaryInvestment').totalRate).toBe(0.15)
+    // 0 income tax + 15% bump → 15% all-in on the next wage/interest dollar
+    expect(rate(m, 'wages').totalRate).toBeCloseTo(0.15, 5)
+    expect(rate(m, 'wages').surtaxes).toEqual([
+      { label: 'pushes a gain 0%→15%', rate: 0.15, tone: 'bump' },
+    ])
+    expect(rate(m, 'ordinaryInvestment').totalRate).toBeCloseTo(0.15, 5)
     expect(rate(m, 'preferential').totalRate).toBe(0.15)
+  })
+
+  it('bumps a taxable ordinary dollar that lifts the gains stack across the 0% ceiling', () => {
+    // MFJ, ordinary income exactly at the 32200 deduction, gains fill 0% to the brim.
+    // The next wage dollar is now taxable at 10% AND lifts the stack, shoving its top
+    // qualified-dividend dollar out of 0% into 15%: 10¢ + 15¢ = 25¢.
+    const r = calculateTax(
+      input({ filingStatus: 'mfj', wages: 23200, interest: 4000, nonQualifiedDividends: 5000, qualifiedDividends: 98900 }),
+    )
+    expect(r.ordinaryTaxable).toBe(0)
+    expect(r.roomAt0).toBe(0) // gains top out exactly at the 0% ceiling
+    expect(r.marginalOrdinaryRate).toBe(0.1)
+    expect(r.marginalGainsBump).toEqual({ rate: 0.15, fromRate: 0, toRate: 0.15 })
+    const m = marginalNextDollar(r)
+    expect(rate(m, 'wages').totalRate).toBeCloseTo(0.25, 5)
+    expect(rate(m, 'ordinaryInvestment').totalRate).toBeCloseTo(0.25, 5)
+    expect(rate(m, 'preferential').totalRate).toBe(0.15) // a preferential dollar just pays 15%, no bump
+  })
+
+  it('bumps ordinary income when LTCG straddles the 0%/15% line (the cap-gains bump zone)', () => {
+    // MFJ, wages 90000 (taxable 57800, 12% bracket) with 100000 LTCG straddling 98900.
+    const r = calculateTax(input({ filingStatus: 'mfj', wages: 90000, longTermGains: 100000 }))
+    expect(r.ordinaryTaxable).toBe(57800)
+    expect(r.marginalOrdinaryRate).toBe(0.12)
+    expect(r.marginalGainsBump).toEqual({ rate: 0.15, fromRate: 0, toRate: 0.15 })
+    const m = marginalNextDollar(r)
+    expect(rate(m, 'wages').totalRate).toBeCloseTo(0.27, 5) // 12% + 15% bump
   })
 
   it('adds no surtaxes below the thresholds', () => {
