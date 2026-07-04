@@ -32,6 +32,7 @@ export interface SourceMeta {
   swatch: string
 }
 
+// Colors are spread across the hue wheel so adjacent stacked slices stay distinct.
 export const SOURCE_META: Record<IncomeSource, SourceMeta> = {
   wages: {
     label: 'Wages / earned income',
@@ -44,22 +45,22 @@ export const SOURCE_META: Record<IncomeSource, SourceMeta> = {
     label: 'Taxable interest',
     short: 'Interest',
     hint: 'Bank/bond interest, taxed at ordinary rates and counted as investment income for NIIT.',
-    fill: 'bg-teal-500',
-    swatch: 'bg-teal-500',
+    fill: 'bg-orange-500',
+    swatch: 'bg-orange-500',
   },
   nonQualifiedDividends: {
     label: 'Non-qualified dividends',
     short: 'Non-qual. div.',
     hint: 'Ordinary dividends that do not meet holding-period rules; taxed at ordinary rates.',
-    fill: 'bg-cyan-500',
-    swatch: 'bg-cyan-500',
+    fill: 'bg-sky-500',
+    swatch: 'bg-sky-500',
   },
   shortTermGains: {
     label: 'Short-term capital gains',
     short: 'ST gains',
     hint: 'Gains on assets held ≤ 1 year; taxed at ordinary rates.',
-    fill: 'bg-sky-500',
-    swatch: 'bg-sky-500',
+    fill: 'bg-rose-500',
+    swatch: 'bg-rose-500',
   },
   qualifiedDividends: {
     label: 'Qualified dividends',
@@ -72,8 +73,8 @@ export const SOURCE_META: Record<IncomeSource, SourceMeta> = {
     label: 'Long-term capital gains',
     short: 'LT gains',
     hint: 'Gains on assets held > 1 year; taxed on the 0/15/20% capital-gains ladder.',
-    fill: 'bg-purple-500',
-    swatch: 'bg-purple-500',
+    fill: 'bg-fuchsia-600',
+    swatch: 'bg-fuchsia-600',
   },
 }
 
