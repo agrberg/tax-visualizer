@@ -126,10 +126,6 @@ export function calculateTax(inputRaw: TaxInput): TaxResult {
   const nextOrdinaryDollarShielded = leftoverDeduction > 0 // ordinary income below the deduction
   const nextPreferentialDollarShielded = leftoverDeduction > preferentialIncome // total below the deduction
 
-  // Rate the next ordinary dollar would be taxed at (0 while still inside the deduction).
-  const marginalOrdinaryRate = nextOrdinaryDollarShielded
-    ? 0
-    : marginalRate(ordinaryTaxable, ORDINARY_BRACKETS[filingStatus])
   // Rate the next preferential dollar would be taxed at (where the stack currently tops out).
   const marginalCapitalGainsRate = nextPreferentialDollarShielded
     ? 0
@@ -138,6 +134,14 @@ export function calculateTax(inputRaw: TaxInput): TaxResult {
       : topOfGains < rate15Max
         ? 0.15
         : 0.2
+  // Rate the next ordinary dollar would be taxed at. While it is inside the deduction it
+  // pays no ordinary tax — but the deduction is one shared pool, so consuming a dollar of
+  // it un-shields a preferential dollar that lands at the top of the gains stack. Its true
+  // marginal cost is therefore the top-of-stack gains rate (which is 0 when there is no
+  // gain to displace or the deduction still has genuine slack).
+  const marginalOrdinaryRate = nextOrdinaryDollarShielded
+    ? marginalCapitalGainsRate
+    : marginalRate(ordinaryTaxable, ORDINARY_BRACKETS[filingStatus])
 
   // --- Surcharges ---
   // NIIT: net investment income = everything except wages (MAGI approximated as total income).

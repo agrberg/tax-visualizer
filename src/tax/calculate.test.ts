@@ -210,6 +210,25 @@ describe('marginal cost of the next dollar', () => {
     expect(rate(m, 'preferential').totalRate).toBe(0)
   })
 
+  it('charges the top-of-stack gains rate on a shielded ordinary dollar that displaces the deduction', () => {
+    // MFJ, ordinary 31200 < 32200 deduction → 1000 of deduction spills onto the gains.
+    // A wage/interest dollar is inside the deduction, but consuming it un-shields a
+    // qualified-dividend dollar that lands at the top of the stack (already in 15%).
+    const r = calculateTax(
+      input({ filingStatus: 'mfj', wages: 22200, interest: 4000, nonQualifiedDividends: 5000, qualifiedDividends: 100000 }),
+    )
+    expect(r.ordinaryTaxable).toBe(0)
+    expect(r.preferentialTaxable).toBe(99000) // 100000 - 1000 spilled deduction
+    // 98900 at 0%, 100 at 15% → the stack tops out in the 15% band
+    expect(r.marginalCapitalGainsRate).toBe(0.15)
+    // so the next shielded ordinary dollar really costs 15%, not 0
+    expect(r.marginalOrdinaryRate).toBe(0.15)
+    const m = marginalNextDollar(r)
+    expect(rate(m, 'wages').totalRate).toBe(0.15)
+    expect(rate(m, 'ordinaryInvestment').totalRate).toBe(0.15)
+    expect(rate(m, 'preferential').totalRate).toBe(0.15)
+  })
+
   it('adds no surtaxes below the thresholds', () => {
     const r = calculateTax(input({ wages: 100000 })) // single, no investment income
     const m = marginalNextDollar(r)
