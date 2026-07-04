@@ -20,16 +20,15 @@ export function CapitalGainsTower({ result, axisMax }: Props) {
   const [hovered, setHovered] = useState<IncomeSource | null>(null)
   const hoveredLayer = layers.find((l) => l.source === hovered)
 
+  // Rate zones with their real dollar ranges.
   const bands = [
-    { label: '0%', color: 'bg-green-500/12', from: 0, to: rate0Max },
-    { label: '15%', color: 'bg-amber-500/12', from: rate0Max, to: rate15Max },
-    { label: '20%', color: 'bg-red-500/12', from: rate15Max, to: axisMax },
+    { rate: 0, label: '0%', tint: 'bg-green-500/15', from: 0, to: rate0Max },
+    { rate: 0.15, label: '15%', tint: 'bg-amber-500/15', from: rate0Max, to: rate15Max },
+    { rate: 0.2, label: '20%', tint: 'bg-red-500/15', from: rate15Max, to: Infinity },
   ]
-  // Band dividers drawn on top so every rate reads through the fills.
-  const dividers = [
-    { value: rate0Max, label: '0% ceiling' },
-    { value: rate15Max, label: '15% ceiling' },
-  ]
+  // Dollar boundaries between zones, drawn on top with the amount.
+  const dividers = [rate0Max, rate15Max]
+  const fifteenOffAxis = rate15Max > axisMax
 
   return (
     <div className="flex flex-col items-center">
@@ -49,7 +48,7 @@ export function CapitalGainsTower({ result, axisMax }: Props) {
           setHovered(null)
         }}
       >
-        {/* rate-band backgrounds */}
+        {/* rate-zone backgrounds (show through as "room" above the ordinary baseline) */}
         {bands.map((band) => {
           const bottom = pct(band.from, axisMax)
           const height = pct(Math.min(band.to, axisMax) - band.from, axisMax)
@@ -57,27 +56,11 @@ export function CapitalGainsTower({ result, axisMax }: Props) {
           return (
             <div
               key={band.label}
-              className={`absolute inset-x-0 ${band.color}`}
+              className={`absolute inset-x-0 ${band.tint}`}
               style={{ bottom: `${bottom}%`, height: `${height}%` }}
             />
           )
         })}
-
-        {/* space occupied by ordinary income (why gains stack where they do) */}
-        {baseline > 0 && (
-          <div
-            className="absolute inset-x-0 bottom-0 flex items-center justify-center bg-[repeating-linear-gradient(45deg,transparent,transparent_4px,rgba(120,120,120,0.18)_4px,rgba(120,120,120,0.18)_8px)]"
-            style={{ height: `${pct(Math.min(baseline, axisMax), axisMax)}%` }}
-          >
-            <span className="rounded bg-white/80 px-1.5 py-1 text-center text-[10px] font-medium leading-tight text-neutral-700 shadow-sm">
-              Ordinary income
-              <br />
-              fills these first
-              <br />
-              {formatCurrency(baseline)}
-            </span>
-          </div>
-        )}
 
         {/* room remaining at 0% (between the gains top and the 0% ceiling) */}
         {topOfGains < rate0Max && rate0Max <= axisMax && (
@@ -88,6 +71,25 @@ export function CapitalGainsTower({ result, axisMax }: Props) {
               height: `${pct(rate0Max - topOfGains, axisMax)}%`,
             }}
           />
+        )}
+
+        {/* ordinary income occupancy: uniform gray hatch so it reads as one used-up block */}
+        {baseline > 0 && (
+          <div
+            className="absolute inset-x-0 bottom-0 flex items-end justify-center pb-2"
+            style={{
+              height: `${pct(Math.min(baseline, axisMax), axisMax)}%`,
+              backgroundColor: '#e5e5e5',
+              backgroundImage:
+                'repeating-linear-gradient(45deg, transparent, transparent 5px, rgba(113,113,122,0.30) 5px, rgba(113,113,122,0.30) 10px)',
+            }}
+          >
+            <span className="z-20 rounded bg-white/85 px-1.5 py-0.5 text-center text-[10px] font-medium leading-tight text-neutral-700 shadow-sm">
+              Ordinary income
+              <br />
+              {formatCurrency(baseline)}
+            </span>
+          </div>
         )}
 
         {/* preferential gains, stacked on the baseline, colored by source */}
@@ -108,7 +110,24 @@ export function CapitalGainsTower({ result, axisMax }: Props) {
           )
         })}
 
-        {/* baseline marker: top of ordinary income */}
+        {/* rate-zone labels on the left edge, centered in each visible zone */}
+        {bands.map((band) => {
+          const lo = band.from
+          const hi = Math.min(band.to, axisMax)
+          if (hi - lo <= 0) return null
+          const centerPct = pct((lo + hi) / 2, axisMax)
+          return (
+            <span
+              key={`zone-${band.label}`}
+              className="pointer-events-none absolute left-1 z-20 -translate-y-1/2 rounded bg-white/80 px-1 text-[10px] font-semibold text-neutral-700 shadow-sm"
+              style={{ top: `${100 - centerPct}%` }}
+            >
+              {band.label}
+            </span>
+          )
+        })}
+
+        {/* baseline marker: top of ordinary income / where gains start */}
         {baseline > 0 && baseline <= axisMax && (
           <div
             className="pointer-events-none absolute inset-x-0 z-10 border-t-2 border-foreground/50"
@@ -116,19 +135,26 @@ export function CapitalGainsTower({ result, axisMax }: Props) {
           />
         )}
 
-        {/* band dividers + labels on top */}
-        {dividers.map((d) =>
-          d.value > 0 && d.value <= axisMax ? (
+        {/* dollar boundaries between zones, drawn on top */}
+        {dividers.map((value) =>
+          value > 0 && value <= axisMax ? (
             <div
-              key={d.label}
-              className="pointer-events-none absolute inset-x-0 z-10 border-t border-dashed border-foreground/40"
-              style={{ bottom: `${pct(d.value, axisMax)}%` }}
+              key={value}
+              className="pointer-events-none absolute inset-x-0 z-10 border-t border-dashed border-foreground/50"
+              style={{ bottom: `${pct(value, axisMax)}%` }}
             >
               <span className="absolute -top-2.5 right-1 rounded bg-white px-1 text-[10px] font-medium text-black shadow-sm ring-1 ring-black/5">
-                {d.label}
+                {formatCurrency(value)}
               </span>
             </div>
           ) : null,
+        )}
+
+        {/* note when the 15% band's top is above the visible axis */}
+        {fifteenOffAxis && (
+          <span className="pointer-events-none absolute right-1 top-1 z-20 rounded bg-white px-1 text-[10px] font-medium text-black shadow-sm ring-1 ring-black/5">
+            15% up to {formatCurrency(rate15Max)}
+          </span>
         )}
       </div>
 
