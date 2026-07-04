@@ -3,6 +3,7 @@ import { IncomeForm } from '@/components/IncomeForm'
 import { OrdinaryTower } from '@/components/OrdinaryTower'
 import { CapitalGainsTower } from '@/components/CapitalGainsTower'
 import { OverallBreakdown } from '@/components/OverallBreakdown'
+import { MarginalNextDollar } from '@/components/MarginalNextDollar'
 import { SurchargeIndicators } from '@/components/SurchargeIndicators'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { TooltipProvider } from '@/components/ui/tooltip'
@@ -78,6 +79,15 @@ function App() {
                     />
                   </div>
                 </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Marginal cost of the next dollar</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <MarginalNextDollar result={result} />
               </CardContent>
             </Card>
 
