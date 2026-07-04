@@ -1,9 +1,5 @@
 import {
-  ADDITIONAL_MEDICARE_RATE,
-  ADDITIONAL_MEDICARE_THRESHOLD,
   CAPITAL_GAINS_BREAKPOINTS,
-  NIIT_RATE,
-  NIIT_THRESHOLD,
   ORDINARY_BRACKETS,
   STANDARD_DEDUCTION,
   TAX_YEAR,
@@ -23,6 +19,7 @@ import {
 import { bracketsToBands, fillBands, marginalRateAt, taxOverRange, type Band } from './engine'
 import { classifyIncome } from './income'
 import { applyDeduction } from './deduction'
+import { federalSurchargeRules } from './surcharges'
 
 function capitalGainsBands(filingStatus: TaxInput['filingStatus']): Band[] {
   const { rate0Max, rate15Max } = CAPITAL_GAINS_BREAKPOINTS[filingStatus]
@@ -89,39 +86,15 @@ export function calculateTax(inputRaw: TaxInput): TaxResult {
   const marginalGainsBump =
     bumpTo > bumpFrom ? { rate: bumpTo - bumpFrom, fromRate: bumpFrom, toRate: bumpTo } : null
 
-  // --- Surcharges ---
-  // NIIT: net investment income = everything except wages (MAGI approximated as total income).
-  const magi = totalIncome
-  const niitThreshold = NIIT_THRESHOLD[filingStatus]
-  const niitOver = Math.max(0, magi - niitThreshold)
-  const niitBase = Math.min(netInvestmentIncome, niitOver)
-  const niitAmount = niitBase * NIIT_RATE
-  const niit: SurchargeResult = {
-    applies: niitAmount > 0,
-    rate: NIIT_RATE,
-    threshold: niitThreshold,
-    incomeMeasured: magi,
-    incomeOverThreshold: niitOver,
-    taxedAmount: niitBase,
-    amount: niitAmount,
-    investmentIncome: netInvestmentIncome,
-  }
+  // --- Surcharges (NIIT, Additional Medicare) — each rule owns its own math. ---
+  const surcharges = federalSurchargeRules(filingStatus).map((rule) =>
+    rule.assess({ wages: ordinaryAmounts.wages, netInvestmentIncome, magi: totalIncome }),
+  )
+  const surcharge = (key: string): SurchargeResult => surcharges.find((s) => s.key === key)!
+  const niit = surcharge('niit')
+  const additionalMedicare = surcharge('additionalMedicare')
 
-  // Additional Medicare Tax: on earned income (wages) over the threshold.
-  const medicareThreshold = ADDITIONAL_MEDICARE_THRESHOLD[filingStatus]
-  const medicareOver = Math.max(0, ordinaryAmounts.wages - medicareThreshold)
-  const medicareAmount = medicareOver * ADDITIONAL_MEDICARE_RATE
-  const additionalMedicare: SurchargeResult = {
-    applies: medicareAmount > 0,
-    rate: ADDITIONAL_MEDICARE_RATE,
-    threshold: medicareThreshold,
-    incomeMeasured: ordinaryAmounts.wages,
-    incomeOverThreshold: medicareOver,
-    taxedAmount: medicareOver,
-    amount: medicareAmount,
-  }
-
-  const totalTax = ordinaryTax + capitalGainsTax + niitAmount + medicareAmount
+  const totalTax = ordinaryTax + capitalGainsTax + surcharges.reduce((s, x) => s + x.amount, 0)
 
   // --- Per-source attribution ---
   // Ordinary stack: deduction eats from the bottom (wages first), each slice taxed in place.
@@ -167,9 +140,9 @@ export function calculateTax(inputRaw: TaxInput): TaxResult {
     preferentialAmounts,
     ordinaryLayers,
     preferentialLayers,
-    niitAmount,
+    niitAmount: niit.amount,
     netInvestmentIncome,
-    medicareAmount,
+    medicareAmount: additionalMedicare.amount,
   })
 
   return {
@@ -204,23 +177,16 @@ export function calculateTax(inputRaw: TaxInput): TaxResult {
 }
 
 /**
- * Marginal cost of the next $1 by income type, with surtaxes layered in.
- *
- * NIIT taxes min(net investment income, MAGI − threshold), so which surtaxes hit the
- * next dollar depends on the income type AND which side of that min is binding:
- * - An investment dollar always incurs NIIT once MAGI is over the threshold.
- * - A wage dollar incurs NIIT only when the MAGI-over-threshold cap is below net
- *   investment income (raising MAGI then pulls more NII under the cap).
+ * Marginal cost of the next $1 by income type. The surtax portion is derived from
+ * the same surcharge rules that assessed the tax, so their next-dollar behavior
+ * (e.g. NIIT's MAGI-cap nuance) can't drift from their assessment.
  */
 export function marginalNextDollar(result: TaxResult): MarginalScenario[] {
-  const magiOver = result.niit.incomeOverThreshold
-  const nii = result.niit.investmentIncome ?? 0
-  const niitRate = result.niit.rate
-
-  const niitOnInvestment = magiOver > 0 ? niitRate : 0
-  const niitOnWages = magiOver > 0 && magiOver < nii ? niitRate : 0
-  const medicareOnWages =
-    result.additionalMedicare.incomeOverThreshold > 0 ? result.additionalMedicare.rate : 0
+  const rules = federalSurchargeRules(result.filingStatus)
+  const assessed: Record<string, SurchargeResult> = {
+    niit: result.niit,
+    additionalMedicare: result.additionalMedicare,
+  }
 
   // The capital-gains bump rides on ordinary dollars only (it lifts the gains stack).
   const bump = result.marginalGainsBump
@@ -232,26 +198,24 @@ export function marginalNextDollar(result: TaxResult): MarginalScenario[] {
   const build = (
     key: MarginalScenario['key'],
     baseRate: number,
-    defs: (MarginalComponent | null)[],
+    extra: (MarginalComponent | null)[] = [],
   ): MarginalScenario => {
-    const surtaxes = defs.filter((s): s is MarginalComponent => s !== null && s.rate > 0)
+    const fromRules = rules.map<MarginalComponent>((r) => ({
+      label: r.shortLabel,
+      rate: r.marginalRate(key, assessed[r.key]),
+      tone: 'surtax',
+    }))
+    const surtaxes = [...fromRules, ...extra].filter(
+      (s): s is MarginalComponent => s !== null && s.rate > 0,
+    )
     const surRate = surtaxes.reduce((sum, s) => sum + s.rate, 0)
     return { key, baseRate, surtaxes, surRate, totalRate: baseRate + surRate }
   }
 
-  const surtax = (label: string, rate: number): MarginalComponent => ({ label, rate, tone: 'surtax' })
-
   return [
-    build('wages', result.marginalOrdinaryRate, [
-      surtax("Add'l Medicare", medicareOnWages),
-      surtax('NIIT', niitOnWages),
-      bumpComponent,
-    ]),
-    build('ordinaryInvestment', result.marginalOrdinaryRate, [
-      surtax('NIIT', niitOnInvestment),
-      bumpComponent,
-    ]),
-    build('preferential', result.marginalCapitalGainsRate, [surtax('NIIT', niitOnInvestment)]),
+    build('wages', result.marginalOrdinaryRate, [bumpComponent]),
+    build('ordinaryInvestment', result.marginalOrdinaryRate, [bumpComponent]),
+    build('preferential', result.marginalCapitalGainsRate),
   ]
 }
 

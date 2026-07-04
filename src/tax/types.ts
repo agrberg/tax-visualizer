@@ -51,6 +51,8 @@ export interface BracketFill {
 
 /** Result of a surcharge (NIIT / Additional Medicare) evaluation — drives the light-bulb. */
 export interface SurchargeResult {
+  key: string
+  label: string
   applies: boolean
   rate: number
   threshold: number
