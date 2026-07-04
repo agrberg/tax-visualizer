@@ -33,6 +33,8 @@ export function CapitalGainsTower({ result, axisMax }: Props) {
   ]
   const dividers = [rate0Max, rate15Max]
   const fifteenOffAxis = offset + rate15Max > axisMax
+  // Only label a band in-bar when it's tall enough; otherwise the legend carries it.
+  const tall = (amount: number) => pct(amount, axisMax) >= 7
 
   return (
     <div className="flex flex-col items-center">
@@ -77,18 +79,20 @@ export function CapitalGainsTower({ result, axisMax }: Props) {
                 'repeating-linear-gradient(45deg, transparent, transparent 5px, rgba(113,113,122,0.30) 5px, rgba(113,113,122,0.30) 10px)',
             }}
           >
-            <span className="z-20 rounded bg-white/85 px-1.5 py-0.5 text-center text-[10px] font-medium leading-tight text-neutral-700 shadow-sm">
-              Deduction spillover · 0%
-              <br />
-              {formatCurrency(offset)}
-            </span>
+            {tall(offset) && (
+              <span className="z-20 rounded bg-white/85 px-1.5 py-0.5 text-center text-[10px] font-medium leading-tight text-neutral-700 shadow-sm">
+                Deduction spillover · 0%
+                <br />
+                {formatCurrency(offset)}
+              </span>
+            )}
           </div>
         )}
 
         {/* ordinary income occupancy (only when it has taxable income; then offset is 0) */}
         {baseline > 0 && (
           <div
-            className="absolute inset-x-0 flex items-center justify-center"
+            className="absolute inset-x-0 flex items-end justify-center pb-1"
             style={{
               bottom: `${posPct(0)}%`,
               height: `${pct(Math.min(baseline, axisMax), axisMax)}%`,
@@ -97,11 +101,13 @@ export function CapitalGainsTower({ result, axisMax }: Props) {
                 'repeating-linear-gradient(45deg, transparent, transparent 5px, rgba(113,113,122,0.30) 5px, rgba(113,113,122,0.30) 10px)',
             }}
           >
-            <span className="rounded bg-white/85 px-1.5 py-0.5 text-center text-[10px] font-medium leading-tight text-neutral-700 shadow-sm">
-              Ordinary income
-              <br />
-              {formatCurrency(baseline)}
-            </span>
+            {tall(baseline) && (
+              <span className="rounded bg-white/85 px-1.5 py-0.5 text-center text-[10px] font-medium leading-tight text-neutral-700 shadow-sm">
+                Ordinary income
+                <br />
+                {formatCurrency(baseline)}
+              </span>
+            )}
           </div>
         )}
 

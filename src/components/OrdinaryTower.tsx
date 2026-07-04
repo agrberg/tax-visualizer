@@ -55,6 +55,13 @@ export function OrdinaryTower({ result }: Props) {
   const hoveredLayer = grossLayers.find((l) => l.source === hovered)
   const hoveredTax = result.sourceBreakdown.find((b) => b.source === hovered)?.tax ?? 0
 
+  // Split the standard deduction: used on ordinary income, spilled onto gains, truly unused.
+  const usedOnOrdinary = Math.min(deduction, grossOrdinary)
+  const spilledToGains = result.preferentialDeduction
+  const unusedDeduction = Math.max(0, deduction - usedOnOrdinary - spilledToGains)
+  // Only label a band in-bar when it's tall enough; otherwise the legend carries it.
+  const tall = (amount: number) => pct(amount, axisMax) >= 7
+
   return (
     <div className="flex flex-col items-center">
       <div className="mb-2 text-center">
@@ -112,21 +119,63 @@ export function OrdinaryTower({ result }: Props) {
           )
         })}
 
-        {/* standard-deduction overlay: marks the shielded 0% zone across all sources */}
+        {/* standard-deduction zone: the part shielding ordinary income, the part that
+            spilled onto gains, and any truly unused remainder — so nothing reads as
+            "leftover" when it has actually been applied to the capital-gains side. */}
         <div
           className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex items-end justify-center border-t border-dashed border-neutral-500/60 pb-1"
           style={{
-            height: `${pct(Math.min(deduction, axisMax), axisMax)}%`,
+            height: `${pct(Math.min(usedOnOrdinary, axisMax), axisMax)}%`,
             backgroundImage:
               'repeating-linear-gradient(45deg, transparent, transparent 5px, rgba(82,82,91,0.22) 5px, rgba(82,82,91,0.22) 10px)',
           }}
         >
-          <span className="rounded bg-white/85 px-1.5 py-0.5 text-center text-[10px] font-medium leading-tight text-neutral-700 shadow-sm">
-            Std. deduction · 0%
-            <br />
-            {formatCurrency(deduction)}
-          </span>
+          {tall(usedOnOrdinary) && (
+            <span className="rounded bg-white/85 px-1.5 py-0.5 text-center text-[10px] font-medium leading-tight text-neutral-700 shadow-sm">
+              Std. deduction · 0%
+              <br />
+              {formatCurrency(usedOnOrdinary)}
+            </span>
+          )}
         </div>
+        {spilledToGains > 0 && (
+          <div
+            className="pointer-events-none absolute inset-x-0 z-10 flex items-center justify-center border-t border-dashed border-violet-500/50"
+            style={{
+              bottom: `${pct(usedOnOrdinary, axisMax)}%`,
+              height: `${pct(spilledToGains, axisMax)}%`,
+              backgroundImage:
+                'repeating-linear-gradient(45deg, transparent, transparent 5px, rgba(139,92,246,0.20) 5px, rgba(139,92,246,0.20) 10px)',
+            }}
+          >
+            {tall(spilledToGains) && (
+              <span className="rounded bg-white/85 px-1.5 py-0.5 text-center text-[10px] font-medium leading-tight text-violet-700 shadow-sm">
+                → shields gains
+                <br />
+                {formatCurrency(spilledToGains)}
+              </span>
+            )}
+          </div>
+        )}
+        {unusedDeduction > 0 && (
+          <div
+            className="pointer-events-none absolute inset-x-0 z-10 flex items-center justify-center"
+            style={{
+              bottom: `${pct(usedOnOrdinary + spilledToGains, axisMax)}%`,
+              height: `${pct(unusedDeduction, axisMax)}%`,
+              backgroundImage:
+                'repeating-linear-gradient(45deg, transparent, transparent 5px, rgba(82,82,91,0.10) 5px, rgba(82,82,91,0.10) 10px)',
+            }}
+          >
+            {tall(unusedDeduction) && (
+              <span className="rounded bg-white/70 px-1.5 py-0.5 text-center text-[10px] font-medium leading-tight text-neutral-500 shadow-sm">
+                deduction unused
+                <br />
+                {formatCurrency(unusedDeduction)}
+              </span>
+            )}
+          </div>
+        )}
 
         {/* bracket boundary lines on top, positioned above the deduction (gross) */}
         {brackets.map((b) => {
@@ -162,6 +211,26 @@ export function OrdinaryTower({ result }: Props) {
           <span>Std. deduction</span>
           <span className="ml-auto text-muted-foreground">{formatCurrency(deduction)}</span>
         </div>
+        {spilledToGains > 0 && (
+          <div className="flex items-center gap-1.5 text-xs">
+            <span
+              className="size-2.5 rounded-sm border border-dashed border-violet-500/60 bg-violet-200"
+              aria-hidden
+            />
+            <span>→ shields gains</span>
+            <span className="ml-auto text-muted-foreground">{formatCurrency(spilledToGains)}</span>
+          </div>
+        )}
+        {unusedDeduction > 0 && (
+          <div className="flex items-center gap-1.5 text-xs">
+            <span
+              className="size-2.5 rounded-sm border border-dashed border-neutral-300 bg-neutral-100"
+              aria-hidden
+            />
+            <span>Deduction unused</span>
+            <span className="ml-auto text-muted-foreground">{formatCurrency(unusedDeduction)}</span>
+          </div>
+        )}
         {grossLayers.map((layer) => {
           const meta = SOURCE_META[layer.source]
           return (
