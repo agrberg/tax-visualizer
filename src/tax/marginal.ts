@@ -7,14 +7,14 @@ import type { MarginalComponent, MarginalScenario, SurchargeResult, TaxResult } 
  * (e.g. NIIT's MAGI-cap nuance) can't drift from their assessment.
  */
 export function marginalNextDollar(result: TaxResult): MarginalScenario[] {
+  const fed = result.federal
   const rules = federalSurchargeRules(result.filingStatus)
-  const assessed: Record<string, SurchargeResult> = {
-    niit: result.niit,
-    additionalMedicare: result.additionalMedicare,
-  }
+  const assessed: Record<string, SurchargeResult> = Object.fromEntries(
+    fed.surcharges.map((s) => [s.key, s]),
+  )
 
   // The capital-gains bump rides on ordinary dollars only (it lifts the gains stack).
-  const bump = result.marginalGainsBump
+  const bump = fed.marginalGainsBump
   const pct = (r: number) => `${Math.round(r * 100)}%`
   const bumpComponent: MarginalComponent | null = bump
     ? { label: `pushes a gain ${pct(bump.fromRate)}→${pct(bump.toRate)}`, rate: bump.rate, tone: 'bump' }
@@ -38,8 +38,8 @@ export function marginalNextDollar(result: TaxResult): MarginalScenario[] {
   }
 
   return [
-    build('wages', result.marginalOrdinaryRate, [bumpComponent]),
-    build('ordinaryInvestment', result.marginalOrdinaryRate, [bumpComponent]),
-    build('preferential', result.marginalCapitalGainsRate),
+    build('wages', fed.marginalOrdinaryRate, [bumpComponent]),
+    build('ordinaryInvestment', fed.marginalOrdinaryRate, [bumpComponent]),
+    build('preferential', fed.marginalCapitalGainsRate),
   ]
 }

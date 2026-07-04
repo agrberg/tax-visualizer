@@ -73,10 +73,7 @@ function App() {
                     <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                       Threshold surtaxes
                     </div>
-                    <SurchargeIndicators
-                      niit={result.niit}
-                      additionalMedicare={result.additionalMedicare}
-                    />
+                    <SurchargeIndicators surcharges={result.federal.surcharges} />
                   </div>
                 </div>
               </CardContent>

@@ -36,8 +36,9 @@ function Slice({
 }
 
 export function OrdinaryTower({ result }: Props) {
+  const fed = result.federal
   const brackets = ORDINARY_BRACKETS[result.filingStatus]
-  const deduction = result.standardDeduction
+  const deduction = fed.standardDeduction
   const axisMax = ordinaryAxisMaxFor(result)
   const tip = useTooltip()
   const [hovered, setHovered] = useState<IncomeSource | null>(null)
@@ -57,7 +58,7 @@ export function OrdinaryTower({ result }: Props) {
 
   // Split the standard deduction: used on ordinary income, spilled onto gains, truly unused.
   const usedOnOrdinary = Math.min(deduction, grossOrdinary)
-  const spilledToGains = result.preferentialDeduction
+  const spilledToGains = fed.preferentialDeduction
   const unusedDeduction = Math.max(0, deduction - usedOnOrdinary - spilledToGains)
   // Only label a band in-bar when it's tall enough; otherwise the legend carries it.
   const tall = (amount: number) => pct(amount, axisMax) >= 7
@@ -67,8 +68,8 @@ export function OrdinaryTower({ result }: Props) {
       <div className="mb-2 text-center">
         <div className="text-sm font-semibold">Ordinary income</div>
         <div className="text-xs text-muted-foreground">
-          Marginal rate {formatPercent(result.marginalOrdinaryRate, 0)} · tax{' '}
-          {formatCurrency(result.ordinaryTax)}
+          Marginal rate {formatPercent(fed.marginalOrdinaryRate, 0)} · tax{' '}
+          {formatCurrency(fed.ordinaryTax)}
         </div>
       </div>
 
@@ -249,16 +250,12 @@ export function OrdinaryTower({ result }: Props) {
             label={SOURCE_META[hoveredLayer.source].label}
             swatch={SOURCE_META[hoveredLayer.source].swatch}
             taxable={
-              result.ordinaryLayers.find((l) => l.source === hoveredLayer.source)?.taxableAmount ?? 0
+              fed.layers.ordinary.find((l) => l.source === hoveredLayer.source)?.taxableAmount ?? 0
             }
             tax={hoveredTax}
           />
         )}
-        <BracketBreakdown
-          title="Tax by bracket"
-          fills={result.ordinaryFills}
-          total={result.ordinaryTax}
-        />
+        <BracketBreakdown title="Tax by bracket" fills={fed.ordinaryFills} total={fed.ordinaryTax} />
       </HoverTooltip>
     </div>
   )

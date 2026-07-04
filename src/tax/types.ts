@@ -144,41 +144,17 @@ export interface TaxResult {
   filingStatus: FilingStatus
   taxYear: number
 
+  // Shared inputs across jurisdictions.
   totalIncome: number
   ordinaryIncome: number
   preferentialIncome: number
-  standardDeduction: number
-  /** Portion of the standard deduction that spilled onto preferential income (shielded at 0%). */
-  preferentialDeduction: number
-  ordinaryTaxable: number
-  preferentialTaxable: number
-  taxableIncome: number
 
-  /** Ordinary brackets filled by ordinary taxable income (bottom → top). */
-  ordinaryFills: BracketFill[]
-  /** Capital-gains brackets (0/15/20%) filled by preferential income, stacked on ordinary. */
-  capitalGainsFills: BracketFill[]
+  /** Federal computation. A second jurisdiction (state) would sit alongside as `state`. */
+  federal: JurisdictionResult
 
-  /** Room remaining before the next cap-gains rate kicks in. */
-  roomAt0: number
-  roomAt15: number
-  /** Where ordinary taxable income lands on the cap-gains ladder (baseline for stacking). */
-  capitalGainsBaseline: number
-
-  ordinaryTax: number
-  capitalGainsTax: number
-  niit: SurchargeResult
-  additionalMedicare: SurchargeResult
-  totalTax: number
-
-  effectiveRate: number // total tax / total income
-  marginalOrdinaryRate: number // ordinary income-tax rate on the next ordinary dollar
-  marginalCapitalGainsRate: number // band the next preferential dollar lands in
-  marginalGainsBump: GainsBump | null // cap-gains tax an ordinary dollar triggers by lifting the stack
-
+  /** Per-source amount + tax + effective rate, combined across jurisdictions (today: federal). */
   sourceBreakdown: SourceBreakdown[]
-  /** Ordinary sources as taxable slices, bottom → top (for the ordinary tower). */
-  ordinaryLayers: IncomeLayer[]
-  /** Preferential sources as taxable slices, stacked on the ordinary baseline. */
-  preferentialLayers: IncomeLayer[]
+  /** Combined tax and weighted effective rate across jurisdictions (today: federal). */
+  totalTax: number
+  effectiveRate: number
 }

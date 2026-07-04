@@ -12,16 +12,17 @@ interface Props {
 }
 
 export function CapitalGainsTower({ result, axisMax }: Props) {
+  const fed = result.federal
   const { rate0Max, rate15Max } = CAPITAL_GAINS_BREAKPOINTS[result.filingStatus]
-  const baseline = result.capitalGainsBaseline
-  const topOfGains = baseline + result.preferentialTaxable
-  const layers = result.preferentialLayers.filter((l) => l.taxableAmount > 0)
+  const baseline = fed.capitalGainsBaseline
+  const topOfGains = baseline + fed.preferentialTaxable
+  const layers = fed.layers.preferential.filter((l) => l.taxableAmount > 0)
   const tip = useTooltip()
   const [hovered, setHovered] = useState<IncomeSource | null>(null)
   const hoveredLayer = layers.find((l) => l.source === hovered)
 
   // Standard deduction that spilled onto preferential income sits below the brackets (0%).
-  const offset = result.preferentialDeduction
+  const offset = fed.preferentialDeduction
   // Position (%) of a taxable-income value, shifted up by the shielded deduction.
   const posPct = (taxableValue: number) => pct(offset + taxableValue, axisMax)
 
@@ -41,7 +42,7 @@ export function CapitalGainsTower({ result, axisMax }: Props) {
       <div className="mb-2 text-center">
         <div className="text-sm font-semibold">Capital gains &amp; qualified dividends</div>
         <div className="text-xs text-muted-foreground">
-          Stacked on ordinary income · tax {formatCurrency(result.capitalGainsTax)}
+          Stacked on ordinary income · tax {formatCurrency(fed.capitalGainsTax)}
         </div>
       </div>
 
@@ -218,13 +219,13 @@ export function CapitalGainsTower({ result, axisMax }: Props) {
           <span className="flex items-center gap-1.5">
             <span className="size-2.5 rounded-full bg-green-500" aria-hidden /> Room at 0%
           </span>
-          <span className="font-medium">{formatCurrency(result.roomAt0)}</span>
+          <span className="font-medium">{formatCurrency(fed.roomAt0)}</span>
         </div>
         <div className="flex justify-between">
           <span className="flex items-center gap-1.5">
             <span className="size-2.5 rounded-full bg-amber-500" aria-hidden /> Room to 15% top
           </span>
-          <span className="font-medium">{formatCurrency(result.roomAt15)}</span>
+          <span className="font-medium">{formatCurrency(fed.roomAt15)}</span>
         </div>
         {layers.map((layer) => {
           const meta = SOURCE_META[layer.source]
@@ -249,11 +250,7 @@ export function CapitalGainsTower({ result, axisMax }: Props) {
             tax={hoveredLayer.tax}
           />
         )}
-        <BracketBreakdown
-          title="Tax by rate"
-          fills={result.capitalGainsFills}
-          total={result.capitalGainsTax}
-        />
+        <BracketBreakdown title="Tax by rate" fills={fed.capitalGainsFills} total={fed.capitalGainsTax} />
       </HoverTooltip>
     </div>
   )

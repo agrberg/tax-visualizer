@@ -103,28 +103,25 @@ function Indicator({ title, description, surcharge, children }: IndicatorProps) 
   )
 }
 
-interface Props {
-  niit: SurchargeResult
-  additionalMedicare: SurchargeResult
+/** Static blurb per surcharge, keyed by its rule key. */
+const DESCRIPTIONS: Record<string, string> = {
+  niit: '3.8% on the lesser of net investment income and MAGI over the threshold.',
+  additionalMedicare: '0.9% on earned income (wages) above the threshold.',
 }
 
-export function SurchargeIndicators({ niit, additionalMedicare }: Props) {
+interface Props {
+  surcharges: SurchargeResult[]
+}
+
+export function SurchargeIndicators({ surcharges }: Props) {
   return (
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
-      <Indicator
-        title="Net Investment Income Tax"
-        description="3.8% on the lesser of net investment income and MAGI over the threshold."
-        surcharge={niit}
-      >
-        <NiitCalc s={niit} />
-      </Indicator>
-      <Indicator
-        title="Additional Medicare Tax"
-        description="0.9% on earned income (wages) above the threshold."
-        surcharge={additionalMedicare}
-      >
-        <MedicareCalc s={additionalMedicare} />
-      </Indicator>
+      {surcharges.map((s) => (
+        <Indicator key={s.key} title={s.label} description={DESCRIPTIONS[s.key] ?? ''} surcharge={s}>
+          {/* NIIT carries a net-investment-income figure (the other side of its "lesser of"); Medicare doesn't. */}
+          {s.investmentIncome !== undefined ? <NiitCalc s={s} /> : <MedicareCalc s={s} />}
+        </Indicator>
+      ))}
     </div>
   )
 }
