@@ -64,16 +64,14 @@ function MoneyField({
         </span>
         <Input
           id={source}
-          type="number"
+          type="text"
           inputMode="numeric"
-          min={0}
-          step={1000}
           className="pl-6"
-          value={value === 0 ? '' : value}
+          value={value === 0 ? '' : value.toLocaleString('en-US')}
           placeholder="0"
           onChange={(e) => {
-            const n = e.target.valueAsNumber
-            onChange(Number.isNaN(n) ? 0 : Math.max(0, n))
+            const digits = e.target.value.replace(/[^0-9]/g, '')
+            onChange(digits === '' ? 0 : Number(digits))
           }}
         />
       </div>
