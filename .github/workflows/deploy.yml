@@ -3,6 +3,11 @@ name: Deploy to GitHub Pages
 on:
   push:
     branches: [main]
+    # Skip deploys for changes that can't affect the built site.
+    paths-ignore:
+      - '**.md'
+      - '.gitignore'
+      - '.github/**'
   workflow_dispatch:
 
 permissions:
@@ -24,7 +29,7 @@ jobs:
           node-version-file: .tool-versions
           cache: npm
       - run: npm ci
-      - run: npm run test
+      # Tests run on PRs (ci.yml); build both type-checks and produces the artifact.
       - run: npm run build
       - uses: actions/upload-pages-artifact@v5
         with:
