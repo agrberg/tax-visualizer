@@ -1,12 +1,12 @@
 import { describe, it, expect } from 'vitest'
 import {
   normalizeName,
-  upsertSaved,
-  removeSaved,
-  renameSaved,
-  sortedNames,
-  type SavedInputs,
-} from './savedInputs'
+  saveScenario,
+  removeScenario,
+  renameScenario,
+  scenarioNames,
+  type Scenarios,
+} from './scenarios'
 import type { TaxInput } from './tax/types'
 
 function input(overrides: Partial<TaxInput> = {}): TaxInput {
@@ -33,86 +33,86 @@ describe('normalizeName', () => {
   })
 })
 
-describe('upsertSaved', () => {
-  it('adds a new named version', () => {
-    const next = upsertSaved({}, 'Base', input({ wages: 100 }))
+describe('saveScenario', () => {
+  it('adds a new named scenario', () => {
+    const next = saveScenario({}, 'Base', input({ wages: 100 }))
     expect(next.Base.wages).toBe(100)
   })
 
   it('overwrites an existing name', () => {
-    const start: SavedInputs = { Base: input({ wages: 100 }) }
-    const next = upsertSaved(start, 'Base', input({ wages: 200 }))
+    const start: Scenarios = { Base: input({ wages: 100 }) }
+    const next = saveScenario(start, 'Base', input({ wages: 200 }))
     expect(next.Base.wages).toBe(200)
     expect(Object.keys(next)).toEqual(['Base'])
   })
 
   it('returns a new object without mutating the original', () => {
-    const start: SavedInputs = {}
-    const next = upsertSaved(start, 'Base', input())
+    const start: Scenarios = {}
+    const next = saveScenario(start, 'Base', input())
     expect(next).not.toBe(start)
     expect(start).toEqual({})
   })
 
   it('stores a decoupled copy of the input', () => {
     const live = input({ wages: 100 })
-    const next = upsertSaved({}, 'Base', live)
+    const next = saveScenario({}, 'Base', live)
     live.wages = 999
     expect(next.Base.wages).toBe(100)
   })
 })
 
-describe('removeSaved', () => {
+describe('removeScenario', () => {
   it('removes a present key', () => {
-    const start: SavedInputs = { A: input(), B: input() }
-    const next = removeSaved(start, 'A')
+    const start: Scenarios = { A: input(), B: input() }
+    const next = removeScenario(start, 'A')
     expect(Object.keys(next)).toEqual(['B'])
   })
 
   it('is a no-op for an absent key and returns a new object', () => {
-    const start: SavedInputs = { A: input() }
-    const next = removeSaved(start, 'missing')
+    const start: Scenarios = { A: input() }
+    const next = removeScenario(start, 'missing')
     expect(next).toEqual(start)
     expect(next).not.toBe(start)
   })
 })
 
-describe('renameSaved', () => {
+describe('renameScenario', () => {
   it('moves a value from the old name to the new name', () => {
-    const start: SavedInputs = { Old: input({ wages: 100 }) }
-    const next = renameSaved(start, 'Old', 'New')
+    const start: Scenarios = { Old: input({ wages: 100 }) }
+    const next = renameScenario(start, 'Old', 'New')
     expect(next.New.wages).toBe(100)
     expect(next.Old).toBeUndefined()
   })
 
   it('overwrites when the new name collides with a different existing key', () => {
-    const start: SavedInputs = { Old: input({ wages: 100 }), Taken: input({ wages: 5 }) }
-    const next = renameSaved(start, 'Old', 'Taken')
+    const start: Scenarios = { Old: input({ wages: 100 }), Taken: input({ wages: 5 }) }
+    const next = renameScenario(start, 'Old', 'Taken')
     expect(next.Taken.wages).toBe(100)
     expect(next.Old).toBeUndefined()
   })
 
   it('is a no-op when the old name does not exist', () => {
-    const start: SavedInputs = { A: input() }
-    const next = renameSaved(start, 'missing', 'New')
+    const start: Scenarios = { A: input() }
+    const next = renameScenario(start, 'missing', 'New')
     expect(next).toEqual(start)
   })
 
   it('stores a decoupled copy of the moved value', () => {
     const original = input({ wages: 100 })
-    const start: SavedInputs = { Old: original }
-    const next = renameSaved(start, 'Old', 'New')
+    const start: Scenarios = { Old: original }
+    const next = renameScenario(start, 'Old', 'New')
     next.New.wages = 999
     expect(original.wages).toBe(100)
   })
 })
 
-describe('sortedNames', () => {
+describe('scenarioNames', () => {
   it('returns names in alphabetical order', () => {
-    const saved: SavedInputs = { charlie: input(), alpha: input(), bravo: input() }
-    expect(sortedNames(saved)).toEqual(['alpha', 'bravo', 'charlie'])
+    const scenarios: Scenarios = { charlie: input(), alpha: input(), bravo: input() }
+    expect(scenarioNames(scenarios)).toEqual(['alpha', 'bravo', 'charlie'])
   })
 
-  it('returns an empty array for an empty hash', () => {
-    expect(sortedNames({})).toEqual([])
+  it('returns an empty array for an empty collection', () => {
+    expect(scenarioNames({})).toEqual([])
   })
 })

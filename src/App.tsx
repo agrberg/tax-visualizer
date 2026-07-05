@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { IncomeForm } from '@/components/IncomeForm'
-import { SavedInputs } from '@/components/SavedInputs'
+import { SavedScenarios } from '@/components/SavedScenarios'
 import { OrdinaryTower } from '@/components/OrdinaryTower'
 import { CapitalGainsTower } from '@/components/CapitalGainsTower'
 import { OverallBreakdown } from '@/components/OverallBreakdown'
@@ -11,14 +11,14 @@ import { TooltipProvider } from '@/components/ui/tooltip'
 import { calculateTax } from '@/tax/calculate'
 import { TAX_YEAR } from '@/tax/brackets'
 import { axisMaxFor } from '@/components/tower'
-import { loadInput, saveInput, loadSavedInputs, saveSavedInputs } from '@/storage'
+import { loadInput, saveInput, loadScenarios, saveScenarios } from '@/storage'
 import {
   normalizeName,
-  upsertSaved,
-  removeSaved,
-  renameSaved,
-  type SavedInputs as SavedInputsMap,
-} from '@/savedInputs'
+  saveScenario,
+  removeScenario,
+  renameScenario,
+  type Scenarios,
+} from '@/scenarios'
 import type { TaxInput } from '@/tax/types'
 
 const DEFAULT_INPUT: TaxInput = {
@@ -33,7 +33,7 @@ const DEFAULT_INPUT: TaxInput = {
 
 function App() {
   const [input, setInput] = useState<TaxInput>(() => loadInput() ?? DEFAULT_INPUT)
-  const [saved, setSaved] = useState<SavedInputsMap>(() => loadSavedInputs())
+  const [scenarios, setScenarios] = useState<Scenarios>(() => loadScenarios())
   const [selectedName, setSelectedName] = useState<string | null>(null)
 
   useEffect(() => {
@@ -41,30 +41,30 @@ function App() {
   }, [input])
 
   useEffect(() => {
-    saveSavedInputs(saved)
-  }, [saved])
+    saveScenarios(scenarios)
+  }, [scenarios])
 
   const handleSave = (rawName: string) => {
     const name = normalizeName(rawName)
     if (!name) return
-    if (saved[name] && !confirm(`A saved version named "${name}" already exists. Overwrite it?`)) {
+    if (scenarios[name] && !confirm(`A scenario named "${name}" already exists. Overwrite it?`)) {
       return
     }
-    setSaved((s) => upsertSaved(s, name, input))
+    setScenarios((s) => saveScenario(s, name, input))
     setSelectedName(name)
   }
 
   const handleLoad = (name: string) => {
-    const version = saved[name]
-    if (!version) return
-    setInput({ ...version })
+    const scenario = scenarios[name]
+    if (!scenario) return
+    setInput({ ...scenario })
     setSelectedName(name)
   }
 
   const handleUpdate = (name: string) => {
-    if (!saved[name]) return
+    if (!scenarios[name]) return
     if (!confirm(`Update "${name}" to the current inputs?`)) return
-    setSaved((s) => upsertSaved(s, name, input))
+    setScenarios((s) => saveScenario(s, name, input))
     setSelectedName(name)
   }
 
@@ -73,16 +73,16 @@ function App() {
     if (raw === null) return
     const newName = normalizeName(raw)
     if (!newName || newName === oldName) return
-    if (saved[newName] && !confirm(`A saved version named "${newName}" already exists. Overwrite it?`)) {
+    if (scenarios[newName] && !confirm(`A scenario named "${newName}" already exists. Overwrite it?`)) {
       return
     }
-    setSaved((s) => renameSaved(s, oldName, newName))
+    setScenarios((s) => renameScenario(s, oldName, newName))
     setSelectedName((prev) => (prev === oldName ? newName : prev))
   }
 
   const handleDelete = (name: string) => {
-    if (!confirm(`Delete saved version "${name}"?`)) return
-    setSaved((s) => removeSaved(s, name))
+    if (!confirm(`Delete scenario "${name}"?`)) return
+    setScenarios((s) => removeScenario(s, name))
     setSelectedName((prev) => (prev === name ? null : prev))
   }
 
@@ -111,8 +111,8 @@ function App() {
             <CardContent>
               <IncomeForm value={input} onChange={setInput} />
               <div className="mt-6 border-t pt-4">
-                <SavedInputs
-                  saved={saved}
+                <SavedScenarios
+                  scenarios={scenarios}
                   selectedName={selectedName}
                   onSave={handleSave}
                   onLoad={handleLoad}
