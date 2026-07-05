@@ -21,6 +21,7 @@ const FILING_STATUSES: FilingStatus[] = ['single', 'mfj', 'hoh', 'mfs']
 
 const ORDINARY_FIELDS: IncomeSource[] = [
   'wages',
+  'retirementIncome',
   'interest',
   'nonQualifiedDividends',
   'shortTermGains',

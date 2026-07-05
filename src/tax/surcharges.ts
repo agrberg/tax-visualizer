@@ -67,11 +67,13 @@ export function niitRule(filingStatus: FilingStatus): SurchargeRule {
       }
     },
     // An investment/preferential dollar always incurs NIIT once MAGI is over the
-    // threshold. A wage dollar does only when the MAGI-over-threshold cap is below
-    // net investment income (raising MAGI then pulls more NII under the cap).
+    // threshold. A wage or retirement dollar does only when the MAGI-over-threshold
+    // cap is below net investment income (raising MAGI then pulls more NII under the
+    // cap) — neither is itself investment income.
     marginalRate(type, a) {
       if (a.incomeOverThreshold <= 0) return 0
-      if (type === 'wages') return a.incomeOverThreshold < (a.investmentIncome ?? 0) ? NIIT_RATE : 0
+      if (type === 'wages' || type === 'retirement')
+        return a.incomeOverThreshold < (a.investmentIncome ?? 0) ? NIIT_RATE : 0
       return NIIT_RATE
     },
   }

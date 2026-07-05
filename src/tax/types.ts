@@ -3,6 +3,7 @@ export type FilingStatus = 'single' | 'mfj' | 'hoh' | 'mfs'
 /** Individual income sources the user enters. */
 export type IncomeSource =
   | 'wages'
+  | 'retirementIncome'
   | 'interest'
   | 'nonQualifiedDividends'
   | 'shortTermGains'
@@ -12,6 +13,7 @@ export type IncomeSource =
 /** Sources taxed at ordinary marginal rates. Order = layering order in the tower (bottom → top). */
 export const ORDINARY_SOURCES: IncomeSource[] = [
   'wages',
+  'retirementIncome',
   'interest',
   'nonQualifiedDividends',
   'shortTermGains',
@@ -26,12 +28,23 @@ export const PREFERENTIAL_SOURCES: IncomeSource[] = [
 /** Every income source, ordinary pool first then preferential. */
 export const ALL_SOURCES: IncomeSource[] = [...ORDINARY_SOURCES, ...PREFERENTIAL_SOURCES]
 
-/** Sources that make up net investment income — everything except wages (the NIIT base). */
-export const INVESTMENT_SOURCES: IncomeSource[] = ALL_SOURCES.filter((s) => s !== 'wages')
+/**
+ * The investment sources that make up net investment income (the NIIT base).
+ * An explicit allowlist — it excludes wages *and* retirement distributions, which
+ * are ordinary income but not investment income.
+ */
+export const INVESTMENT_SOURCES: IncomeSource[] = [
+  'interest',
+  'nonQualifiedDividends',
+  'shortTermGains',
+  'qualifiedDividends',
+  'longTermGains',
+]
 
 export interface TaxInput {
   filingStatus: FilingStatus
   wages: number
+  retirementIncome: number
   interest: number
   nonQualifiedDividends: number
   shortTermGains: number
@@ -92,7 +105,7 @@ export interface MarginalComponent {
 
 /** The next-dollar marginal cost for one income type: base rate + add-on components. */
 export interface MarginalScenario {
-  key: 'wages' | 'ordinaryInvestment' | 'preferential'
+  key: 'wages' | 'ordinaryInvestment' | 'retirement' | 'preferential'
   baseRate: number
   surtaxes: MarginalComponent[]
   surRate: number

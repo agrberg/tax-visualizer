@@ -26,6 +26,7 @@ import type { TaxInput } from '@/tax/types'
 const DEFAULT_INPUT: TaxInput = {
   filingStatus: 'single',
   wages: 120000,
+  retirementIncome: 0,
   interest: 2000,
   nonQualifiedDividends: 0,
   shortTermGains: 0,

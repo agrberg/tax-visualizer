@@ -6,6 +6,7 @@ function input(overrides: Partial<TaxInput>): TaxInput {
   return {
     filingStatus: 'single',
     wages: 0,
+    retirementIncome: 0,
     interest: 0,
     nonQualifiedDividends: 0,
     shortTermGains: 0,
@@ -22,6 +23,8 @@ const niitOf = (r: ReturnType<typeof calculateTax>) =>
   r.federal.surcharges.find((s) => s.key === 'niit')!
 const medicareOf = (r: ReturnType<typeof calculateTax>) =>
   r.federal.surcharges.find((s) => s.key === 'additionalMedicare')!
+const surchargeAmount = (r: ReturnType<typeof calculateTax>, key: string) =>
+  r.federal.surcharges.find((s) => s.key === key)?.amount ?? 0
 
 describe('ordinary income only', () => {
   it('taxes $100k wages (single) across the 10/12/22 brackets after the standard deduction', () => {
@@ -293,6 +296,65 @@ describe('marginal cost of the next dollar', () => {
   })
 })
 
+describe('retirement distributions (ordinary, non-wage, non-investment)', () => {
+  it('taxes retirement income at ordinary rates, identically to wages, but with no FICA', () => {
+    const rmd = calculateTax(input({ retirementIncome: 100000 }))
+    const wage = calculateTax(input({ wages: 100000 }))
+    // same ordinary bracket fill as $100k of wages
+    expect(rmd.federal.ordinaryTaxable).toBe(83900)
+    expect(rmd.federal.ordinaryTax).toBeCloseTo(wage.federal.ordinaryTax, 2)
+    // but no payroll tax: total equals income tax alone (wages carried +7650 FICA)
+    expect(rmd.totalTax).toBeCloseTo(rmd.federal.ordinaryTax, 2)
+    expect(surchargeAmount(rmd, 'socialSecurity')).toBe(0)
+    expect(surchargeAmount(rmd, 'medicare')).toBe(0)
+    expect(surchargeAmount(rmd, 'additionalMedicare')).toBe(0)
+  })
+
+  it('excludes retirement income from net investment income (no NIIT on it alone)', () => {
+    // single: MAGI 300000 > 200000 threshold, but retirement is not investment income
+    const r = calculateTax(input({ retirementIncome: 300000 }))
+    expect(r.federal.marginalOrdinaryRate).toBeGreaterThan(0)
+    expect(niitOf(r).investmentIncome).toBe(0)
+    expect(niitOf(r).applies).toBe(false)
+    expect(niitOf(r).amount).toBe(0)
+  })
+
+  it('raises MAGI so retirement income can push other investment income into NIIT', () => {
+    // interest alone (40k) is below the 200k single threshold → no NIIT
+    const withoutRmd = calculateTax(input({ interest: 40000 }))
+    expect(niitOf(withoutRmd).applies).toBe(false)
+    // add a large RMD: MAGI 340000 over by 140000, but NII is still just the 40k interest
+    const withRmd = calculateTax(input({ interest: 40000, retirementIncome: 300000 }))
+    expect(niitOf(withRmd).incomeOverThreshold).toBe(140000)
+    expect(niitOf(withRmd).investmentIncome).toBe(40000) // retirement excluded
+    expect(niitOf(withRmd).taxedAmount).toBe(40000) // NII binds, not MAGI-over
+    expect(niitOf(withRmd).amount).toBeCloseTo(1520, 2) // 40000 * 3.8%
+  })
+
+  it('charges no FICA on the next retirement dollar; NIIT only when the MAGI cap binds', () => {
+    // simple case: below all thresholds — ordinary rate only, no surtaxes
+    const simple = marginalNextDollar(calculateTax(input({ retirementIncome: 100000 })))
+    const rmdSimple = simple.find((s) => s.key === 'retirement')!
+    expect(rmdSimple.totalRate).toBe(0.22) // 22% ordinary, no FICA, no NIIT
+    expect(rmdSimple.surtaxes).toEqual([])
+
+    // MAGI-cap-binding case (mirror of the wages NIIT test): MAGI 294k over by 44k < NII 80k
+    const r = calculateTax(
+      input({
+        filingStatus: 'mfj',
+        retirementIncome: 214000,
+        interest: 6000,
+        nonQualifiedDividends: 10000,
+        qualifiedDividends: 64000,
+      }),
+    )
+    const rmd = marginalNextDollar(r).find((s) => s.key === 'retirement')!
+    // 22% ordinary + 3.8% NIIT (raising the RMD pulls more NII under the cap), but NO FICA
+    expect(rmd.totalRate).toBeCloseTo(0.258, 5)
+    expect(rmd.surtaxes.map((s) => s.label)).toEqual(['NIIT'])
+  })
+})
+
 describe('filing status differences', () => {
   it('uses MFJ brackets and deduction', () => {
     const r = calculateTax(input({ filingStatus: 'mfj', wages: 100000 }))
@@ -388,5 +450,14 @@ describe('edge cases', () => {
     const r = calculateTax(input({ wages: -5000, interest: -100 }))
     expect(r.totalIncome).toBe(0)
     expect(r.ordinaryIncome).toBe(0)
+  })
+
+  it('treats a missing field (e.g. older saved input) as 0, not NaN', () => {
+    // Simulate localStorage saved before retirementIncome existed.
+    const stale = { filingStatus: 'single', wages: 50000 } as unknown as TaxInput
+    const r = calculateTax(stale)
+    expect(r.ordinaryIncome).toBe(50000)
+    expect(Number.isNaN(r.totalTax)).toBe(false)
+    expect(r.totalTax).toBeGreaterThan(0)
   })
 })

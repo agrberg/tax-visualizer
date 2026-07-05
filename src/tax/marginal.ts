@@ -40,6 +40,7 @@ export function marginalNextDollar(result: TaxResult): MarginalScenario[] {
   return [
     build('wages', fed.marginalOrdinaryRate, [bumpComponent]),
     build('ordinaryInvestment', fed.marginalOrdinaryRate, [bumpComponent]),
+    build('retirement', fed.marginalOrdinaryRate, [bumpComponent]),
     build('preferential', fed.marginalCapitalGainsRate),
   ]
 }

@@ -15,6 +15,7 @@ function input(overrides: Partial<TaxInput> = {}): TaxInput {
   return {
     filingStatus: 'mfj',
     wages: 0,
+    retirementIncome: 0,
     interest: 0,
     nonQualifiedDividends: 0,
     shortTermGains: 0,

@@ -7,6 +7,7 @@ const SHARE_VERSION = '1'
 // the internal TaxInput field names so a future rename can't break old links.
 const FIELD_ALIAS = {
   wages: 'wages',
+  retirementIncome: 'retire',
   interest: 'interest',
   nonQualifiedDividends: 'nqd',
   shortTermGains: 'stcg',
