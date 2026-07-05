@@ -2,8 +2,8 @@ import { useState } from 'react'
 import { CAPITAL_GAINS_BREAKPOINTS } from '@/tax/brackets'
 import { SOURCE_META, formatCurrency } from '@/tax/format'
 import type { IncomeSource, TaxResult } from '@/tax/types'
-import { TOWER_HEIGHT, pct } from './tower'
-import { BracketBreakdown, HoverTooltip, HoveredSlice } from './TowerParts'
+import { TOWER_HEIGHT, pct, tall } from './tower'
+import { BracketBreakdown, HatchBand, HoverTooltip, HoveredSlice, LayerLabel, Marker } from './TowerParts'
 import { useTooltip } from './use-tooltip'
 
 interface Props {
@@ -41,8 +41,6 @@ export function CapitalGainsTower({ result, axisMax }: Props) {
   const fifteenOffAxis = offset + rate15Max > axisMax
   // Center of the 0% band, which has no lower divider line to sit on.
   const zeroBandCenter = pct(offset + rate0Max / 2, axisMax)
-  // Only label a band in-bar when it's tall enough; otherwise the legend carries it.
-  const tall = (amount: number) => pct(amount, axisMax) >= 7
 
   return (
     <div className="flex w-full max-w-xs flex-col items-center sm:max-w-none sm:flex-1">
@@ -78,38 +76,33 @@ export function CapitalGainsTower({ result, axisMax }: Props) {
 
         {/* standard-deduction spill: shields the bottom of preferential income at 0% */}
         {offset > 0 && (
-          <div
-            className="absolute inset-x-0 bottom-0 flex items-end justify-center pb-1"
-            style={{
-              height: `${pct(Math.min(offset, axisMax), axisMax)}%`,
-              backgroundColor: '#e5e5e5',
-              backgroundImage:
-                'repeating-linear-gradient(45deg, transparent, transparent 5px, rgba(113,113,122,0.30) 5px, rgba(113,113,122,0.30) 10px)',
-            }}
+          <HatchBand
+            className="bottom-0 flex items-end justify-center pb-1"
+            bottom="0"
+            height={pct(Math.min(offset, axisMax), axisMax)}
+            stripe="rgba(113,113,122,0.30)"
+            backgroundColor="#e5e5e5"
           >
-            {tall(offset) && (
+            {tall(offset, axisMax) && (
               <span className="z-20 rounded bg-white/85 px-1.5 py-0.5 text-center text-[10px] font-medium leading-tight text-neutral-700 shadow-sm">
                 Deduction spillover · 0%
                 <br />
                 {formatCurrency(offset)}
               </span>
             )}
-          </div>
+          </HatchBand>
         )}
 
         {/* ordinary income occupancy (only when it has taxable income; then offset is 0).
             The baseline marker line labels the exact dollar value, so this zone is
             left unlabeled. */}
         {baseline > 0 && (
-          <div
-            className="absolute inset-x-0"
-            style={{
-              bottom: `${posPct(0)}%`,
-              height: `${pct(Math.min(baseline, axisMax), axisMax)}%`,
-              backgroundColor: '#e5e5e5',
-              backgroundImage:
-                'repeating-linear-gradient(45deg, transparent, transparent 5px, rgba(113,113,122,0.30) 5px, rgba(113,113,122,0.30) 10px)',
-            }}
+          <HatchBand
+            className=""
+            bottom={`${posPct(0)}%`}
+            height={pct(Math.min(baseline, axisMax), axisMax)}
+            stripe="rgba(113,113,122,0.30)"
+            backgroundColor="#e5e5e5"
           />
         )}
 
@@ -154,18 +147,12 @@ export function CapitalGainsTower({ result, axisMax }: Props) {
 
         {/* inline per-source labels, centered in each gains layer that is tall enough */}
         {layers.map((layer) => {
-          if (!tall(layer.taxableAmount)) return null
+          if (!tall(layer.taxableAmount, axisMax)) return null
           const mid = layer.base + layer.taxableAmount / 2
           return (
-            <span
-              key={`label-${layer.source}`}
-              className="pointer-events-none absolute inset-x-0 z-20 flex -translate-y-1/2 justify-center"
-              style={{ top: `${100 - posPct(mid)}%` }}
-            >
-              <span className="rounded bg-white/85 px-1.5 py-0.5 text-[10px] font-medium text-neutral-700 shadow-sm">
-                {SOURCE_META[layer.source].short} · {formatCurrency(layer.taxableAmount)}
-              </span>
-            </span>
+            <LayerLabel key={`label-${layer.source}`} topPct={100 - posPct(mid)}>
+              {SOURCE_META[layer.source].short} · {formatCurrency(layer.taxableAmount)}
+            </LayerLabel>
           )
         })}
 
@@ -182,31 +169,23 @@ export function CapitalGainsTower({ result, axisMax }: Props) {
 
         {/* baseline marker: top of ordinary income / where gains start */}
         {baseline > 0 && offset + baseline <= axisMax && (
-          <div
-            className="pointer-events-none absolute inset-x-0 z-10 border-t-2 border-foreground/50"
-            style={{ bottom: `${posPct(baseline)}%` }}
-          >
-            <span className="absolute -top-2.5 left-1 rounded bg-white px-1 text-[10px] font-medium text-black shadow-sm ring-1 ring-black/5">
-              {formatCurrency(baseline)}
-            </span>
-          </div>
+          <Marker
+            border="border-t-2 border-foreground/50"
+            bottom={posPct(baseline)}
+            left={formatCurrency(baseline)}
+          />
         )}
 
         {/* dollar boundaries between zones, drawn on top: threshold left, next rate right */}
         {dividers.map(({ value, rateAbove }) =>
           value > 0 && offset + value <= axisMax ? (
-            <div
+            <Marker
               key={value}
-              className="pointer-events-none absolute inset-x-0 z-10 border-t border-dashed border-foreground/50"
-              style={{ bottom: `${posPct(value)}%` }}
-            >
-              <span className="absolute -top-2.5 left-1 rounded bg-white px-1 text-[10px] font-medium text-black shadow-sm ring-1 ring-black/5">
-                {formatCurrency(value)}
-              </span>
-              <span className="absolute -top-2.5 right-1 rounded bg-white px-1 text-[10px] font-medium text-black shadow-sm ring-1 ring-black/5">
-                {rateAbove}
-              </span>
-            </div>
+              border="border-t border-dashed border-foreground/50"
+              bottom={posPct(value)}
+              left={formatCurrency(value)}
+              right={rateAbove}
+            />
           ) : null,
         )}
 
@@ -214,14 +193,7 @@ export function CapitalGainsTower({ result, axisMax }: Props) {
             edge but keep the standard marker layout: threshold on the left, the rate
             that starts there (20%) on the right. */}
         {fifteenOffAxis && (
-          <div className="pointer-events-none absolute inset-x-0 top-0 z-20">
-            <span className="absolute -top-2.5 left-1 rounded bg-white px-1 text-[10px] font-medium text-black shadow-sm ring-1 ring-black/5">
-              {formatCurrency(rate15Max)}
-            </span>
-            <span className="absolute -top-2.5 right-1 rounded bg-white px-1 text-[10px] font-medium text-black shadow-sm ring-1 ring-black/5">
-              20%
-            </span>
-          </div>
+          <Marker topPinned zClassName="z-20" left={formatCurrency(rate15Max)} right="20%" />
         )}
       </div>
 

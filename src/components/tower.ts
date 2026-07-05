@@ -10,6 +10,11 @@ export function pct(amount: number, axisMax: number): number {
   return (amount / axisMax) * 100
 }
 
+/** Whether a band is tall enough to carry its own in-bar label (else the legend does). */
+export function tall(amount: number, axisMax: number): boolean {
+  return pct(amount, axisMax) >= 7
+}
+
 /**
  * Shared vertical dollar axis for both towers so they line up. Covers the data,
  * and — when there is preferential income — the 0% cap-gains ceiling so the

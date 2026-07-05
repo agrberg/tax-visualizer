@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import { blendBackground, compositionSegments, formatCurrency, formatPercent } from '@/tax/format'
+import { blendBackground, compositionSegments, formatPercent } from '@/tax/format'
 import type { TaxResult } from '@/tax/types'
-import { HoverTooltip, Swatch } from './TowerParts'
+import { CompositionTooltip, HoverTooltip } from './TowerParts'
 import { useTooltip } from './use-tooltip'
 
 interface Props {
@@ -114,41 +114,19 @@ export function CompositionMarimekko({ result }: Props) {
 
       <HoverTooltip visible={tip.visible} pos={tip.pos}>
         {active && (
-          <div>
-            <div className="mb-2 border-b pb-2">
-              <div className="flex items-center gap-1.5 text-sm font-semibold">
-                <Swatch colors={active.colors} />
-                {active.label}
-              </div>
-              <div className="mt-0.5 text-xs text-muted-foreground">
-                {formatPercent(active.incomeShare, 1)} of income → {formatPercent(active.taxShare, 1)} of tax
-              </div>
-            </div>
-            <table className="w-full text-xs">
-              <tbody>
-                <tr>
-                  <td className="py-0.5 text-muted-foreground">Amount</td>
-                  <td className="py-0.5 text-right tabular-nums">{formatCurrency(active.amount)}</td>
-                </tr>
-                <tr>
-                  <td className="py-0.5 text-muted-foreground">Tax</td>
-                  <td className="py-0.5 text-right tabular-nums">{formatCurrency(active.tax)}</td>
-                </tr>
-                <tr>
-                  <td className="py-0.5 text-muted-foreground">Take-home</td>
-                  <td className="py-0.5 text-right tabular-nums">
-                    {formatCurrency(active.amount - active.tax)}
-                  </td>
-                </tr>
-                <tr>
-                  <td className="py-0.5 text-muted-foreground">Effective rate</td>
-                  <td className="py-0.5 text-right tabular-nums">
-                    {formatPercent(active.effectiveRate, 1)}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+          <CompositionTooltip
+            colors={active.colors}
+            label={active.label}
+            subtitle={
+              <>
+                {formatPercent(active.incomeShare, 1)} of income →{' '}
+                {formatPercent(active.taxShare, 1)} of tax
+              </>
+            }
+            amount={active.amount}
+            tax={active.tax}
+            effectiveRate={active.effectiveRate}
+          />
         )}
       </HoverTooltip>
     </div>
