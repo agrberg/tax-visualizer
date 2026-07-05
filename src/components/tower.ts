@@ -1,5 +1,5 @@
 import type { OrdinaryBracket, TaxResult } from '@/tax/types'
-import { CAPITAL_GAINS_BREAKPOINTS, ORDINARY_BRACKETS } from '@/tax/brackets'
+import { ORDINARY_BRACKETS } from '@/tax/brackets'
 
 /** Fixed pixel height of a tower column; segment heights are a fraction of this. */
 export const TOWER_HEIGHT = 440
@@ -16,19 +16,30 @@ export function tall(amount: number, axisMax: number): boolean {
 }
 
 /**
- * Shared vertical dollar axis for both towers so they line up. Covers the data,
- * and — when there is preferential income — the 0% cap-gains ceiling so the
- * "room remaining" is visible. Rounded up to a tidy ceiling.
+ * Extra vertical headroom above the filled income. Both towers apply the SAME
+ * factor to their own fill, so each is scaled proportionally to itself yet the
+ * two fills land at the same height — reading as level with each other — while
+ * the next bracket/rate boundary is pinned to the top edge just above.
+ */
+export const AXIS_HEADROOM = 1.05
+
+/**
+ * Axis for the capital-gains tower. Scaled to the top of the visible stack
+ * (shielded-deduction spill + ordinary baseline + gains) plus a small headroom,
+ * so the gains fill the tower. The next rate boundary above the gains is pinned
+ * to the top edge by the tower — not drawn to scale — so a distant boundary
+ * never creates a large proportional void.
  */
 export function axisMaxFor(result: TaxResult): number {
-  const { rate0Max } = CAPITAL_GAINS_BREAKPOINTS[result.filingStatus]
   const fed = result.federal
-  const topOfGains = fed.capitalGainsBaseline + fed.preferentialTaxable
-  let base = Math.max(topOfGains, fed.ordinaryTaxable)
-  if (result.preferentialIncome > 0) base = Math.max(base, rate0Max)
-  // The shielded-deduction band sits below everything, so include it in the axis.
-  base = (base + fed.preferentialDeduction) * 1.08
-  return Math.max(50000, Math.ceil(base / 10000) * 10000)
+  const fillTop = fed.preferentialDeduction + fed.capitalGainsBaseline + fed.preferentialTaxable
+  return fillTop * AXIS_HEADROOM
+}
+
+/** Index of the ordinary bracket holding the marginal (last taxable) dollar. */
+export function marginalOrdinaryIdx(result: TaxResult): number {
+  const brackets = ORDINARY_BRACKETS[result.filingStatus]
+  return brackets.findIndex((b) => result.federal.ordinaryTaxable < b.max)
 }
 
 /**
@@ -39,21 +50,19 @@ export function axisMaxFor(result: TaxResult): number {
  */
 export function nextOrdinaryBracket(result: TaxResult): OrdinaryBracket | null {
   const brackets = ORDINARY_BRACKETS[result.filingStatus]
-  const taxable = result.federal.ordinaryTaxable
-  const marginalIdx = brackets.findIndex((b) => taxable < b.max)
-  return brackets[marginalIdx + 1] ?? null
+  return brackets[marginalOrdinaryIdx(result) + 1] ?? null
 }
 
 /**
  * Axis for the ordinary tower, which shows GROSS ordinary income: the standard
- * deduction (0% zone) plus taxable income in the brackets. Keeps the axis close to
- * the income with a small fixed gap above it. The next bracket boundary (if any) is
- * pinned to the top edge by the tower — not drawn to scale — so a distant next
- * bracket never creates a huge proportional void.
+ * deduction (0% zone) plus taxable income in the brackets. Scaled to the top of
+ * the fill plus the shared headroom so it lines up with the capital-gains tower.
+ * The next bracket boundary (if any) is pinned to the top edge — not drawn to
+ * scale — so a distant next bracket never creates a huge proportional void.
  */
 export function ordinaryAxisMaxFor(result: TaxResult): number {
   const deduction = result.federal.standardDeduction
   // When income is fully shielded, keep the deduction visible; otherwise track income.
   const fillTop = Math.max(result.ordinaryIncome, deduction)
-  return Math.max(50000, Math.ceil((fillTop * 1.15) / 5000) * 5000)
+  return fillTop * AXIS_HEADROOM
 }

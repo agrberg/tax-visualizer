@@ -1,8 +1,8 @@
 import type { TaxInput } from './tax/types'
-import type { SavedInputs } from './savedInputs'
+import type { Scenarios } from './scenarios'
 
 const KEY = 'tax-visualizer:input:v1'
-const SAVED_KEY = 'tax-visualizer:saved:v1'
+const SCENARIOS_KEY = 'tax-visualizer:saved:v1'
 
 export function loadInput(): TaxInput | null {
   try {
@@ -21,20 +21,20 @@ export function saveInput(input: TaxInput): void {
   }
 }
 
-export function loadSavedInputs(): SavedInputs {
+export function loadScenarios(): Scenarios {
   try {
-    const raw = localStorage.getItem(SAVED_KEY)
+    const raw = localStorage.getItem(SCENARIOS_KEY)
     if (!raw) return {}
     const parsed = JSON.parse(raw)
-    return parsed && typeof parsed === 'object' ? (parsed as SavedInputs) : {}
+    return parsed && typeof parsed === 'object' ? (parsed as Scenarios) : {}
   } catch {
     return {}
   }
 }
 
-export function saveSavedInputs(saved: SavedInputs): void {
+export function saveScenarios(scenarios: Scenarios): void {
   try {
-    localStorage.setItem(SAVED_KEY, JSON.stringify(saved))
+    localStorage.setItem(SCENARIOS_KEY, JSON.stringify(scenarios))
   } catch {
     // ignore quota / privacy-mode errors
   }

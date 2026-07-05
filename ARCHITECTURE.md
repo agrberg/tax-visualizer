@@ -1,7 +1,8 @@
 # Architecture
 
 A single-page React app with no backend. All computation is pure, synchronous,
-client-side TypeScript; the only I/O is `localStorage` for input persistence.
+client-side TypeScript; the only I/O is `localStorage` for input and saved-scenario
+persistence.
 
 The design splits cleanly into two halves:
 
@@ -22,6 +23,7 @@ flowchart TB
 
     subgraph ui["React UI (src/)"]
         form["IncomeForm"]
+        saved["SavedScenarios<br/>(save / load named inputs)"]
         app["App.tsx<br/>useState&lt;TaxInput&gt;"]
         storage["storage.ts<br/>(localStorage)"]
 
@@ -38,8 +40,10 @@ flowchart TB
     end
 
     user -->|edits fields| form
+    user -->|save / load scenario| saved
     form -->|onChange| app
-    app <-->|load / save| storage
+    saved -->|onSave / onLoad / onRename| app
+    app <-->|load / save input + scenarios| storage
     app -->|"calculateTax(input)"| calc
     calc -->|TaxResult| towers
     calc -->|TaxResult| surcharge
@@ -53,8 +57,9 @@ flowchart TB
 The whole app is a pure function of the input: `App` keeps a single
 `TaxInput` in state, memoizes `calculateTax(input)` into a `TaxResult`, and hands
 that result to every visualization. Editing the form replaces the input, which
-recomputes the result, which re-renders the views. Input is mirrored to
-`localStorage` on every change so a reload restores it.
+recomputes the result, which re-renders the views. The input — and any named
+scenarios saved from it — are mirrored to `localStorage` on every change so a
+reload restores them.
 
 ## The tax engine pipeline
 
@@ -157,9 +162,10 @@ income into ordinary when there's no ladder already exists for that path.
 | `tax/marginal.ts` | `marginalNextDollar` — cost of the next dollar by income type |
 | `tax/calculate.ts` | `calculateTax` orchestrator (the engine's entry point) |
 | `tax/format.ts` | Currency / percent formatting + composition segments |
-| `App.tsx` | Input state, persistence, memoized compute, layout |
-| `storage.ts` | `localStorage` load / save |
-| `components/` | Form + visualization components (see overview diagram) |
+| `App.tsx` | Input + scenario state, persistence, memoized compute, layout |
+| `scenarios.ts` | Named input scenarios — `save` / `rename` / `remove` / list |
+| `storage.ts` | `localStorage` load / save for input + scenarios |
+| `components/` | Form, visualizations, and the saved-scenarios panel (see overview diagram) |
 
 ## Conventions & constraints
 

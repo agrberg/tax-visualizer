@@ -1,7 +1,8 @@
-import { type CSSProperties, type ReactNode } from 'react'
+import { type CSSProperties, type MouseEventHandler, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { blendBackground, formatCurrency, formatPercent } from '@/tax/format'
 import type { BracketFill } from '@/tax/types'
+import { TOWER_HEIGHT, pct } from './tower'
 
 /** A small color dot: solid for one color, diagonal stripes when a bucket blends two. */
 export function Swatch({ colors, className }: { colors: string[]; className?: string }) {
@@ -238,5 +239,104 @@ export function LayerLabel({ topPct, children }: { topPct: number; children: Rea
         {children}
       </span>
     </span>
+  )
+}
+
+/** The shared tower shell: a title/subtitle header above a fixed-height bordered
+    column. Children are the absolutely-positioned bands, slices, and markers. */
+export function TowerColumn({
+  title,
+  subtitle,
+  onMouseMove,
+  onMouseLeave,
+  children,
+}: {
+  title: string
+  subtitle: ReactNode
+  onMouseMove: MouseEventHandler<HTMLDivElement>
+  onMouseLeave: () => void
+  children: ReactNode
+}) {
+  return (
+    <>
+      <div className="mb-5 text-center">
+        <div className="text-sm font-semibold">{title}</div>
+        <div className="text-xs text-muted-foreground">{subtitle}</div>
+      </div>
+      <div
+        className="relative w-full max-w-xs rounded-md border bg-muted/40 sm:max-w-[280px]"
+        style={{ height: TOWER_HEIGHT }}
+        onMouseMove={onMouseMove}
+        onMouseLeave={onMouseLeave}
+      >
+        {children}
+      </div>
+    </>
+  )
+}
+
+/** A colored slice of a tower column, positioned by the dollar range [from, to]. */
+export function Slice({
+  from,
+  to,
+  axisMax,
+  className,
+  dim,
+  onEnter,
+}: {
+  from: number
+  to: number
+  axisMax: number
+  className: string
+  dim: boolean
+  onEnter: () => void
+}) {
+  return (
+    <div
+      className={`absolute inset-x-0 ${className} ${dim ? 'opacity-40' : 'opacity-95'} transition-opacity`}
+      style={{ bottom: `${pct(from, axisMax)}%`, height: `${pct(to - from, axisMax)}%` }}
+      onMouseEnter={onEnter}
+    />
+  )
+}
+
+/** The left-side value pill marking the top of a stacked column. */
+export function ColumnTotal({
+  topPct,
+  zClassName = 'z-20',
+  children,
+}: {
+  topPct: number
+  zClassName?: string
+  children: ReactNode
+}) {
+  return (
+    <span
+      className={`pointer-events-none absolute left-1 ${zClassName} -translate-y-1/2 rounded bg-white/90 px-1.5 py-0.5 text-[10px] font-semibold text-neutral-800 shadow-sm ring-1 ring-black/5`}
+      style={{ top: `${topPct}%` }}
+    >
+      {children}
+    </span>
+  )
+}
+
+/** A legend row: a colored source swatch, its short name, and a right-aligned amount. */
+export function SourceLegendRow({
+  swatch,
+  label,
+  amount,
+  className,
+}: {
+  swatch: string
+  label: string
+  amount: number
+  className?: string
+}) {
+  return (
+    <div className={`flex items-center gap-1.5 ${className ?? ''}`}>
+      <span className={`size-2.5 rounded-full ${swatch}`} aria-hidden />
+      <span>{label}</span>
+      <span className="ml-auto text-muted-foreground">{formatCurrency(amount)}</span>
+    </div>
   )
 }

@@ -3,10 +3,10 @@ import { Pencil, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { normalizeName, sortedNames, type SavedInputs } from '@/savedInputs'
+import { normalizeName, scenarioNames, type Scenarios } from '@/scenarios'
 
-interface SavedInputsProps {
-  saved: SavedInputs
+interface SavedScenariosProps {
+  scenarios: Scenarios
   selectedName: string | null
   onSave: (name: string) => void
   onLoad: (name: string) => void
@@ -15,17 +15,17 @@ interface SavedInputsProps {
   onUpdate: (name: string) => void
 }
 
-export function SavedInputs({
-  saved,
+export function SavedScenarios({
+  scenarios,
   selectedName,
   onSave,
   onLoad,
   onDelete,
   onRename,
   onUpdate,
-}: SavedInputsProps) {
+}: SavedScenariosProps) {
   const [name, setName] = useState('')
-  const names = sortedNames(saved)
+  const names = scenarioNames(scenarios)
   const canSave = normalizeName(name) !== null
 
   const handleSave = () => {
@@ -37,14 +37,14 @@ export function SavedInputs({
   return (
     <div className="space-y-3">
       <Label htmlFor="saveName" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-        Saved versions
+        Scenarios
       </Label>
 
       <div className="flex gap-2">
         <Input
           id="saveName"
           type="text"
-          placeholder="Name this version"
+          placeholder="Name this scenario"
           value={name}
           onChange={(e) => setName(e.target.value)}
           onKeyDown={(e) => {
@@ -57,7 +57,7 @@ export function SavedInputs({
       </div>
 
       {names.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No saved versions yet</p>
+        <p className="text-sm text-muted-foreground">No scenarios yet</p>
       ) : (
         <ul className="space-y-1">
           {names.map((n) => (

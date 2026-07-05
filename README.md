@@ -11,6 +11,8 @@ A frontend-only app that shows how income flows through US federal tax brackets:
   Additional Medicare Tax (0.9%) when income crosses their thresholds.
 - A per-source breakdown with each piece's own effective rate and the overall
   weighted rate.
+- Save, reload, rename, and delete named **scenarios** of your inputs, persisted
+  in the browser.
 
 Estimates for education, not tax advice. Federal only. 2026 figures per IRS
 Rev. Proc. 2025-32; NIIT / Additional Medicare thresholds are statutory.
@@ -18,7 +20,7 @@ Rev. Proc. 2025-32; NIIT / Additional Medicare thresholds are statutory.
 ## Stack
 
 Vite + React + TypeScript, Tailwind + shadcn/ui, Vitest. Static build — no
-backend. Inputs persist to `localStorage`.
+backend. Inputs and saved scenarios persist to `localStorage`.
 
 ## Getting started
 
@@ -67,7 +69,9 @@ Change it to `/` if you deploy to a custom domain or a `user.github.io` root.
   `engine`, `surcharges`).
 - `src/components/` — the income form, the two towers, the marginal
   next-dollar view, the income/tax composition views, surcharge indicators,
-  and the overall breakdown.
+  the overall breakdown, and the saved-scenarios panel.
+- `src/scenarios.ts` + `src/storage.ts` — named input **scenarios** and their
+  `localStorage` persistence.
 
 See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the data flow and module map, with
 diagrams.

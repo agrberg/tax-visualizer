@@ -67,7 +67,7 @@ function MoneyField({
           type="text"
           inputMode="numeric"
           className="pl-6"
-          value={value === 0 ? '' : value.toLocaleString('en-US')}
+          value={value === 0 ? '' : String(value)}
           placeholder="0"
           onChange={(e) => {
             const digits = e.target.value.replace(/[^0-9]/g, '')
