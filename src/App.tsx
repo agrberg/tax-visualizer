@@ -35,7 +35,7 @@ function App() {
 
   return (
     <TooltipProvider delayDuration={200}>
-      <div className="mx-auto max-w-7xl px-4 py-8">
+      <div className="mx-auto max-w-7xl px-4 py-6 sm:py-8">
         <header className="mb-6">
           <h1 className="text-2xl font-bold tracking-tight">
             {TAX_YEAR} Federal Tax Bracket Visualizer
@@ -46,7 +46,7 @@ function App() {
           </p>
         </header>
 
-        <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
+        <div className="grid gap-4 sm:gap-6 lg:grid-cols-[320px_1fr]">
           {/* inputs */}
           <Card className="h-fit lg:sticky lg:top-6">
             <CardHeader>
@@ -58,14 +58,14 @@ function App() {
           </Card>
 
           {/* visualization */}
-          <div className="space-y-6">
+          <div className="space-y-4 sm:space-y-6">
             <Card>
-              <CardHeader>
+              <CardHeader className="px-4 sm:px-6">
                 <CardTitle className="text-base">Where your income goes</CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="px-4 sm:px-6">
                 <div className="grid gap-8 xl:grid-cols-[1fr_18rem]">
-                  <div className="flex flex-wrap justify-center gap-8 sm:justify-start">
+                  <div className="flex flex-col items-center gap-8 sm:flex-row sm:flex-wrap sm:items-start sm:justify-start">
                     <OrdinaryTower result={result} />
                     <CapitalGainsTower result={result} axisMax={axisMax} />
                   </div>
@@ -80,19 +80,19 @@ function App() {
             </Card>
 
             <Card>
-              <CardHeader>
+              <CardHeader className="px-4 sm:px-6">
                 <CardTitle className="text-base">Marginal cost of the next dollar</CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="px-4 sm:px-6">
                 <MarginalNextDollar result={result} />
               </CardContent>
             </Card>
 
             <Card>
-              <CardHeader>
+              <CardHeader className="px-4 sm:px-6">
                 <CardTitle className="text-base">Overall breakdown</CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="px-4 sm:px-6">
                 <OverallBreakdown result={result} />
               </CardContent>
             </Card>

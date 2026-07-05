@@ -64,7 +64,7 @@ export function OrdinaryTower({ result }: Props) {
   const tall = (amount: number) => pct(amount, axisMax) >= 7
 
   return (
-    <div className="flex flex-col items-center">
+    <div className="flex w-full max-w-xs flex-col items-center sm:w-auto sm:max-w-none">
       <div className="mb-2 text-center">
         <div className="text-sm font-semibold">Ordinary income</div>
         <div className="text-xs text-muted-foreground">
@@ -74,7 +74,7 @@ export function OrdinaryTower({ result }: Props) {
       </div>
 
       <div
-        className="relative w-28 rounded-md border bg-muted/40"
+        className="relative w-full max-w-xs rounded-md border bg-muted/40 sm:w-28"
         style={{ height: TOWER_HEIGHT }}
         onMouseMove={tip.onMove}
         onMouseLeave={() => {
@@ -178,7 +178,9 @@ export function OrdinaryTower({ result }: Props) {
           </div>
         )}
 
-        {/* bracket boundary lines on top, positioned above the deduction (gross) */}
+        {/* bracket boundary lines on top: positioned at gross height (deduction +
+            threshold), but labeled with the taxable threshold so the left axis reads
+            as the IRS bracket ladder ($0, then each threshold above it). */}
         {brackets.map((b) => {
           const value = deduction + b.min
           if (value <= 0 || value > axisMax) return null
@@ -188,6 +190,9 @@ export function OrdinaryTower({ result }: Props) {
               className="pointer-events-none absolute inset-x-0 z-20 border-t border-dashed border-white/70"
               style={{ bottom: `${pct(value, axisMax)}%` }}
             >
+              <span className="absolute -top-2.5 left-1 rounded bg-white px-1 text-[10px] font-medium text-black shadow-sm ring-1 ring-black/5">
+                {formatCurrency(b.min)}
+              </span>
               <span className="absolute -top-2.5 right-1 rounded bg-white px-1 text-[10px] font-medium text-black shadow-sm ring-1 ring-black/5">
                 {formatPercent(b.rate, 0)}
               </span>
@@ -203,8 +208,8 @@ export function OrdinaryTower({ result }: Props) {
       </div>
 
       {/* legend */}
-      <div className="mt-3 w-40 space-y-1">
-        <div className="flex items-center gap-1.5 text-xs">
+      <div className="mt-3 w-full space-y-1 text-[11px] sm:w-40 sm:text-xs">
+        <div className="flex items-center gap-1.5">
           <span
             className="size-2.5 rounded-sm border border-dashed border-neutral-400 bg-neutral-200"
             aria-hidden
@@ -213,7 +218,7 @@ export function OrdinaryTower({ result }: Props) {
           <span className="ml-auto text-muted-foreground">{formatCurrency(deduction)}</span>
         </div>
         {spilledToGains > 0 && (
-          <div className="flex items-center gap-1.5 text-xs">
+          <div className="flex items-center gap-1.5">
             <span
               className="size-2.5 rounded-sm border border-dashed border-violet-500/60 bg-violet-200"
               aria-hidden
@@ -223,7 +228,7 @@ export function OrdinaryTower({ result }: Props) {
           </div>
         )}
         {unusedDeduction > 0 && (
-          <div className="flex items-center gap-1.5 text-xs">
+          <div className="flex items-center gap-1.5">
             <span
               className="size-2.5 rounded-sm border border-dashed border-neutral-300 bg-neutral-100"
               aria-hidden
@@ -235,7 +240,7 @@ export function OrdinaryTower({ result }: Props) {
         {grossLayers.map((layer) => {
           const meta = SOURCE_META[layer.source]
           return (
-            <div key={layer.source} className="flex items-center gap-1.5 text-xs">
+            <div key={layer.source} className="flex items-center gap-1.5">
               <span className={`size-2.5 rounded-full ${meta.swatch}`} aria-hidden />
               <span>{meta.short}</span>
               <span className="ml-auto text-muted-foreground">{formatCurrency(layer.amount)}</span>

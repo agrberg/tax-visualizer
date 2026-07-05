@@ -38,7 +38,7 @@ export function CapitalGainsTower({ result, axisMax }: Props) {
   const tall = (amount: number) => pct(amount, axisMax) >= 7
 
   return (
-    <div className="flex flex-col items-center">
+    <div className="flex w-full max-w-xs flex-col items-center sm:w-auto sm:max-w-none">
       <div className="mb-2 text-center">
         <div className="text-sm font-semibold">Capital gains &amp; qualified dividends</div>
         <div className="text-xs text-muted-foreground">
@@ -47,7 +47,7 @@ export function CapitalGainsTower({ result, axisMax }: Props) {
       </div>
 
       <div
-        className="relative w-28 rounded-md border"
+        className="relative w-full max-w-xs rounded-md border sm:w-28"
         style={{ height: TOWER_HEIGHT }}
         onMouseMove={tip.onMove}
         onMouseLeave={() => {
@@ -141,6 +141,16 @@ export function CapitalGainsTower({ result, axisMax }: Props) {
           )
         })}
 
+        {/* aggregate total at the top of the stacked gains */}
+        {fed.preferentialTaxable > 0 && offset + topOfGains <= axisMax && (
+          <span
+            className="pointer-events-none absolute left-1 z-20 -translate-y-1/2 rounded bg-white/90 px-1.5 py-0.5 text-[10px] font-semibold text-neutral-800 shadow-sm ring-1 ring-black/5"
+            style={{ top: `${100 - posPct(topOfGains)}%` }}
+          >
+            {formatCurrency(topOfGains)}
+          </span>
+        )}
+
         {/* rate-zone labels on the left edge, centered in each visible zone */}
         {bands.map((band) => {
           const lo = offset + band.from
@@ -150,7 +160,7 @@ export function CapitalGainsTower({ result, axisMax }: Props) {
           return (
             <span
               key={`zone-${band.label}`}
-              className="pointer-events-none absolute left-1 z-20 -translate-y-1/2 rounded bg-white/80 px-1 text-[10px] font-semibold text-neutral-700 shadow-sm"
+              className="pointer-events-none absolute right-1 z-20 -translate-y-1/2 rounded bg-white/80 px-1 text-[10px] font-semibold text-neutral-700 shadow-sm"
               style={{ top: `${100 - centerPct}%` }}
             >
               {band.label}
@@ -163,7 +173,11 @@ export function CapitalGainsTower({ result, axisMax }: Props) {
           <div
             className="pointer-events-none absolute inset-x-0 z-10 border-t-2 border-foreground/50"
             style={{ bottom: `${posPct(baseline)}%` }}
-          />
+          >
+            <span className="absolute -top-2.5 left-1 rounded bg-white px-1 text-[10px] font-medium text-black shadow-sm ring-1 ring-black/5">
+              {formatCurrency(baseline)}
+            </span>
+          </div>
         )}
 
         {/* dollar boundaries between zones, drawn on top */}
@@ -174,7 +188,7 @@ export function CapitalGainsTower({ result, axisMax }: Props) {
               className="pointer-events-none absolute inset-x-0 z-10 border-t border-dashed border-foreground/50"
               style={{ bottom: `${posPct(value)}%` }}
             >
-              <span className="absolute -top-2.5 right-1 rounded bg-white px-1 text-[10px] font-medium text-black shadow-sm ring-1 ring-black/5">
+              <span className="absolute -top-2.5 left-1 rounded bg-white px-1 text-[10px] font-medium text-black shadow-sm ring-1 ring-black/5">
                 {formatCurrency(value)}
               </span>
             </div>
@@ -190,7 +204,7 @@ export function CapitalGainsTower({ result, axisMax }: Props) {
       </div>
 
       {/* room stats */}
-      <div className="mt-3 w-40 space-y-1 text-xs">
+      <div className="mt-3 w-full space-y-1 text-[11px] sm:w-40 sm:text-xs">
         {offset > 0 && (
           <div className="flex justify-between">
             <span className="flex items-center gap-1.5">
