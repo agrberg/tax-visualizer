@@ -154,7 +154,7 @@ function App() {
                   </div>
                   <div className="space-y-2">
                     <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      Threshold surtaxes
+                      Payroll tax &amp; surtaxes
                     </div>
                     <SurchargeIndicators surcharges={result.federal.surcharges} />
                   </div>
