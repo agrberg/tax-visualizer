@@ -22,7 +22,7 @@ backend. Inputs persist to `localStorage`.
 
 ## Getting started
 
-Prerequisites: **Node.js 20+** (CI runs Node 22) and npm.
+Prerequisites: **Node.js 24** (pinned in `.tool-versions`; CI uses the same) and npm.
 
 ```bash
 git clone <repo-url>
@@ -58,8 +58,16 @@ Change it to `/` if you deploy to a custom domain or a `user.github.io` root.
 ## Where things live
 
 - `src/tax/brackets.ts` — 2026 rate tables, keyed by `TAX_YEAR`.
-- `src/tax/calculate.ts` — pure tax logic (income classification, deduction,
-  bracket fills, cap-gains stacking, surcharges, per-source attribution).
-- `src/tax/calculate.test.ts` — unit tests for the above.
-- `src/components/` — the income form, the two towers, surcharge indicators,
+- `src/tax/calculate.ts` — the top-level `calculateTax` orchestrator; the pure
+  tax logic lives in focused modules alongside it: `income.ts` (classification),
+  `deduction.ts`, `engine.ts` (bracket fills), `federal.ts` / `jurisdiction.ts`
+  (the federal computation), `surcharges.ts` (NIIT / Additional Medicare),
+  `marginal.ts` (next-dollar cost), and `attribution.ts` (per-source breakdown).
+- `src/tax/*.test.ts` — unit tests for those modules (`calculate`, `deduction`,
+  `engine`, `surcharges`).
+- `src/components/` — the income form, the two towers, the marginal
+  next-dollar view, the income/tax composition views, surcharge indicators,
   and the overall breakdown.
+
+See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the data flow and module map, with
+diagrams.
