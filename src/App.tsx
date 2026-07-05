@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { IncomeForm } from '@/components/IncomeForm'
 import { SavedScenarios } from '@/components/SavedScenarios'
+import { ShareLinkButton } from '@/components/ShareLinkButton'
 import { OrdinaryTower } from '@/components/OrdinaryTower'
 import { CapitalGainsTower } from '@/components/CapitalGainsTower'
 import { OverallBreakdown } from '@/components/OverallBreakdown'
@@ -19,6 +20,7 @@ import {
   renameScenario,
   type Scenarios,
 } from '@/scenarios'
+import { parseShareHash } from '@/shareLink'
 import type { TaxInput } from '@/tax/types'
 
 const DEFAULT_INPUT: TaxInput = {
@@ -32,9 +34,20 @@ const DEFAULT_INPUT: TaxInput = {
 }
 
 function App() {
-  const [input, setInput] = useState<TaxInput>(() => loadInput() ?? DEFAULT_INPUT)
+  // A shared link (#v=1&filing=…) wins over any locally-saved input on first load.
+  const [input, setInput] = useState<TaxInput>(
+    () => parseShareHash(window.location.hash) ?? loadInput() ?? DEFAULT_INPUT,
+  )
   const [scenarios, setScenarios] = useState<Scenarios>(() => loadScenarios())
   const [selectedName, setSelectedName] = useState<string | null>(null)
+
+  // Consume the shared-link hash once applied, so a reload/edit reverts to normal
+  // localStorage behavior and the address bar isn't stuck on the shared state.
+  useEffect(() => {
+    if (parseShareHash(window.location.hash)) {
+      history.replaceState(null, '', window.location.pathname + window.location.search)
+    }
+  }, [])
 
   useEffect(() => {
     saveInput(input)
@@ -110,6 +123,9 @@ function App() {
             </CardHeader>
             <CardContent>
               <IncomeForm value={input} onChange={setInput} />
+              <div className="mt-6 border-t pt-4">
+                <ShareLinkButton input={input} />
+              </div>
               <div className="mt-6 border-t pt-4">
                 <SavedScenarios
                   scenarios={scenarios}
