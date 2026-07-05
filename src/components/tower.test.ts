@@ -1,9 +1,10 @@
 import { describe, it, expect } from 'vitest'
-import { axisMaxFor, ordinaryAxisMaxFor, nextOrdinaryBracket, tall } from './tower'
+import { axisMaxFor, marginalOrdinaryIdx, ordinaryAxisMaxFor, nextOrdinaryBracket, tall } from './tower'
 import { calculateTax } from '@/tax/calculate'
 import type { TaxInput } from '@/tax/types'
 import {
   STANDARD_DEDUCTION,
+  ORDINARY_BRACKETS,
   CAPITAL_GAINS_BREAKPOINTS,
 } from '@/tax/brackets'
 
@@ -51,6 +52,18 @@ describe('nextOrdinaryBracket', () => {
   it('returns null when income is already in the top bracket', () => {
     const r = calculateTax(input({ wages: 2000000 }))
     expect(nextOrdinaryBracket(r)).toBeNull()
+  })
+})
+
+describe('marginalOrdinaryIdx', () => {
+  it('is the index of the bracket holding the last taxable dollar', () => {
+    const r = calculateTax(input({ wages: 245000, interest: 4000, nonQualifiedDividends: 5000 }))
+    expect(ORDINARY_BRACKETS.mfj[marginalOrdinaryIdx(r)].rate).toBe(0.24)
+  })
+
+  it('is the lowest bracket (10%) when income is fully shielded', () => {
+    const r = calculateTax(input({ wages: 20000 }))
+    expect(marginalOrdinaryIdx(r)).toBe(0)
   })
 })
 

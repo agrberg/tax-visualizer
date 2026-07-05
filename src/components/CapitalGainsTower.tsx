@@ -2,8 +2,19 @@ import { useState } from 'react'
 import { CAPITAL_GAINS_BREAKPOINTS } from '@/tax/brackets'
 import { SOURCE_META, formatCurrency } from '@/tax/format'
 import type { IncomeSource, TaxResult } from '@/tax/types'
-import { TOWER_HEIGHT, pct, tall } from './tower'
-import { BracketBreakdown, HatchBand, HoverTooltip, HoveredSlice, LayerLabel, Marker } from './TowerParts'
+import { pct, tall } from './tower'
+import {
+  BracketBreakdown,
+  ColumnTotal,
+  HatchBand,
+  HoverTooltip,
+  HoveredSlice,
+  LayerLabel,
+  Marker,
+  Slice,
+  SourceLegendRow,
+  TowerColumn,
+} from './TowerParts'
 import { useTooltip } from './use-tooltip'
 
 interface Props {
@@ -38,16 +49,9 @@ export function CapitalGainsTower({ result, axisMax }: Props) {
 
   return (
     <div className="flex w-full max-w-xs flex-col items-center sm:max-w-none sm:flex-1">
-      <div className="mb-5 text-center">
-        <div className="text-sm font-semibold">Capital gains &amp; qualified dividends</div>
-        <div className="text-xs text-muted-foreground">
-          Stacked on ordinary income · tax {formatCurrency(fed.capitalGainsTax)}
-        </div>
-      </div>
-
-      <div
-        className="relative w-full max-w-xs rounded-md border bg-muted/40 sm:max-w-[280px]"
-        style={{ height: TOWER_HEIGHT }}
+      <TowerColumn
+        title="Capital gains & qualified dividends"
+        subtitle={<>Stacked on ordinary income · tax {formatCurrency(fed.capitalGainsTax)}</>}
         onMouseMove={tip.onMove}
         onMouseLeave={() => {
           tip.onLeave()
@@ -99,30 +103,23 @@ export function CapitalGainsTower({ result, axisMax }: Props) {
 
         {/* preferential gains, stacked on the baseline, colored by source */}
         {layers.map((layer) => {
-          const meta = SOURCE_META[layer.source]
+          const dim = hovered !== null && hovered !== layer.source
           return (
-            <div
+            <Slice
               key={layer.source}
-              className={`absolute inset-x-0 ${meta.fill} ${
-                hovered && hovered !== layer.source ? 'opacity-40' : 'opacity-95'
-              } transition-opacity`}
-              style={{
-                bottom: `${posPct(layer.base)}%`,
-                height: `${pct(layer.taxableAmount, axisMax)}%`,
-              }}
-              onMouseEnter={() => setHovered(layer.source)}
+              from={offset + layer.base}
+              to={offset + layer.base + layer.taxableAmount}
+              axisMax={axisMax}
+              className={SOURCE_META[layer.source].fill}
+              dim={dim}
+              onEnter={() => setHovered(layer.source)}
             />
           )
         })}
 
         {/* aggregate total at the top of the stacked gains */}
         {fed.preferentialTaxable > 0 && offset + topOfGains <= axisMax && (
-          <span
-            className="pointer-events-none absolute left-1 z-20 -translate-y-1/2 rounded bg-white/90 px-1.5 py-0.5 text-[10px] font-semibold text-neutral-800 shadow-sm ring-1 ring-black/5"
-            style={{ top: `${100 - posPct(topOfGains)}%` }}
-          >
-            {formatCurrency(topOfGains)}
-          </span>
+          <ColumnTotal topPct={100 - posPct(topOfGains)}>{formatCurrency(topOfGains)}</ColumnTotal>
         )}
 
         {/* inline per-source labels, centered in each gains layer that is tall enough */}
@@ -175,7 +172,7 @@ export function CapitalGainsTower({ result, axisMax }: Props) {
         {fifteenOffAxis && (
           <Marker topPinned zClassName="z-20" left={formatCurrency(rate15Max)} right="20%" />
         )}
-      </div>
+      </TowerColumn>
 
       {/* room stats */}
       <div className="mt-3 w-full max-w-[280px] space-y-1 text-[11px] sm:text-xs">
@@ -218,13 +215,13 @@ export function CapitalGainsTower({ result, axisMax }: Props) {
         {layers.map((layer) => {
           const meta = SOURCE_META[layer.source]
           return (
-            <div key={layer.source} className="flex items-center gap-1.5 pt-1">
-              <span className={`size-2.5 rounded-full ${meta.swatch}`} aria-hidden />
-              <span>{meta.short}</span>
-              <span className="ml-auto text-muted-foreground">
-                {formatCurrency(layer.taxableAmount)}
-              </span>
-            </div>
+            <SourceLegendRow
+              key={layer.source}
+              className="pt-1"
+              swatch={meta.swatch}
+              label={meta.short}
+              amount={layer.taxableAmount}
+            />
           )
         })}
       </div>

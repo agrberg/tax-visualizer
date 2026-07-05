@@ -2,37 +2,23 @@ import { useState } from 'react'
 import { ORDINARY_BRACKETS } from '@/tax/brackets'
 import { SOURCE_META, formatCurrency, formatPercent, wagesBracketFill } from '@/tax/format'
 import { ORDINARY_SOURCES, type IncomeSource, type TaxResult } from '@/tax/types'
-import { TOWER_HEIGHT, nextOrdinaryBracket, ordinaryAxisMaxFor, pct, tall } from './tower'
-import { BracketBreakdown, HatchBand, HoverTooltip, HoveredSlice, LayerLabel, Marker } from './TowerParts'
+import { marginalOrdinaryIdx, nextOrdinaryBracket, ordinaryAxisMaxFor, pct, tall } from './tower'
+import {
+  BracketBreakdown,
+  ColumnTotal,
+  HatchBand,
+  HoverTooltip,
+  HoveredSlice,
+  LayerLabel,
+  Marker,
+  Slice,
+  SourceLegendRow,
+  TowerColumn,
+} from './TowerParts'
 import { useTooltip } from './use-tooltip'
 
 interface Props {
   result: TaxResult
-}
-
-/** A colored slice of the gross-income column. */
-function Slice({
-  from,
-  to,
-  axisMax,
-  className,
-  dim,
-  onEnter,
-}: {
-  from: number
-  to: number
-  axisMax: number
-  className: string
-  dim: boolean
-  onEnter: () => void
-}) {
-  return (
-    <div
-      className={`absolute inset-x-0 ${className} ${dim ? 'opacity-40' : 'opacity-95'} transition-opacity`}
-      style={{ bottom: `${pct(from, axisMax)}%`, height: `${pct(to - from, axisMax)}%` }}
-      onMouseEnter={onEnter}
-    />
-  )
 }
 
 export function OrdinaryTower({ result }: Props) {
@@ -42,7 +28,7 @@ export function OrdinaryTower({ result }: Props) {
   const axisMax = ordinaryAxisMaxFor(result)
   // The marginal bracket holds the last taxable dollar; the one above it is pinned
   // to the top edge as the "next rate" (rather than drawn to scale far above).
-  const marginalIdx = brackets.findIndex((b) => fed.ordinaryTaxable < b.max)
+  const marginalIdx = marginalOrdinaryIdx(result)
   const nextBracket = nextOrdinaryBracket(result)
   const tip = useTooltip()
   const [hovered, setHovered] = useState<IncomeSource | null>(null)
@@ -67,17 +53,14 @@ export function OrdinaryTower({ result }: Props) {
 
   return (
     <div className="flex w-full max-w-xs flex-col items-center sm:max-w-none sm:flex-1">
-      <div className="mb-5 text-center">
-        <div className="text-sm font-semibold">Ordinary income</div>
-        <div className="text-xs text-muted-foreground">
-          Marginal rate {formatPercent(fed.marginalOrdinaryRate, 0)} · tax{' '}
-          {formatCurrency(fed.ordinaryTax)}
-        </div>
-      </div>
-
-      <div
-        className="relative w-full max-w-xs rounded-md border bg-muted/40 sm:max-w-[280px]"
-        style={{ height: TOWER_HEIGHT }}
+      <TowerColumn
+        title="Ordinary income"
+        subtitle={
+          <>
+            Marginal rate {formatPercent(fed.marginalOrdinaryRate, 0)} · tax{' '}
+            {formatCurrency(fed.ordinaryTax)}
+          </>
+        }
         onMouseMove={tip.onMove}
         onMouseLeave={() => {
           tip.onLeave()
@@ -223,12 +206,9 @@ export function OrdinaryTower({ result }: Props) {
             terms (deduction removed) to match the taxable axis, and equal to the
             capital-gains baseline. */}
         {fed.ordinaryTaxable > 0 && grossOrdinary <= axisMax && (
-          <span
-            className="pointer-events-none absolute left-1 z-30 -translate-y-1/2 rounded bg-white/90 px-1.5 py-0.5 text-[10px] font-semibold text-neutral-800 shadow-sm ring-1 ring-black/5"
-            style={{ top: `${100 - pct(grossOrdinary, axisMax)}%` }}
-          >
+          <ColumnTotal topPct={100 - pct(grossOrdinary, axisMax)} zClassName="z-30">
             {formatCurrency(fed.ordinaryTaxable)}
-          </span>
+          </ColumnTotal>
         )}
 
         {grossOrdinary === 0 && (
@@ -236,7 +216,7 @@ export function OrdinaryTower({ result }: Props) {
             No ordinary income
           </div>
         )}
-      </div>
+      </TowerColumn>
 
       {/* legend */}
       <div className="mt-3 w-full max-w-[280px] space-y-1 text-[11px] sm:text-xs">
@@ -271,11 +251,12 @@ export function OrdinaryTower({ result }: Props) {
         {grossLayers.map((layer) => {
           const meta = SOURCE_META[layer.source]
           return (
-            <div key={layer.source} className="flex items-center gap-1.5">
-              <span className={`size-2.5 rounded-full ${meta.swatch}`} aria-hidden />
-              <span>{meta.short}</span>
-              <span className="ml-auto text-muted-foreground">{formatCurrency(layer.amount)}</span>
-            </div>
+            <SourceLegendRow
+              key={layer.source}
+              swatch={meta.swatch}
+              label={meta.short}
+              amount={layer.amount}
+            />
           )
         })}
       </div>

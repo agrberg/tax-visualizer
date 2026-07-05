@@ -31,6 +31,12 @@ export function axisMaxFor(result: TaxResult): number {
   return Math.max(50000, Math.ceil(base / 10000) * 10000)
 }
 
+/** Index of the ordinary bracket holding the marginal (last taxable) dollar. */
+export function marginalOrdinaryIdx(result: TaxResult): number {
+  const brackets = ORDINARY_BRACKETS[result.filingStatus]
+  return brackets.findIndex((b) => result.federal.ordinaryTaxable < b.max)
+}
+
 /**
  * The bracket immediately above the one the income's marginal dollar lands in —
  * i.e. the "next" rate the taxpayer would hit. Returns null when the income is
@@ -39,9 +45,7 @@ export function axisMaxFor(result: TaxResult): number {
  */
 export function nextOrdinaryBracket(result: TaxResult): OrdinaryBracket | null {
   const brackets = ORDINARY_BRACKETS[result.filingStatus]
-  const taxable = result.federal.ordinaryTaxable
-  const marginalIdx = brackets.findIndex((b) => taxable < b.max)
-  return brackets[marginalIdx + 1] ?? null
+  return brackets[marginalOrdinaryIdx(result) + 1] ?? null
 }
 
 /**
