@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { IncomeForm } from '@/components/IncomeForm'
+import { SavedInputs } from '@/components/SavedInputs'
 import { OrdinaryTower } from '@/components/OrdinaryTower'
 import { CapitalGainsTower } from '@/components/CapitalGainsTower'
 import { OverallBreakdown } from '@/components/OverallBreakdown'
@@ -10,7 +11,14 @@ import { TooltipProvider } from '@/components/ui/tooltip'
 import { calculateTax } from '@/tax/calculate'
 import { TAX_YEAR } from '@/tax/brackets'
 import { axisMaxFor } from '@/components/tower'
-import { loadInput, saveInput } from '@/storage'
+import { loadInput, saveInput, loadSavedInputs, saveSavedInputs } from '@/storage'
+import {
+  normalizeName,
+  upsertSaved,
+  removeSaved,
+  renameSaved,
+  type SavedInputs as SavedInputsMap,
+} from '@/savedInputs'
 import type { TaxInput } from '@/tax/types'
 
 const DEFAULT_INPUT: TaxInput = {
@@ -25,10 +33,58 @@ const DEFAULT_INPUT: TaxInput = {
 
 function App() {
   const [input, setInput] = useState<TaxInput>(() => loadInput() ?? DEFAULT_INPUT)
+  const [saved, setSaved] = useState<SavedInputsMap>(() => loadSavedInputs())
+  const [selectedName, setSelectedName] = useState<string | null>(null)
 
   useEffect(() => {
     saveInput(input)
   }, [input])
+
+  useEffect(() => {
+    saveSavedInputs(saved)
+  }, [saved])
+
+  const handleSave = (rawName: string) => {
+    const name = normalizeName(rawName)
+    if (!name) return
+    if (saved[name] && !confirm(`A saved version named "${name}" already exists. Overwrite it?`)) {
+      return
+    }
+    setSaved((s) => upsertSaved(s, name, input))
+    setSelectedName(name)
+  }
+
+  const handleLoad = (name: string) => {
+    const version = saved[name]
+    if (!version) return
+    setInput({ ...version })
+    setSelectedName(name)
+  }
+
+  const handleUpdate = (name: string) => {
+    if (!saved[name]) return
+    if (!confirm(`Update "${name}" to the current inputs?`)) return
+    setSaved((s) => upsertSaved(s, name, input))
+    setSelectedName(name)
+  }
+
+  const handleRename = (oldName: string) => {
+    const raw = prompt(`New name for "${oldName}"`, oldName)
+    if (raw === null) return
+    const newName = normalizeName(raw)
+    if (!newName || newName === oldName) return
+    if (saved[newName] && !confirm(`A saved version named "${newName}" already exists. Overwrite it?`)) {
+      return
+    }
+    setSaved((s) => renameSaved(s, oldName, newName))
+    setSelectedName((prev) => (prev === oldName ? newName : prev))
+  }
+
+  const handleDelete = (name: string) => {
+    if (!confirm(`Delete saved version "${name}"?`)) return
+    setSaved((s) => removeSaved(s, name))
+    setSelectedName((prev) => (prev === name ? null : prev))
+  }
 
   const result = useMemo(() => calculateTax(input), [input])
   const axisMax = useMemo(() => axisMaxFor(result), [result])
@@ -54,6 +110,17 @@ function App() {
             </CardHeader>
             <CardContent>
               <IncomeForm value={input} onChange={setInput} />
+              <div className="mt-6 border-t pt-4">
+                <SavedInputs
+                  saved={saved}
+                  selectedName={selectedName}
+                  onSave={handleSave}
+                  onLoad={handleLoad}
+                  onDelete={handleDelete}
+                  onRename={handleRename}
+                  onUpdate={handleUpdate}
+                />
+              </div>
             </CardContent>
           </Card>
 
