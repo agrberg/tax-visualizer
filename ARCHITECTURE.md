@@ -119,11 +119,13 @@ flowchart LR
    - `ordinaryLayers` / `preferentialLayers` (`attribution.ts`) — slice each
      source into taxable layers positioned in the stack, for the towers.
    - surcharge rules (`surcharges.ts`) — each `SurchargeRule` (NIIT, Additional
-     Medicare) owns both its `assess()` and its `marginalRate()`, so
-     next-dollar behavior can't drift from assessment.
+     Medicare) owns its `assess()`, its `marginalRate()`, and an `attribution`
+     descriptor, so next-dollar behavior and per-source attribution can't drift
+     from assessment.
 
 4. **`buildBreakdown`** (`attribution.ts`) — combines per-layer income tax with
-   the surcharges (Medicare → wages; NIIT distributed across investment sources)
+   the surcharges, attaching each surcharge's dollars per its declared
+   `attribution` (Medicare → wages; NIIT distributed across investment sources)
    into a per-source amount / tax / effective-rate table.
 
 The assembled `TaxResult` nests the federal figures under `result.federal`

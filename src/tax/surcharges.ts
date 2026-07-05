@@ -14,15 +14,24 @@ export interface SurchargeContext {
 }
 
 /**
+ * How a surcharge's dollars attach to income sources in the per-source breakdown:
+ * `wages` puts the whole amount on wages; `investment` spreads it proportionally
+ * over the investment sources by gross amount.
+ */
+export type SurchargeAttribution = { kind: 'wages' } | { kind: 'investment' }
+
+/**
  * A surcharge rule owns *both* how it is assessed and how it hits the next dollar,
  * so the two never drift apart. `marginalRate` returns the rate this surcharge adds
  * to one more dollar of the given income type, given its own assessed result.
+ * `attribution` declares how its dollars land on sources in the breakdown.
  */
 export interface SurchargeRule {
   key: string
   label: string
   shortLabel: string
   rate: number
+  attribution: SurchargeAttribution
   assess(ctx: SurchargeContext): SurchargeResult
   marginalRate(type: MarginalScenario['key'], assessed: SurchargeResult): number
 }
@@ -36,6 +45,7 @@ export function niitRule(filingStatus: FilingStatus): SurchargeRule {
     label,
     shortLabel: 'NIIT',
     rate: NIIT_RATE,
+    attribution: { kind: 'investment' },
     assess(ctx) {
       const incomeOverThreshold = Math.max(0, ctx.magi - threshold)
       const taxedAmount = Math.min(ctx.netInvestmentIncome, incomeOverThreshold)
@@ -73,6 +83,7 @@ export function medicareRule(filingStatus: FilingStatus): SurchargeRule {
     label,
     shortLabel: "Add'l Medicare",
     rate: ADDITIONAL_MEDICARE_RATE,
+    attribution: { kind: 'wages' },
     assess(ctx) {
       const incomeOverThreshold = Math.max(0, ctx.wages - threshold)
       const amount = incomeOverThreshold * ADDITIONAL_MEDICARE_RATE

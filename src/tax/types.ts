@@ -23,6 +23,12 @@ export const PREFERENTIAL_SOURCES: IncomeSource[] = [
   'longTermGains',
 ]
 
+/** Every income source, ordinary pool first then preferential. */
+export const ALL_SOURCES: IncomeSource[] = [...ORDINARY_SOURCES, ...PREFERENTIAL_SOURCES]
+
+/** Sources that make up net investment income — everything except wages (the NIIT base). */
+export const INVESTMENT_SOURCES: IncomeSource[] = ALL_SOURCES.filter((s) => s !== 'wages')
+
 export interface TaxInput {
   filingStatus: FilingStatus
   wages: number
@@ -120,6 +126,8 @@ export interface IncomeLayer {
 export interface JurisdictionResult {
   key: string
   standardDeduction: number
+  deductionOnOrdinary: number
+  leftoverDeduction: number
   preferentialDeduction: number
   ordinaryTaxable: number
   preferentialTaxable: number
