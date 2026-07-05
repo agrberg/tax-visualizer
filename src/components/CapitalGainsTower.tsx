@@ -43,9 +43,13 @@ export function CapitalGainsTower({ result, axisMax }: Props) {
     { value: rate0Max, rateAbove: '15%' },
     { value: rate15Max, rateAbove: '20%' },
   ]
-  const fifteenOffAxis = offset + rate15Max > axisMax
-  // Center of the 0% band, which has no lower divider line to sit on.
-  const zeroBandCenter = pct(offset + rate0Max / 2, axisMax)
+  // The rate boundary just above the gains is pinned off-axis to the top edge
+  // (mirrors the ordinary tower's next-bracket pin); boundaries the gains have
+  // already crossed are drawn to scale below.
+  const nextBoundary = dividers.find((d) => d.value > topOfGains) ?? null
+  // Center of the visible 0% band, which has no lower divider line to sit on.
+  const zeroZoneTop = Math.min(offset + rate0Max, axisMax)
+  const zeroBandCenter = pct((offset + zeroZoneTop) / 2, axisMax)
 
   return (
     <div className="flex w-full max-w-xs flex-col items-center sm:max-w-none sm:flex-1">
@@ -153,9 +157,9 @@ export function CapitalGainsTower({ result, axisMax }: Props) {
           />
         )}
 
-        {/* dollar boundaries between zones, drawn on top: threshold left, next rate right */}
+        {/* dollar boundaries the gains have crossed, drawn to scale: threshold left, next rate right */}
         {dividers.map(({ value, rateAbove }) =>
-          value > 0 && offset + value <= axisMax ? (
+          value > 0 && value <= topOfGains ? (
             <Marker
               key={value}
               border="border-t border-dashed border-foreground/50"
@@ -166,11 +170,15 @@ export function CapitalGainsTower({ result, axisMax }: Props) {
           ) : null,
         )}
 
-        {/* 15% → 20% boundary. When it sits above the visible axis, pin it to the top
-            edge but keep the standard marker layout: threshold on the left, the rate
-            that starts there (20%) on the right. */}
-        {fifteenOffAxis && (
-          <Marker topPinned zClassName="z-20" left={formatCurrency(rate15Max)} right="20%" />
+        {/* the next rate boundary above the gains, pinned to the top edge (off-axis) —
+            threshold on the left, the rate that starts there on the right. */}
+        {nextBoundary && (
+          <Marker
+            topPinned
+            zClassName="z-20"
+            left={formatCurrency(nextBoundary.value)}
+            right={nextBoundary.rateAbove}
+          />
         )}
       </TowerColumn>
 

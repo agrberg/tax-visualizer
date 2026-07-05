@@ -1,12 +1,15 @@
 import { describe, it, expect } from 'vitest'
-import { axisMaxFor, marginalOrdinaryIdx, ordinaryAxisMaxFor, nextOrdinaryBracket, tall } from './tower'
+import {
+  AXIS_HEADROOM,
+  axisMaxFor,
+  marginalOrdinaryIdx,
+  ordinaryAxisMaxFor,
+  nextOrdinaryBracket,
+  tall,
+} from './tower'
 import { calculateTax } from '@/tax/calculate'
 import type { TaxInput } from '@/tax/types'
-import {
-  STANDARD_DEDUCTION,
-  ORDINARY_BRACKETS,
-  CAPITAL_GAINS_BREAKPOINTS,
-} from '@/tax/brackets'
+import { STANDARD_DEDUCTION, ORDINARY_BRACKETS } from '@/tax/brackets'
 
 function input(overrides: Partial<TaxInput> = {}): TaxInput {
   return {
@@ -68,39 +71,36 @@ describe('marginalOrdinaryIdx', () => {
 })
 
 describe('axisMaxFor', () => {
-  it('includes the 0% cap-gains ceiling and the shielded preferential deduction', () => {
-    // Long-term gains only, below the deduction+rate0Max: rate0Max drives the axis
-    // and the preferential deduction shields part of the gains.
+  it('scales to the top of the gains stack plus headroom', () => {
+    // Long-term gains below the deduction+rate0Max: the deduction shields part of
+    // the gains, so the fill top includes the spilled deduction.
     const r = calculateTax(input({ filingStatus: 'single', longTermGains: 20000 }))
     expect(r.preferentialIncome).toBeGreaterThan(0)
     expect(r.federal.preferentialDeduction).toBeGreaterThan(0)
 
-    const { rate0Max } = CAPITAL_GAINS_BREAKPOINTS.single
     const fed = r.federal
-    const topOfGains = fed.capitalGainsBaseline + fed.preferentialTaxable
-    let base = Math.max(topOfGains, fed.ordinaryTaxable)
-    // The 0% cap-gains ceiling is included since there is preferential income.
-    base = Math.max(base, rate0Max)
-    base = (base + fed.preferentialDeduction) * 1.08
-    const expected = Math.max(50000, Math.ceil(base / 10000) * 10000)
-
-    const axis = axisMaxFor(r)
-    expect(axis).toBe(expected)
-    // Sanity: without the rate0Max floor the axis would be much smaller.
-    expect(axis).toBeGreaterThan(rate0Max)
+    const fillTop = fed.preferentialDeduction + fed.capitalGainsBaseline + fed.preferentialTaxable
+    expect(axisMaxFor(r)).toBeCloseTo(fillTop * AXIS_HEADROOM, 5)
   })
 
-  it('is driven by max(topOfGains, ordinaryTaxable) with no preferential income', () => {
+  it('tracks the ordinary baseline when there is no preferential income', () => {
     const r = calculateTax(input({ filingStatus: 'single', wages: 100000 }))
     expect(r.preferentialIncome).toBe(0)
 
     const fed = r.federal
-    const topOfGains = fed.capitalGainsBaseline + fed.preferentialTaxable
-    let base = Math.max(topOfGains, fed.ordinaryTaxable)
-    base = (base + fed.preferentialDeduction) * 1.08
-    const expected = Math.max(50000, Math.ceil(base / 10000) * 10000)
+    const fillTop = fed.preferentialDeduction + fed.capitalGainsBaseline + fed.preferentialTaxable
+    expect(axisMaxFor(r)).toBeCloseTo(fillTop * AXIS_HEADROOM, 5)
+  })
 
-    expect(axisMaxFor(r)).toBe(expected)
+  it('lands the two towers at the same fill height', () => {
+    const r = calculateTax(
+      input({ wages: 245000, interest: 4000, nonQualifiedDividends: 5000, qualifiedDividends: 70000 }),
+    )
+    const fed = r.federal
+    const ordFill = Math.max(r.ordinaryIncome, fed.standardDeduction) / ordinaryAxisMaxFor(r)
+    const capFill =
+      (fed.preferentialDeduction + fed.capitalGainsBaseline + fed.preferentialTaxable) / axisMaxFor(r)
+    expect(ordFill).toBeCloseTo(capFill, 5)
   })
 })
 
