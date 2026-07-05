@@ -18,9 +18,11 @@ export interface ClassifiedIncome {
 
 /** Normalize a raw input (clamp negatives) and classify it by tax treatment. */
 export function classifyIncome(input: TaxInput): ClassifiedIncome {
-  const amt = (n: number) => Math.max(0, n)
+  // Coerce non-finite (e.g. a field absent from older saved input) to 0, then clamp.
+  const amt = (n: number) => (Number.isFinite(n) ? Math.max(0, n) : 0)
   const amounts: Record<IncomeSource, number> = {
     wages: amt(input.wages),
+    retirementIncome: amt(input.retirementIncome),
     interest: amt(input.interest),
     nonQualifiedDividends: amt(input.nonQualifiedDividends),
     shortTermGains: amt(input.shortTermGains),

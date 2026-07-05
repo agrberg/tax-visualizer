@@ -8,6 +8,7 @@ const centsExact = (rate: number) => `${+(rate * 100).toFixed(2)}¢`
 const LABELS: Record<MarginalScenario['key'], { label: string; baseLabel: string }> = {
   wages: { label: 'Wages / earned income', baseLabel: 'income tax' },
   ordinaryInvestment: { label: 'Interest · non-qual. div. · ST gains', baseLabel: 'income tax' },
+  retirement: { label: 'Retirement distributions (RMDs, pensions)', baseLabel: 'income tax' },
   preferential: { label: 'Qualified div. · LT gains', baseLabel: 'cap-gains tax' },
 }
 

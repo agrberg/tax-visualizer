@@ -70,6 +70,7 @@
   --color-input: var(--input);
   --color-ring: var(--ring);
   --color-src-wages: var(--color-green-500);
+  --color-src-retirement: var(--color-teal-500);
   --color-src-interest: var(--color-orange-500);
   --color-src-nonqual: var(--color-sky-500);
   --color-src-stgains: var(--color-rose-500);

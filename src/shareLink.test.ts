@@ -5,6 +5,7 @@ import type { TaxInput } from './tax/types'
 const sample: TaxInput = {
   filingStatus: 'mfj',
   wages: 245000,
+  retirementIncome: 30000,
   interest: 4000,
   nonQualifiedDividends: 5000,
   shortTermGains: 0,
@@ -22,6 +23,7 @@ describe('encodeInput / decodeInput', () => {
     expect(encoded).toContain('v=1')
     expect(encoded).toContain('filing=mfj')
     expect(encoded).toContain('wages=245000')
+    expect(encoded).toContain('retire=30000')
     expect(encoded).toContain('qd=70000')
   })
 
@@ -39,6 +41,7 @@ describe('encodeInput / decodeInput', () => {
     expect(decodeInput('v=1&filing=single')).toEqual({
       filingStatus: 'single',
       wages: 0,
+      retirementIncome: 0,
       interest: 0,
       nonQualifiedDividends: 0,
       shortTermGains: 0,

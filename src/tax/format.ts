@@ -49,6 +49,13 @@ export const SOURCE_META: Record<IncomeSource, SourceMeta> = {
     fill: 'bg-src-wages',
     swatch: 'bg-src-wages',
   },
+  retirementIncome: {
+    label: 'Retirement distributions',
+    short: 'Retirement',
+    hint: 'RMDs, pensions, and traditional IRA/401(k) withdrawals. Taxed at ordinary rates, but not earned income (no FICA) and not investment income (no NIIT).',
+    fill: 'bg-src-retirement',
+    swatch: 'bg-src-retirement',
+  },
   interest: {
     label: 'Taxable interest',
     short: 'Interest',
@@ -90,6 +97,7 @@ export const SOURCE_META: Record<IncomeSource, SourceMeta> = {
 // fills and alpha-blended backgrounds that Tailwind's class scanner can't generate.
 export const SOURCE_COLOR: Record<IncomeSource, string> = {
   wages: 'var(--color-src-wages)',
+  retirementIncome: 'var(--color-src-retirement)',
   interest: 'var(--color-src-interest)',
   nonQualifiedDividends: 'var(--color-src-nonqual)',
   shortTermGains: 'var(--color-src-stgains)',
