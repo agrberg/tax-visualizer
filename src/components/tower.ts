@@ -1,4 +1,4 @@
-import type { TaxResult } from '@/tax/types'
+import type { OrdinaryBracket, TaxResult } from '@/tax/types'
 import { CAPITAL_GAINS_BREAKPOINTS, ORDINARY_BRACKETS } from '@/tax/brackets'
 
 /** Fixed pixel height of a tower column; segment heights are a fraction of this. */
@@ -32,21 +32,28 @@ export function axisMaxFor(result: TaxResult): number {
 }
 
 /**
+ * The bracket immediately above the one the income's marginal dollar lands in —
+ * i.e. the "next" rate the taxpayer would hit. Returns null when the income is
+ * already in the top bracket. When income is fully shielded (no taxable ordinary
+ * income) the marginal bracket is the lowest (10%), so this returns the 12% bracket.
+ */
+export function nextOrdinaryBracket(result: TaxResult): OrdinaryBracket | null {
+  const brackets = ORDINARY_BRACKETS[result.filingStatus]
+  const taxable = result.federal.ordinaryTaxable
+  const marginalIdx = brackets.findIndex((b) => taxable < b.max)
+  return brackets[marginalIdx + 1] ?? null
+}
+
+/**
  * Axis for the ordinary tower, which shows GROSS ordinary income: the standard
- * deduction (0% zone) plus taxable income in the brackets. Extends far enough to
- * show at least the first bracket above the deduction for context.
+ * deduction (0% zone) plus taxable income in the brackets. Keeps the axis close to
+ * the income with a small fixed gap above it. The next bracket boundary (if any) is
+ * pinned to the top edge by the tower — not drawn to scale — so a distant next
+ * bracket never creates a huge proportional void.
  */
 export function ordinaryAxisMaxFor(result: TaxResult): number {
-  const brackets = ORDINARY_BRACKETS[result.filingStatus]
   const deduction = result.federal.standardDeduction
-  // Normally reserve headroom to show the first bracket above the deduction for
-  // ladder context. But when income is fully shielded (no taxable ordinary income),
-  // that bracket is never reached — reserving for it just leaves a large empty void,
-  // so stop just above the deduction/income instead.
-  const context =
-    result.federal.ordinaryTaxable > 0
-      ? deduction + brackets[1].min
-      : Math.max(result.ordinaryIncome, deduction)
-  const base = Math.max(result.ordinaryIncome, context)
-  return Math.max(50000, Math.ceil((base * 1.08) / 5000) * 5000)
+  // When income is fully shielded, keep the deduction visible; otherwise track income.
+  const fillTop = Math.max(result.ordinaryIncome, deduction)
+  return Math.max(50000, Math.ceil((fillTop * 1.15) / 5000) * 5000)
 }

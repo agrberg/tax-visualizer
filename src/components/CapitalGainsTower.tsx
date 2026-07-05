@@ -26,12 +26,6 @@ export function CapitalGainsTower({ result, axisMax }: Props) {
   // Position (%) of a taxable-income value, shifted up by the shielded deduction.
   const posPct = (taxableValue: number) => pct(offset + taxableValue, axisMax)
 
-  // Rate zones with their real dollar ranges (taxable income).
-  const bands = [
-    { rate: 0, label: '0%', tint: 'bg-green-500/15', from: 0, to: rate0Max },
-    { rate: 0.15, label: '15%', tint: 'bg-amber-500/15', from: rate0Max, to: rate15Max },
-    { rate: 0.2, label: '20%', tint: 'bg-red-500/15', from: rate15Max, to: Infinity },
-  ]
   // Each dollar boundary carries the rate that *starts* above it, on the right —
   // matching the ordinary tower's convention.
   const dividers = [
@@ -52,7 +46,7 @@ export function CapitalGainsTower({ result, axisMax }: Props) {
       </div>
 
       <div
-        className="relative w-full max-w-xs rounded-md border sm:max-w-[280px]"
+        className="relative w-full max-w-xs rounded-md border bg-muted/40 sm:max-w-[280px]"
         style={{ height: TOWER_HEIGHT }}
         onMouseMove={tip.onMove}
         onMouseLeave={() => {
@@ -60,20 +54,6 @@ export function CapitalGainsTower({ result, axisMax }: Props) {
           setHovered(null)
         }}
       >
-        {/* rate-zone backgrounds (show through as "room" above the gains) */}
-        {bands.map((band) => {
-          const vFrom = offset + band.from
-          const vTo = Math.min(offset + band.to, axisMax)
-          if (vTo <= vFrom) return null
-          return (
-            <div
-              key={band.label}
-              className={`absolute inset-x-0 ${band.tint}`}
-              style={{ bottom: `${pct(vFrom, axisMax)}%`, height: `${pct(vTo - vFrom, axisMax)}%` }}
-            />
-          )
-        })}
-
         {/* standard-deduction spill: shields the bottom of preferential income at 0% */}
         {offset > 0 && (
           <HatchBand
