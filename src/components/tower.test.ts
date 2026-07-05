@@ -1,16 +1,15 @@
 import { describe, it, expect } from 'vitest'
-import { axisMaxFor, ordinaryAxisMaxFor, tall } from './tower'
+import { axisMaxFor, ordinaryAxisMaxFor, nextOrdinaryBracket, tall } from './tower'
 import { calculateTax } from '@/tax/calculate'
 import type { TaxInput } from '@/tax/types'
 import {
   STANDARD_DEDUCTION,
-  ORDINARY_BRACKETS,
   CAPITAL_GAINS_BREAKPOINTS,
 } from '@/tax/brackets'
 
-function input(overrides: Partial<TaxInput>): TaxInput {
+function input(overrides: Partial<TaxInput> = {}): TaxInput {
   return {
-    filingStatus: 'single',
+    filingStatus: 'mfj',
     wages: 0,
     interest: 0,
     nonQualifiedDividends: 0,
@@ -22,35 +21,36 @@ function input(overrides: Partial<TaxInput>): TaxInput {
 }
 
 describe('ordinaryAxisMaxFor', () => {
-  it('does NOT reserve first-bracket headroom when income is fully shielded', () => {
-    // MFJ with wages below the standard deduction: no taxable ordinary income.
-    const r = calculateTax(input({ filingStatus: 'mfj', wages: 24000 }))
-    expect(r.federal.ordinaryTaxable).toBe(0)
-
+  it('leaves a gap above the income but does not extend proportionally to the next bracket', () => {
+    // $254k gross ordinary (MFJ) → $221,800 taxable, in the 24% bracket. The 32%
+    // boundary is ~$180k of taxable income away and must NOT stretch the axis (that
+    // is what created the giant empty void); the tower pins 32% to the top instead.
+    const r = calculateTax(input({ wages: 245000, interest: 4000, nonQualifiedDividends: 5000 }))
     const axis = ordinaryAxisMaxFor(r)
-    // Fully-shielded income under the deduction rounds to the 50k floor.
-    expect(axis).toBe(50000)
+    expect(axis).toBeGreaterThan(254000) // some gap above the income
+    expect(axis).toBeLessThan(STANDARD_DEDUCTION.mfj + 403550) // but nowhere near the 32% line
+  })
+})
 
-    // Regression guard: the old formula reserved the first bracket above the
-    // deduction, floating a lone bracket marker in an empty void.
-    const deduction = STANDARD_DEDUCTION.mfj
-    const brackets = ORDINARY_BRACKETS.mfj
-    const oldFormula = Math.ceil(((deduction + brackets[1].min) * 1.08) / 5000) * 5000
-    expect(axis).toBeLessThan(oldFormula)
+describe('nextOrdinaryBracket', () => {
+  it('returns the bracket above the marginal one (income in 24% → 32% is next)', () => {
+    const r = calculateTax(input({ wages: 245000, interest: 4000, nonQualifiedDividends: 5000 }))
+    expect(nextOrdinaryBracket(r)?.rate).toBe(0.32)
   })
 
-  it('reserves context up to deduction + first bracket min when income is taxable', () => {
-    // MFJ wages well above the deduction: ordinaryTaxable > 0, income drives the axis.
-    const r = calculateTax(input({ filingStatus: 'mfj', wages: 120000 }))
-    expect(r.federal.ordinaryTaxable).toBeGreaterThan(0)
+  it('returns 24% when the income lands in the 22% bracket', () => {
+    const r = calculateTax(input({ wages: 215000, interest: 4000, nonQualifiedDividends: 5000 }))
+    expect(nextOrdinaryBracket(r)?.rate).toBe(0.24)
+  })
 
-    const deduction = STANDARD_DEDUCTION.mfj
-    const brackets = ORDINARY_BRACKETS.mfj
-    const context = deduction + brackets[1].min
-    const base = Math.max(r.ordinaryIncome, context)
-    const expected = Math.max(50000, Math.ceil((base * 1.08) / 5000) * 5000)
+  it('returns 12% when income is fully shielded (marginal bracket is the 10%)', () => {
+    const r = calculateTax(input({ wages: 20000 })) // below the $32,200 deduction
+    expect(nextOrdinaryBracket(r)?.rate).toBe(0.12)
+  })
 
-    expect(ordinaryAxisMaxFor(r)).toBe(expected)
+  it('returns null when income is already in the top bracket', () => {
+    const r = calculateTax(input({ wages: 2000000 }))
+    expect(nextOrdinaryBracket(r)).toBeNull()
   })
 })
 

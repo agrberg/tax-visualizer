@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { ORDINARY_BRACKETS } from '@/tax/brackets'
 import { SOURCE_META, formatCurrency, formatPercent, wagesBracketFill } from '@/tax/format'
 import { ORDINARY_SOURCES, type IncomeSource, type TaxResult } from '@/tax/types'
-import { TOWER_HEIGHT, ordinaryAxisMaxFor, pct, tall } from './tower'
+import { TOWER_HEIGHT, nextOrdinaryBracket, ordinaryAxisMaxFor, pct, tall } from './tower'
 import { BracketBreakdown, HatchBand, HoverTooltip, HoveredSlice, LayerLabel, Marker } from './TowerParts'
 import { useTooltip } from './use-tooltip'
 
@@ -40,6 +40,10 @@ export function OrdinaryTower({ result }: Props) {
   const brackets = ORDINARY_BRACKETS[result.filingStatus]
   const deduction = fed.standardDeduction
   const axisMax = ordinaryAxisMaxFor(result)
+  // The marginal bracket holds the last taxable dollar; the one above it is pinned
+  // to the top edge as the "next rate" (rather than drawn to scale far above).
+  const marginalIdx = brackets.findIndex((b) => fed.ordinaryTaxable < b.max)
+  const nextBracket = nextOrdinaryBracket(result)
   const tip = useTooltip()
   const [hovered, setHovered] = useState<IncomeSource | null>(null)
 
@@ -171,7 +175,10 @@ export function OrdinaryTower({ result }: Props) {
         {/* bracket boundary lines on top: positioned at gross height (deduction +
             threshold), but labeled with the taxable threshold so the left axis reads
             as the IRS bracket ladder ($0, then each threshold above it). */}
-        {brackets.map((b) => {
+        {brackets.map((b, i) => {
+          // The next bracket (and anything above) is pinned to the top edge below,
+          // not drawn to scale — only render crossed/marginal boundaries here.
+          if (i > marginalIdx) return null
           const value = deduction + b.min
           if (value <= 0 || value > axisMax) return null
           return (
@@ -185,6 +192,20 @@ export function OrdinaryTower({ result }: Props) {
             />
           )
         })}
+
+        {/* the next bracket up, pinned to the top edge (threshold left, rate right) —
+            mirrors the capital-gains tower's off-axis boundary. The empty gap below it
+            signals "your top dollars are still in the current rate; this is next". */}
+        {nextBracket && (
+          <div className="pointer-events-none absolute inset-x-0 top-0 z-20">
+            <span className="absolute -top-2.5 left-1 rounded bg-white px-1 text-[10px] font-medium text-black shadow-sm ring-1 ring-black/5">
+              {formatCurrency(nextBracket.min)}
+            </span>
+            <span className="absolute -top-2.5 right-1 rounded bg-white px-1 text-[10px] font-medium text-black shadow-sm ring-1 ring-black/5">
+              {formatPercent(nextBracket.rate, 0)}
+            </span>
+          </div>
+        )}
 
         {/* inline per-source labels, centered in each slice that is tall enough;
             thin slices (interest, non-qual div) stay collapsed and show on hover. */}
