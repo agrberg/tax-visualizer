@@ -96,7 +96,7 @@ export function OverallBreakdown({ result }: Props) {
             <tr key={s.key} className="border-t">
               <td className="py-1.5">
                 <span className="flex items-center gap-1.5">
-                  <Swatch hexes={s.hexes} />
+                  <Swatch colors={s.colors} />
                   {s.short}
                 </span>
               </td>

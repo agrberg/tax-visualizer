@@ -4,11 +4,11 @@ import { blendBackground, formatCurrency, formatPercent } from '@/tax/format'
 import type { BracketFill } from '@/tax/types'
 
 /** A small color dot: solid for one color, diagonal stripes when a bucket blends two. */
-export function Swatch({ hexes, className }: { hexes: string[]; className?: string }) {
+export function Swatch({ colors, className }: { colors: string[]; className?: string }) {
   return (
     <span
       className={`inline-block size-2.5 shrink-0 rounded-full ${className ?? ''}`}
-      style={blendBackground(hexes, { stripe: 3 })}
+      style={blendBackground(colors, { stripe: 3 })}
       aria-hidden
     />
   )

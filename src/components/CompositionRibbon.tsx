@@ -63,7 +63,7 @@ export function CompositionRibbon({ result }: Props) {
               className={`flex items-center justify-center ${
                 hovered && hovered !== s.key ? 'opacity-40' : 'opacity-95'
               } transition-opacity`}
-              style={{ width: `${s.incomeShare * 100}%`, ...blendBackground(s.hexes) }}
+              style={{ width: `${s.incomeShare * 100}%`, ...blendBackground(s.colors) }}
               onMouseEnter={() => setHovered(s.key)}
             >
               {s.incomeShare >= 0.1 && (
@@ -90,7 +90,7 @@ export function CompositionRibbon({ result }: Props) {
                 return (
                   <path
                     key={`ribbon-${s.key}`}
-                    fill={s.hexes[0]}
+                    fill={s.colors[0]}
                     fillOpacity={hovered && hovered !== s.key ? 0.12 : 0.35}
                     d={`M ${inL},0 L ${inR},0 L ${taxR},100 L ${taxL},100 Z`}
                     onMouseEnter={() => setHovered(s.key)}
@@ -110,7 +110,7 @@ export function CompositionRibbon({ result }: Props) {
                   className={`flex items-center justify-center ${
                     hovered && hovered !== s.key ? 'opacity-40' : 'opacity-95'
                   } transition-opacity`}
-                  style={{ width: `${s.taxShare * 100}%`, ...blendBackground(s.hexes) }}
+                  style={{ width: `${s.taxShare * 100}%`, ...blendBackground(s.colors) }}
                   onMouseEnter={() => setHovered(s.key)}
                 >
                   {s.taxShare >= 0.1 && (
@@ -133,7 +133,7 @@ export function CompositionRibbon({ result }: Props) {
           <div>
             <div className="mb-2 border-b pb-2">
               <div className="flex items-center gap-1.5 text-sm font-semibold">
-                <Swatch hexes={active.hexes} />
+                <Swatch colors={active.colors} />
                 {active.label}
               </div>
               <div className="mt-0.5 text-xs text-muted-foreground">

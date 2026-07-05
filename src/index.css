@@ -69,6 +69,12 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-src-wages: var(--color-green-500);
+  --color-src-interest: var(--color-orange-500);
+  --color-src-nonqual: var(--color-sky-500);
+  --color-src-stgains: var(--color-rose-500);
+  --color-src-qualdiv: var(--color-violet-500);
+  --color-src-ltgains: var(--color-fuchsia-600);
 }
 
 @layer base {

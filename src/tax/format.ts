@@ -38,55 +38,55 @@ export const SOURCE_META: Record<IncomeSource, SourceMeta> = {
     label: 'Wages / earned income',
     short: 'Wages',
     hint: 'W-2 wages and self-employment income, taxed at ordinary marginal rates.',
-    fill: 'bg-green-500',
-    swatch: 'bg-green-500',
+    fill: 'bg-src-wages',
+    swatch: 'bg-src-wages',
   },
   interest: {
     label: 'Taxable interest',
     short: 'Interest',
     hint: 'Bank/bond interest, taxed at ordinary rates and counted as investment income for NIIT.',
-    fill: 'bg-orange-500',
-    swatch: 'bg-orange-500',
+    fill: 'bg-src-interest',
+    swatch: 'bg-src-interest',
   },
   nonQualifiedDividends: {
     label: 'Non-qualified dividends',
     short: 'Non-qual. div.',
     hint: 'Ordinary dividends that do not meet holding-period rules; taxed at ordinary rates.',
-    fill: 'bg-sky-500',
-    swatch: 'bg-sky-500',
+    fill: 'bg-src-nonqual',
+    swatch: 'bg-src-nonqual',
   },
   shortTermGains: {
     label: 'Short-term capital gains',
     short: 'ST gains',
     hint: 'Gains on assets held ≤ 1 year; taxed at ordinary rates.',
-    fill: 'bg-rose-500',
-    swatch: 'bg-rose-500',
+    fill: 'bg-src-stgains',
+    swatch: 'bg-src-stgains',
   },
   qualifiedDividends: {
     label: 'Qualified dividends',
     short: 'Qual. div.',
     hint: 'Dividends meeting holding-period rules; taxed on the 0/15/20% capital-gains ladder.',
-    fill: 'bg-violet-500',
-    swatch: 'bg-violet-500',
+    fill: 'bg-src-qualdiv',
+    swatch: 'bg-src-qualdiv',
   },
   longTermGains: {
     label: 'Long-term capital gains',
     short: 'LT gains',
     hint: 'Gains on assets held > 1 year; taxed on the 0/15/20% capital-gains ladder.',
-    fill: 'bg-fuchsia-600',
-    swatch: 'bg-fuchsia-600',
+    fill: 'bg-src-ltgains',
+    swatch: 'bg-src-ltgains',
   },
 }
 
-// Hex equivalents of each source's Tailwind fill, for inline SVG fills and
-// alpha-blended backgrounds that Tailwind's class scanner can't generate.
-export const SOURCE_HEX: Record<IncomeSource, string> = {
-  wages: '#22c55e',
-  interest: '#f97316',
-  nonQualifiedDividends: '#0ea5e9',
-  shortTermGains: '#f43f5e',
-  qualifiedDividends: '#8b5cf6',
-  longTermGains: '#c026d3',
+// Each source's theme-token color as a `var(--color-src-*)` string, for inline SVG
+// fills and alpha-blended backgrounds that Tailwind's class scanner can't generate.
+export const SOURCE_COLOR: Record<IncomeSource, string> = {
+  wages: 'var(--color-src-wages)',
+  interest: 'var(--color-src-interest)',
+  nonQualifiedDividends: 'var(--color-src-nonqual)',
+  shortTermGains: 'var(--color-src-stgains)',
+  qualifiedDividends: 'var(--color-src-qualdiv)',
+  longTermGains: 'var(--color-src-ltgains)',
 }
 
 /**
@@ -100,7 +100,7 @@ export interface CompositionSegment {
   label: string
   short: string
   /** One color, or the two source colors when the capital-gains bucket blends both. */
-  hexes: string[]
+  colors: string[]
   amount: number
   tax: number
   effectiveRate: number
@@ -114,7 +114,7 @@ export function compositionSegments(result: TaxResult): CompositionSegment[] {
       key: s.source,
       label: SOURCE_META[s.source].label,
       short: SOURCE_META[s.source].short,
-      hexes: [SOURCE_HEX[s.source]],
+      colors: [SOURCE_COLOR[s.source]],
       amount: s.amount,
       tax: s.tax,
       effectiveRate: s.effectiveRate,
@@ -131,7 +131,7 @@ export function compositionSegments(result: TaxResult): CompositionSegment[] {
       key: 'capitalGains',
       label: only ? SOURCE_META[only].label : 'Long-term gains & qualified dividends',
       short: only ? SOURCE_META[only].short : 'Cap. gains',
-      hexes: preferential.map((s) => SOURCE_HEX[s.source]),
+      colors: preferential.map((s) => SOURCE_COLOR[s.source]),
       amount,
       tax,
       effectiveRate: amount > 0 ? tax / amount : 0,
@@ -143,18 +143,19 @@ export function compositionSegments(result: TaxResult): CompositionSegment[] {
 /**
  * Background style for a segment fill or swatch: a solid color for a single source,
  * or diagonal stripes of both colors when a bucket blends two (long-term gains +
- * qualified dividends). `alpha` is an optional two-hex-digit opacity suffix.
+ * qualified dividends). `alpha` is an optional opacity percentage (0–100).
  */
 export function blendBackground(
-  hexes: string[],
-  opts: { stripe?: number; alpha?: string } = {},
+  colors: string[],
+  opts: { stripe?: number; alpha?: number } = {},
 ): { backgroundColor?: string; backgroundImage?: string } {
-  const alpha = opts.alpha ?? ''
   const stripe = opts.stripe ?? 8
-  if (hexes.length === 1) return { backgroundColor: `${hexes[0]}${alpha}` }
-  const [a, b] = hexes
+  const tint = (c: string) =>
+    opts.alpha === undefined ? c : `color-mix(in oklch, ${c} ${opts.alpha}%, transparent)`
+  if (colors.length === 1) return { backgroundColor: tint(colors[0]) }
+  const [a, b] = colors.map(tint)
   return {
-    backgroundImage: `repeating-linear-gradient(45deg, ${a}${alpha} 0, ${a}${alpha} ${stripe}px, ${b}${alpha} ${stripe}px, ${b}${alpha} ${stripe * 2}px)`,
+    backgroundImage: `repeating-linear-gradient(45deg, ${a} 0, ${a} ${stripe}px, ${b} ${stripe}px, ${b} ${stripe * 2}px)`,
   }
 }
 

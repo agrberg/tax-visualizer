@@ -83,7 +83,7 @@ export function CompositionMarimekko({ result }: Props) {
               } border-r border-white/60 transition-opacity last:border-r-0`}
               style={{
                 width: `${s.incomeShare * 100}%`,
-                ...blendBackground(s.hexes, { alpha: '26', stripe: 6 }),
+                ...blendBackground(s.colors, { alpha: 15, stripe: 6 }),
               }}
               onMouseEnter={() => setHovered(s.key)}
             >
@@ -92,7 +92,7 @@ export function CompositionMarimekko({ result }: Props) {
                 className="absolute inset-x-0 bottom-0 z-10"
                 style={{
                   height: `${fillPct}%`,
-                  ...blendBackground(s.hexes, { stripe: 6 }),
+                  ...blendBackground(s.colors, { stripe: 6 }),
                 }}
               />
               {/* label: source and its share of income (the width) */}
@@ -117,7 +117,7 @@ export function CompositionMarimekko({ result }: Props) {
           <div>
             <div className="mb-2 border-b pb-2">
               <div className="flex items-center gap-1.5 text-sm font-semibold">
-                <Swatch hexes={active.hexes} />
+                <Swatch colors={active.colors} />
                 {active.label}
               </div>
               <div className="mt-0.5 text-xs text-muted-foreground">
