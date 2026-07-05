@@ -7,19 +7,17 @@ import { buildBreakdown } from './attribution'
 
 export function calculateTax(inputRaw: TaxInput): TaxResult {
   const income = classifyIncome(inputRaw)
-  const fed = computeJurisdiction(federalJurisdiction(inputRaw.filingStatus), income)
+  const jurisdiction = federalJurisdiction(inputRaw.filingStatus)
+  const fed = computeJurisdiction(jurisdiction, income)
 
-  const niit = fed.surcharges.find((s) => s.key === 'niit')!
-  const additionalMedicare = fed.surcharges.find((s) => s.key === 'additionalMedicare')!
+  const surcharges = jurisdiction.surcharges.map((rule, i) => ({ rule, result: fed.surcharges[i] }))
 
   const sourceBreakdown = buildBreakdown({
-    ordinaryAmounts: income.ordinaryAmounts,
-    preferentialAmounts: income.preferentialAmounts,
+    amounts: income.amounts,
     ordinaryLayers: fed.layers.ordinary,
     preferentialLayers: fed.layers.preferential,
-    niitAmount: niit.amount,
+    surcharges,
     netInvestmentIncome: income.netInvestmentIncome,
-    medicareAmount: additionalMedicare.amount,
   })
 
   return {

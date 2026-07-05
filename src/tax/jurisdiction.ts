@@ -64,13 +64,15 @@ export function computeJurisdiction(j: Jurisdiction, income: ClassifiedIncome): 
     hasLadder && bumpTo > bumpFrom ? { rate: bumpTo - bumpFrom, fromRate: bumpFrom, toRate: bumpTo } : null
 
   const surcharges = j.surcharges.map((rule) =>
-    rule.assess({ wages: income.ordinaryAmounts.wages, netInvestmentIncome: income.netInvestmentIncome, magi: income.totalIncome }),
+    rule.assess({ wages: income.amounts.wages, netInvestmentIncome: income.netInvestmentIncome, magi: income.totalIncome }),
   )
   const surchargeTotal = surcharges.reduce((s, x) => s + x.amount, 0)
 
   return {
     key: j.key,
     standardDeduction: j.standardDeduction,
+    deductionOnOrdinary,
+    leftoverDeduction,
     preferentialDeduction,
     ordinaryTaxable,
     preferentialTaxable,
@@ -88,9 +90,9 @@ export function computeJurisdiction(j: Jurisdiction, income: ClassifiedIncome): 
     marginalCapitalGainsRate,
     marginalGainsBump,
     layers: {
-      ordinary: ordinaryLayers(income.ordinaryAmounts, deductionOnOrdinary, j.ordinaryBands),
+      ordinary: ordinaryLayers(income.amounts, deductionOnOrdinary, j.ordinaryBands),
       preferential: ladder
-        ? preferentialLayers(income.preferentialAmounts, shieldFraction, capitalGainsBaseline, ladder)
+        ? preferentialLayers(income.amounts, shieldFraction, capitalGainsBaseline, ladder)
         : [],
     },
   }

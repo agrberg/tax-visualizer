@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { blendBackground, compositionSegments, formatCurrency, formatPercent } from '@/tax/format'
 import type { TaxResult } from '@/tax/types'
-import { HoverTooltip, Swatch } from './TowerParts'
+import { CompositionTooltip, HoverTooltip } from './TowerParts'
 import { useTooltip } from './use-tooltip'
 
 interface Props {
@@ -63,7 +63,7 @@ export function CompositionRibbon({ result }: Props) {
               className={`flex items-center justify-center ${
                 hovered && hovered !== s.key ? 'opacity-40' : 'opacity-95'
               } transition-opacity`}
-              style={{ width: `${s.incomeShare * 100}%`, ...blendBackground(s.hexes) }}
+              style={{ width: `${s.incomeShare * 100}%`, ...blendBackground(s.colors) }}
               onMouseEnter={() => setHovered(s.key)}
             >
               {s.incomeShare >= 0.1 && (
@@ -90,7 +90,7 @@ export function CompositionRibbon({ result }: Props) {
                 return (
                   <path
                     key={`ribbon-${s.key}`}
-                    fill={s.hexes[0]}
+                    fill={s.colors[0]}
                     fillOpacity={hovered && hovered !== s.key ? 0.12 : 0.35}
                     d={`M ${inL},0 L ${inR},0 L ${taxR},100 L ${taxL},100 Z`}
                     onMouseEnter={() => setHovered(s.key)}
@@ -110,7 +110,7 @@ export function CompositionRibbon({ result }: Props) {
                   className={`flex items-center justify-center ${
                     hovered && hovered !== s.key ? 'opacity-40' : 'opacity-95'
                   } transition-opacity`}
-                  style={{ width: `${s.taxShare * 100}%`, ...blendBackground(s.hexes) }}
+                  style={{ width: `${s.taxShare * 100}%`, ...blendBackground(s.colors) }}
                   onMouseEnter={() => setHovered(s.key)}
                 >
                   {s.taxShare >= 0.1 && (
@@ -130,43 +130,18 @@ export function CompositionRibbon({ result }: Props) {
 
       <HoverTooltip visible={tip.visible} pos={tip.pos}>
         {active && (
-          <div>
-            <div className="mb-2 border-b pb-2">
-              <div className="flex items-center gap-1.5 text-sm font-semibold">
-                <Swatch hexes={active.hexes} />
-                {active.label}
-              </div>
-              <div className="mt-0.5 text-xs text-muted-foreground">
-                {hasTax
-                  ? `${formatPercent(active.incomeShare, 1)} of income → ${formatPercent(active.taxShare, 1)} of tax`
-                  : `${formatPercent(active.incomeShare, 1)} of income`}
-              </div>
-            </div>
-            <table className="w-full text-xs">
-              <tbody>
-                <tr>
-                  <td className="py-0.5 text-muted-foreground">Amount</td>
-                  <td className="py-0.5 text-right tabular-nums">{formatCurrency(active.amount)}</td>
-                </tr>
-                <tr>
-                  <td className="py-0.5 text-muted-foreground">Tax</td>
-                  <td className="py-0.5 text-right tabular-nums">{formatCurrency(active.tax)}</td>
-                </tr>
-                <tr>
-                  <td className="py-0.5 text-muted-foreground">Take-home</td>
-                  <td className="py-0.5 text-right tabular-nums">
-                    {formatCurrency(active.amount - active.tax)}
-                  </td>
-                </tr>
-                <tr>
-                  <td className="py-0.5 text-muted-foreground">Effective rate</td>
-                  <td className="py-0.5 text-right tabular-nums">
-                    {formatPercent(active.effectiveRate, 1)}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+          <CompositionTooltip
+            colors={active.colors}
+            label={active.label}
+            subtitle={
+              hasTax
+                ? `${formatPercent(active.incomeShare, 1)} of income → ${formatPercent(active.taxShare, 1)} of tax`
+                : `${formatPercent(active.incomeShare, 1)} of income`
+            }
+            amount={active.amount}
+            tax={active.tax}
+            effectiveRate={active.effectiveRate}
+          />
         )}
       </HoverTooltip>
     </div>

@@ -1,14 +1,14 @@
-import { type ReactNode } from 'react'
+import { type CSSProperties, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { blendBackground, formatCurrency, formatPercent } from '@/tax/format'
 import type { BracketFill } from '@/tax/types'
 
 /** A small color dot: solid for one color, diagonal stripes when a bucket blends two. */
-export function Swatch({ hexes, className }: { hexes: string[]; className?: string }) {
+export function Swatch({ colors, className }: { colors: string[]; className?: string }) {
   return (
     <span
       className={`inline-block size-2.5 shrink-0 rounded-full ${className ?? ''}`}
-      style={blendBackground(hexes, { stripe: 3 })}
+      style={blendBackground(colors, { stripe: 3 })}
       aria-hidden
     />
   )
@@ -100,5 +100,143 @@ export function BracketBreakdown({
         </tfoot>
       </table>
     </div>
+  )
+}
+
+/** Composition-view tooltip body: header (swatch + label + subtitle) and an
+    amount / tax / take-home / effective-rate table. */
+export function CompositionTooltip({
+  colors,
+  label,
+  subtitle,
+  amount,
+  tax,
+  effectiveRate,
+}: {
+  colors: string[]
+  label: string
+  subtitle: ReactNode
+  amount: number
+  tax: number
+  effectiveRate: number
+}) {
+  return (
+    <div>
+      <div className="mb-2 border-b pb-2">
+        <div className="flex items-center gap-1.5 text-sm font-semibold">
+          <Swatch colors={colors} />
+          {label}
+        </div>
+        <div className="mt-0.5 text-xs text-muted-foreground">{subtitle}</div>
+      </div>
+      <table className="w-full text-xs">
+        <tbody>
+          <tr>
+            <td className="py-0.5 text-muted-foreground">Amount</td>
+            <td className="py-0.5 text-right tabular-nums">{formatCurrency(amount)}</td>
+          </tr>
+          <tr>
+            <td className="py-0.5 text-muted-foreground">Tax</td>
+            <td className="py-0.5 text-right tabular-nums">{formatCurrency(tax)}</td>
+          </tr>
+          <tr>
+            <td className="py-0.5 text-muted-foreground">Take-home</td>
+            <td className="py-0.5 text-right tabular-nums">{formatCurrency(amount - tax)}</td>
+          </tr>
+          <tr>
+            <td className="py-0.5 text-muted-foreground">Effective rate</td>
+            <td className="py-0.5 text-right tabular-nums">{formatPercent(effectiveRate, 1)}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+/** The small white label chip used on boundary markers. */
+export function MarkerChip({ side, children }: { side: 'left' | 'right'; children: ReactNode }) {
+  return (
+    <span
+      className={`absolute -top-2.5 ${side === 'left' ? 'left-1' : 'right-1'} rounded bg-white px-1 text-[10px] font-medium text-black shadow-sm ring-1 ring-black/5`}
+    >
+      {children}
+    </span>
+  )
+}
+
+/** A positioned horizontal boundary line carrying optional left/right label chips.
+    When `topPinned`, it rides the top edge with no border line. */
+export function Marker({
+  bottom,
+  topPinned,
+  border,
+  zClassName = 'z-10',
+  left,
+  right,
+}: {
+  bottom?: number
+  topPinned?: boolean
+  border?: string
+  zClassName?: string
+  left?: ReactNode
+  right?: ReactNode
+}) {
+  const positionClass = topPinned ? 'top-0' : ''
+  const style: CSSProperties = topPinned ? {} : { bottom: `${bottom ?? 0}%` }
+  return (
+    <div
+      className={`pointer-events-none absolute inset-x-0 ${zClassName} ${positionClass} ${border ?? ''}`}
+      style={style}
+    >
+      {left != null && <MarkerChip side="left">{left}</MarkerChip>}
+      {right != null && <MarkerChip side="right">{right}</MarkerChip>}
+    </div>
+  )
+}
+
+/** A diagonal-hatch band positioned by vertical range, with an optional solid
+    backgroundColor, top border, and centered children. `className` carries the
+    band-specific layout (z-index, flex alignment, pointer-events). */
+export function HatchBand({
+  className,
+  bottom,
+  height,
+  stripe,
+  backgroundColor,
+  children,
+}: {
+  className: string
+  bottom: string
+  height: number
+  stripe: string
+  backgroundColor?: string
+  children?: ReactNode
+}) {
+  return (
+    <div
+      className={`absolute inset-x-0 ${className}`}
+      style={{
+        bottom,
+        height: `${height}%`,
+        ...(backgroundColor ? { backgroundColor } : {}),
+        backgroundImage: `repeating-linear-gradient(45deg, transparent, transparent 5px, ${stripe} 5px, ${stripe} 10px)`,
+      }}
+    >
+      {children}
+    </div>
+  )
+}
+
+/** A centered pill label vertically positioned at `topPct` (% from top). */
+export function LayerLabel({ topPct, children }: { topPct: number; children: ReactNode }) {
+  return (
+    <span
+      className="pointer-events-none absolute inset-x-0 z-20 flex -translate-y-1/2 justify-center"
+      style={{ top: `${topPct}%` }}
+    >
+      <span className="rounded bg-white/85 px-1.5 py-0.5 text-[10px] font-medium text-neutral-700 shadow-sm">
+        {children}
+      </span>
+    </span>
   )
 }
