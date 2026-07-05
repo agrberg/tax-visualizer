@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { compositionSegments, blendBackground, SOURCE_META, SOURCE_COLOR } from './format'
+import { compositionSegments, blendBackground, formatRatePercent, SOURCE_META, SOURCE_COLOR } from './format'
 import { calculateTax } from './calculate'
 import type { TaxInput } from './types'
 
@@ -89,5 +89,14 @@ describe('blendBackground', () => {
     expect(style.backgroundImage).toContain('repeating-linear-gradient')
     expect(style.backgroundImage).toContain(a)
     expect(style.backgroundImage).toContain(b)
+  })
+})
+
+describe('formatRatePercent', () => {
+  it('shows exact rates with trailing zeros trimmed (up to 2 decimals)', () => {
+    expect(formatRatePercent(0.062)).toBe('6.2%')
+    expect(formatRatePercent(0.0145)).toBe('1.45%') // the case formatPercent(_, 1) mis-rounds to 1.5%
+    expect(formatRatePercent(0.038)).toBe('3.8%')
+    expect(formatRatePercent(0.009)).toBe('0.9%')
   })
 })

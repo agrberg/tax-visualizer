@@ -62,10 +62,12 @@ export interface SurchargeResult {
   applies: boolean
   rate: number
   threshold: number
-  /** The income measured against the threshold (MAGI for NIIT, wages for Medicare). */
+  /** The income measured against the threshold (MAGI for NIIT, wages for Medicare/FICA). */
   incomeMeasured: number
   /** Amount of that income over the threshold. */
   incomeOverThreshold: number
+  /** Social Security only: the wage-base cap the rate applies *below* (inverse of a threshold). */
+  cap?: number
   /** The dollar base the rate is actually applied to (amount = taxedAmount * rate). */
   taxedAmount: number
   amount: number

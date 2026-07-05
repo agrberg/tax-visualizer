@@ -31,11 +31,12 @@ describe('ordinary income only', () => {
     // 1240 + 4560 + 7370
     expect(r.federal.ordinaryTax).toBeCloseTo(13170, 2)
     expect(r.federal.capitalGainsTax).toBe(0)
-    expect(r.totalTax).toBeCloseTo(13170, 2)
+    // income tax 13170 + FICA on 100k wages (6.2% + 1.45% = 7650)
+    expect(r.totalTax).toBeCloseTo(20820, 2)
     expect(r.federal.marginalOrdinaryRate).toBe(0.22)
     // taxable income 83900 sits in the 15% cap-gains band (single 0% ends at 49450)
     expect(r.federal.marginalCapitalGainsRate).toBe(0.15)
-    expect(r.effectiveRate).toBeCloseTo(0.1317, 4)
+    expect(r.effectiveRate).toBeCloseTo(0.2082, 4)
     expect(r.federal.roomAt0).toBe(0)
     expect(r.federal.roomAt15).toBeCloseTo(545500 - 83900, 2)
   })
@@ -92,7 +93,10 @@ describe('standard deduction spilling onto preferential income', () => {
     // leftover deduction 6100 reduces the 8000 of qualified dividends to 1900 taxable
     expect(r.federal.preferentialTaxable).toBe(1900)
     expect(r.federal.preferentialDeduction).toBe(6100)
-    expect(r.totalTax).toBe(0)
+    // no income tax, but FICA still applies to the 10000 of gross wages (7.65% = 765)
+    expect(r.federal.ordinaryTax).toBe(0)
+    expect(r.federal.capitalGainsTax).toBe(0)
+    expect(r.totalTax).toBeCloseTo(765, 2)
   })
 
   it('shields preferential income proportionally, not sequentially by source', () => {
@@ -152,10 +156,12 @@ describe('per-source and overall aggregation', () => {
     expect(r.effectiveRate).toBeCloseTo(r.totalTax / r.totalIncome, 6)
   })
 
-  it('attributes Additional Medicare Tax to wages', () => {
+  it('attributes the wage-based surcharges (FICA + Additional Medicare) to wages', () => {
     const r = calculateTax(input({ wages: 250000 }))
-    // wages tax = ordinary tax + additional medicare 450
-    expect(sourceTax(r, 'wages')).toBeCloseTo(r.federal.ordinaryTax + 450, 2)
+    // wages carry every wage-attributed surcharge: SS (capped), Medicare, Add'l Medicare
+    const wageSurcharges = r.federal.surcharges.reduce((s, x) => s + x.amount, 0)
+    expect(wageSurcharges).toBeCloseTo(11439 + 3625 + 450, 2) // SS 184500*6.2% + Medicare 250k*1.45% + Add'l 50k*0.9%
+    expect(sourceTax(r, 'wages')).toBeCloseTo(r.federal.ordinaryTax + wageSurcharges, 2)
   })
 })
 
@@ -178,9 +184,10 @@ describe('marginal cost of the next dollar', () => {
     )
     const m = marginalNextDollar(r)
     // marginal ordinary 32%, cap-gains 15%; MAGI-over (391k) exceeds NII (141k),
-    // so a wage dollar does NOT drag more NII under the cap — Medicare only.
-    expect(rate(m, 'wages').totalRate).toBeCloseTo(0.329, 5) // 32% + 0.9% Medicare
-    expect(rate(m, 'wages').surtaxes.map((s) => s.label)).toEqual(["Add'l Medicare"])
+    // so a wage dollar does NOT drag more NII under the cap. Wages 500k > SS cap, so
+    // no more SS — but base Medicare (1.45%) + Add'l Medicare (0.9%) still ride the dollar.
+    expect(rate(m, 'wages').totalRate).toBeCloseTo(0.3435, 5) // 32% + 1.45% Medicare + 0.9% Add'l
+    expect(rate(m, 'wages').surtaxes.map((s) => s.label)).toEqual(['Medicare', "Add'l Medicare"])
     expect(rate(m, 'ordinaryInvestment').totalRate).toBeCloseTo(0.358, 5) // 32% + 3.8% NIIT
     expect(rate(m, 'preferential').totalRate).toBeCloseTo(0.188, 5) // 15% + 3.8% NIIT
   })
@@ -197,19 +204,23 @@ describe('marginal cost of the next dollar', () => {
       }),
     )
     const m = marginalNextDollar(r)
-    expect(rate(m, 'wages').totalRate).toBeCloseTo(0.258, 5) // 22% + 3.8% NIIT (wages < 250k, no Medicare)
-    expect(rate(m, 'wages').surtaxes.map((s) => s.label)).toEqual(['NIIT'])
+    // wages 214k > SS cap (no SS) and < 250k (no Add'l Medicare), so base Medicare 1.45% + NIIT 3.8%
+    expect(rate(m, 'wages').totalRate).toBeCloseTo(0.2725, 5) // 22% + 1.45% Medicare + 3.8% NIIT
+    expect(rate(m, 'wages').surtaxes.map((s) => s.label)).toEqual(['Medicare', 'NIIT'])
     expect(rate(m, 'ordinaryInvestment').totalRate).toBeCloseTo(0.258, 5)
     expect(rate(m, 'preferential').totalRate).toBeCloseTo(0.188, 5)
   })
 
-  it('charges 0 on the next dollar while everything is inside the standard deduction', () => {
+  it('charges 0 income tax inside the deduction, but FICA still hits the next wage dollar', () => {
     // MFJ, ordinary 24000 < 32200 deduction; preferential also partly shielded
     const r = calculateTax(
       input({ filingStatus: 'mfj', wages: 15000, interest: 4000, nonQualifiedDividends: 5000, qualifiedDividends: 60000 }),
     )
     const m = marginalNextDollar(r)
-    expect(rate(m, 'wages').totalRate).toBe(0)
+    // FICA is on gross wages regardless of the deduction: 6.2% SS + 1.45% Medicare
+    expect(rate(m, 'wages').totalRate).toBeCloseTo(0.0765, 5)
+    expect(rate(m, 'wages').surtaxes.map((s) => s.label)).toEqual(['Soc. Sec.', 'Medicare'])
+    // an interest dollar carries no FICA — the wages-vs-interest difference
     expect(rate(m, 'ordinaryInvestment').totalRate).toBe(0)
     // gains top out at 51800 taxable, well inside the 0% cap-gains band
     expect(rate(m, 'preferential').totalRate).toBe(0)
@@ -228,9 +239,11 @@ describe('marginal cost of the next dollar', () => {
     expect(r.federal.marginalOrdinaryRate).toBe(0) // the dollar itself is inside the deduction
     expect(r.federal.marginalGainsBump).toEqual({ rate: 0.15, fromRate: 0, toRate: 0.15 })
     const m = marginalNextDollar(r)
-    // 0 income tax + 15% bump → 15% all-in on the next wage/interest dollar
-    expect(rate(m, 'wages').totalRate).toBeCloseTo(0.15, 5)
+    // interest dollar: 0 income tax + 15% bump = 15%. Wage dollar adds 7.65% FICA on top.
+    expect(rate(m, 'wages').totalRate).toBeCloseTo(0.2265, 5)
     expect(rate(m, 'wages').surtaxes).toEqual([
+      { label: 'Soc. Sec.', rate: 0.062, tone: 'surtax' },
+      { label: 'Medicare', rate: 0.0145, tone: 'surtax' },
       { label: 'pushes a gain 0%→15%', rate: 0.15, tone: 'bump' },
     ])
     expect(rate(m, 'ordinaryInvestment').totalRate).toBeCloseTo(0.15, 5)
@@ -249,7 +262,8 @@ describe('marginal cost of the next dollar', () => {
     expect(r.federal.marginalOrdinaryRate).toBe(0.1)
     expect(r.federal.marginalGainsBump).toEqual({ rate: 0.15, fromRate: 0, toRate: 0.15 })
     const m = marginalNextDollar(r)
-    expect(rate(m, 'wages').totalRate).toBeCloseTo(0.25, 5)
+    // interest: 10% + 15% bump = 25%. Wage dollar adds 7.65% FICA (wages < SS cap) → 32.65%.
+    expect(rate(m, 'wages').totalRate).toBeCloseTo(0.3265, 5)
     expect(rate(m, 'ordinaryInvestment').totalRate).toBeCloseTo(0.25, 5)
     expect(rate(m, 'preferential').totalRate).toBe(0.15) // a preferential dollar just pays 15%, no bump
   })
@@ -261,16 +275,21 @@ describe('marginal cost of the next dollar', () => {
     expect(r.federal.marginalOrdinaryRate).toBe(0.12)
     expect(r.federal.marginalGainsBump).toEqual({ rate: 0.15, fromRate: 0, toRate: 0.15 })
     const m = marginalNextDollar(r)
-    expect(rate(m, 'wages').totalRate).toBeCloseTo(0.27, 5) // 12% + 15% bump
+    // 12% + 15% bump = 27%, plus 7.65% FICA (wages 90k < SS cap) → 34.65%
+    expect(rate(m, 'wages').totalRate).toBeCloseTo(0.3465, 5)
   })
 
-  it('adds no surtaxes below the thresholds', () => {
+  it('adds no income-tax surtaxes below the thresholds, but wages still carry FICA', () => {
     const r = calculateTax(input({ wages: 100000 })) // single, no investment income
     const m = marginalNextDollar(r)
-    expect(rate(m, 'wages').totalRate).toBe(0.22) // 22% ordinary, no Medicare
-    expect(rate(m, 'ordinaryInvestment').totalRate).toBe(0.22) // 22% ordinary, no NIIT
+    // wages: 22% ordinary + 7.65% FICA (no NIIT/Add'l Medicare below their thresholds)
+    expect(rate(m, 'wages').totalRate).toBeCloseTo(0.2965, 5)
+    expect(rate(m, 'wages').surRate).toBeCloseTo(0.0765, 5)
+    expect(rate(m, 'wages').surtaxes.map((s) => s.label)).toEqual(['Soc. Sec.', 'Medicare'])
+    // interest and preferential carry no surtaxes at all here
+    expect(rate(m, 'ordinaryInvestment').totalRate).toBe(0.22) // 22% ordinary, no NIIT, no FICA
     expect(rate(m, 'preferential').totalRate).toBe(0.15) // 15% cap gains, no NIIT
-    expect(rate(m, 'wages').surRate).toBe(0)
+    expect(rate(m, 'ordinaryInvestment').surRate).toBe(0)
   })
 })
 
@@ -341,9 +360,10 @@ describe('income classification and NIIT branches', () => {
     const r = calculateTax(input({ wages: 300000, interest: 5000 }))
     const m = marginalNextDollar(r)
     const wages = m.find((s) => s.key === 'wages')!
-    // 35% ordinary + 0.9% Medicare, but NO NIIT (raising wages can't pull more than NII allows)
-    expect(wages.totalRate).toBeCloseTo(0.359, 5)
-    expect(wages.surtaxes.map((s) => s.label)).toEqual(["Add'l Medicare"])
+    // 35% ordinary + 1.45% Medicare + 0.9% Add'l Medicare; NO NIIT (raising wages can't
+    // pull more than NII allows) and NO SS (wages 300k > cap).
+    expect(wages.totalRate).toBeCloseTo(0.3735, 5)
+    expect(wages.surtaxes.map((s) => s.label)).toEqual(['Medicare', "Add'l Medicare"])
   })
 
   it('reaches a 20% + NIIT marginal rate on the next preferential dollar', () => {

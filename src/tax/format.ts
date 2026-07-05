@@ -22,6 +22,14 @@ export function formatPercent(fraction: number, digits = 1): string {
   return `${(fraction * 100).toFixed(digits)}%`
 }
 
+/**
+ * A rate as a percent with just enough precision to be exact: up to 2 decimals,
+ * trailing zeros trimmed (0.062 → "6.2%", 0.0145 → "1.45%", 0.038 → "3.8%").
+ */
+export function formatRatePercent(fraction: number): string {
+  return `${+(fraction * 100).toFixed(2)}%`
+}
+
 export interface SourceMeta {
   label: string
   short: string

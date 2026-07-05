@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { medicareRule, niitRule } from './surcharges'
+import { medicareBaseRule, medicareRule, niitRule, socialSecurityRule } from './surcharges'
 
 describe('niitRule', () => {
   const rule = niitRule('mfj') // threshold 250000
@@ -37,6 +37,62 @@ describe('medicareRule', () => {
     expect(a.incomeOverThreshold).toBe(50000)
     expect(a.amount).toBeCloseTo(450, 5)
     expect(rule.marginalRate('wages', a)).toBeCloseTo(0.009, 5)
+    expect(rule.marginalRate('ordinaryInvestment', a)).toBe(0)
+    expect(rule.marginalRate('preferential', a)).toBe(0)
+  })
+})
+
+describe('socialSecurityRule (capped, the inverse of a threshold)', () => {
+  const rule = socialSecurityRule()
+  const ctx = (wages: number) => ({ wages, netInvestmentIncome: 0, magi: wages })
+
+  it('taxes 6.2% of wages below the wage-base cap', () => {
+    const a = rule.assess(ctx(100000))
+    expect(a.cap).toBe(184500)
+    expect(a.taxedAmount).toBe(100000)
+    expect(a.amount).toBeCloseTo(6200, 5)
+    expect(a.applies).toBe(true)
+    expect(rule.marginalRate('wages', a)).toBeCloseTo(0.062, 5)
+  })
+
+  it('caps the taxed base at the wage base and stops the next-dollar rate above it', () => {
+    const atCap = rule.assess(ctx(184500))
+    expect(atCap.taxedAmount).toBe(184500)
+    expect(atCap.amount).toBeCloseTo(184500 * 0.062, 5)
+    // exactly at the cap, one more wage dollar is no longer taxed
+    expect(rule.marginalRate('wages', atCap)).toBe(0)
+
+    const overCap = rule.assess(ctx(250000))
+    expect(overCap.taxedAmount).toBe(184500) // wages above the cap escape SS
+    expect(overCap.incomeOverThreshold).toBe(65500) // the untaxed remainder, for display
+    expect(overCap.amount).toBeCloseTo(184500 * 0.062, 5)
+    expect(rule.marginalRate('wages', overCap)).toBe(0)
+  })
+
+  it('never touches non-wage income', () => {
+    const a = rule.assess(ctx(100000))
+    expect(rule.marginalRate('ordinaryInvestment', a)).toBe(0)
+    expect(rule.marginalRate('preferential', a)).toBe(0)
+  })
+
+  it('does not apply with zero wages', () => {
+    expect(rule.assess(ctx(0)).applies).toBe(false)
+  })
+})
+
+describe('medicareBaseRule (flat, uncapped)', () => {
+  const rule = medicareBaseRule()
+  const ctx = (wages: number) => ({ wages, netInvestmentIncome: 0, magi: wages })
+
+  it('taxes 1.45% of all wages with no cap or threshold', () => {
+    const a = rule.assess(ctx(500000))
+    expect(a.taxedAmount).toBe(500000)
+    expect(a.amount).toBeCloseTo(7250, 5)
+    expect(rule.marginalRate('wages', a)).toBeCloseTo(0.0145, 5)
+  })
+
+  it('never touches non-wage income', () => {
+    const a = rule.assess(ctx(100000))
     expect(rule.marginalRate('ordinaryInvestment', a)).toBe(0)
     expect(rule.marginalRate('preferential', a)).toBe(0)
   })

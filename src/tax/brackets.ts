@@ -8,6 +8,8 @@ import type { FilingStatus, OrdinaryBracket } from './types'
  *   (2026 inflation adjustments, incl. OBBBA), cross-checked against Tax Foundation.
  * - NIIT (§1411) and Additional Medicare Tax (§3101(b)(2)) thresholds are set by statute
  *   and are NOT inflation-adjusted.
+ * - Social Security wage base ($184,500 for 2026) is inflation-indexed and set annually
+ *   by the SSA (Contribution and Benefit Base); SS 6.2% and Medicare 1.45% rates are statutory.
  */
 export const TAX_YEAR = 2026
 
@@ -89,6 +91,12 @@ export const NIIT_THRESHOLD: Record<FilingStatus, number> = {
   hoh: 200000,
   mfs: 125000,
 }
+
+/** FICA payroll tax (employee side). SS is capped at the wage base; Medicare is uncapped. */
+export const SOCIAL_SECURITY_RATE = 0.062
+export const MEDICARE_RATE = 0.0145
+/** Social Security wage base (2026) — inflation-indexed; SS applies only to wages up to here. */
+export const SOCIAL_SECURITY_WAGE_BASE = 184500
 
 /** Additional Medicare Tax (0.9%) earned-income thresholds — statutory, not inflation-adjusted. */
 export const ADDITIONAL_MEDICARE_RATE = 0.009

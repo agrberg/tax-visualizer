@@ -1,5 +1,5 @@
 import { Lightbulb } from 'lucide-react'
-import { formatCurrency, formatPercent } from '@/tax/format'
+import { formatCurrency, formatRatePercent } from '@/tax/format'
 import type { SurchargeResult } from '@/tax/types'
 import { cn } from '@/lib/utils'
 
@@ -29,7 +29,7 @@ function NiitCalc({ s }: { s: SurchargeResult }) {
             label={`Taxed — lesser (${lesserIsNii ? 'net inv. income' : 'MAGI over threshold'})`}
             value={formatCurrency(s.taxedAmount)}
           />
-          <Row label={`NIIT (${formatPercent(s.rate, 1)})`} value={`+${formatCurrency(s.amount, true)}`} strong />
+          <Row label={`NIIT (${formatRatePercent(s.rate)})`} value={`+${formatCurrency(s.amount, true)}`} strong />
         </>
       ) : (
         <p className="pt-0.5 text-muted-foreground">
@@ -49,7 +49,7 @@ function MedicareCalc({ s }: { s: SurchargeResult }) {
       <Row label={`Over ${formatCurrency(s.threshold)} threshold`} value={formatCurrency(s.incomeOverThreshold)} />
       {s.applies ? (
         <Row
-          label={`Add'l Medicare (${formatPercent(s.rate, 1)})`}
+          label={`Add'l Medicare (${formatRatePercent(s.rate)})`}
           value={`+${formatCurrency(s.amount, true)}`}
           strong
         />
@@ -58,6 +58,63 @@ function MedicareCalc({ s }: { s: SurchargeResult }) {
       )}
     </dl>
   )
+}
+
+/** Social Security is *capped*: the rate applies to wages up to the wage base, then stops. */
+function SocialSecurityCalc({ s }: { s: SurchargeResult }) {
+  return (
+    <dl className="mt-1.5 space-y-0.5 text-xs">
+      <Row label="Wages" value={formatCurrency(s.incomeMeasured)} />
+      <Row label="Wage base cap" value={formatCurrency(s.cap ?? 0)} />
+      {s.applies ? (
+        <>
+          <Row label="Taxed (up to the cap)" value={formatCurrency(s.taxedAmount)} />
+          {s.incomeOverThreshold > 0 && (
+            <Row label="Above cap (untaxed)" value={formatCurrency(s.incomeOverThreshold)} />
+          )}
+          <Row
+            label={`Social Security (${formatRatePercent(s.rate)})`}
+            value={`+${formatCurrency(s.amount, true)}`}
+            strong
+          />
+        </>
+      ) : (
+        <p className="pt-0.5 text-muted-foreground">No wages — no Social Security tax.</p>
+      )}
+    </dl>
+  )
+}
+
+/** Base Medicare is a flat rate on all wages — no cap, no threshold. */
+function MedicareBaseCalc({ s }: { s: SurchargeResult }) {
+  return (
+    <dl className="mt-1.5 space-y-0.5 text-xs">
+      <Row label="Wages" value={formatCurrency(s.incomeMeasured)} />
+      {s.applies ? (
+        <Row
+          label={`Medicare (${formatRatePercent(s.rate)})`}
+          value={`+${formatCurrency(s.amount, true)}`}
+          strong
+        />
+      ) : (
+        <p className="pt-0.5 text-muted-foreground">No wages — no Medicare tax.</p>
+      )}
+    </dl>
+  )
+}
+
+/** The calculation panel for a surcharge, chosen by its rule key. */
+function SurchargeCalc({ s }: { s: SurchargeResult }) {
+  switch (s.key) {
+    case 'socialSecurity':
+      return <SocialSecurityCalc s={s} />
+    case 'medicare':
+      return <MedicareBaseCalc s={s} />
+    case 'niit':
+      return <NiitCalc s={s} />
+    default:
+      return <MedicareCalc s={s} />
+  }
 }
 
 interface IndicatorProps {
@@ -85,11 +142,11 @@ function Indicator({ title, description, surcharge, children }: IndicatorProps) 
         )}
       />
       <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2 text-sm font-semibold">
-          {title}
+        <div className="flex items-start justify-between gap-2 text-sm font-semibold">
+          <span className="min-w-0">{title}</span>
           <span
             className={cn(
-              'shrink-0 whitespace-nowrap rounded px-1.5 py-0.5 text-[10px] font-medium uppercase',
+              'mt-0.5 shrink-0 whitespace-nowrap rounded px-1.5 py-0.5 text-[10px] font-medium uppercase',
               on ? 'bg-amber-500 text-white' : 'bg-muted text-muted-foreground',
             )}
           >
@@ -105,6 +162,8 @@ function Indicator({ title, description, surcharge, children }: IndicatorProps) 
 
 /** Static blurb per surcharge, keyed by its rule key. */
 const DESCRIPTIONS: Record<string, string> = {
+  socialSecurity: '6.2% on wages up to the annual wage base, then 0%.',
+  medicare: '1.45% on all wages — no cap.',
   niit: '3.8% on the lesser of net investment income and MAGI over the threshold.',
   additionalMedicare: '0.9% on earned income (wages) above the threshold.',
 }
@@ -118,8 +177,7 @@ export function SurchargeIndicators({ surcharges }: Props) {
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
       {surcharges.map((s) => (
         <Indicator key={s.key} title={s.label} description={DESCRIPTIONS[s.key] ?? ''} surcharge={s}>
-          {/* NIIT carries a net-investment-income figure (the other side of its "lesser of"); Medicare doesn't. */}
-          {s.investmentIncome !== undefined ? <NiitCalc s={s} /> : <MedicareCalc s={s} />}
+          <SurchargeCalc s={s} />
         </Indicator>
       ))}
     </div>

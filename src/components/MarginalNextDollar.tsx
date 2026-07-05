@@ -2,6 +2,8 @@ import { marginalNextDollar } from '@/tax/calculate'
 import type { MarginalScenario, TaxResult } from '@/tax/types'
 
 const cents = (rate: number) => `${(rate * 100).toFixed(1)}¢`
+// Surtax component rates need exact precision (e.g. Medicare 1.45¢), trailing zeros trimmed.
+const centsExact = (rate: number) => `${+(rate * 100).toFixed(2)}¢`
 
 const LABELS: Record<MarginalScenario['key'], { label: string; baseLabel: string }> = {
   wages: { label: 'Wages / earned income', baseLabel: 'income tax' },
@@ -39,9 +41,9 @@ export function MarginalNextDollar({ result }: { result: TaxResult }) {
                   key={su.label}
                   className={`flex items-center justify-center ${su.tone === 'bump' ? 'bg-violet-500' : 'bg-amber-500'}`}
                   style={{ width: `${su.rate * 100}%` }}
-                  title={`${cents(su.rate)} ${su.label}`}
+                  title={`${centsExact(su.rate)} ${su.label}`}
                 >
-                  {su.rate >= 0.08 ? cents(su.rate) : ''}
+                  {su.rate >= 0.08 ? centsExact(su.rate) : ''}
                 </div>
               ))}
               <div
@@ -56,7 +58,7 @@ export function MarginalNextDollar({ result }: { result: TaxResult }) {
               {s.surtaxes.map((su) => (
                 <span key={su.label} className={su.tone === 'bump' ? 'text-violet-600' : undefined}>
                   {' + '}
-                  {cents(su.rate)} {su.label}
+                  {centsExact(su.rate)} {su.label}
                 </span>
               ))}
               {' · keep '}
