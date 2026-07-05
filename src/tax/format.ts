@@ -1,4 +1,4 @@
-import type { IncomeSource } from './types'
+import { PREFERENTIAL_SOURCES, type IncomeSource, type TaxResult } from './types'
 
 const currency0 = new Intl.NumberFormat('en-US', {
   style: 'currency',
@@ -76,6 +76,86 @@ export const SOURCE_META: Record<IncomeSource, SourceMeta> = {
     fill: 'bg-fuchsia-600',
     swatch: 'bg-fuchsia-600',
   },
+}
+
+// Hex equivalents of each source's Tailwind fill, for inline SVG fills and
+// alpha-blended backgrounds that Tailwind's class scanner can't generate.
+export const SOURCE_HEX: Record<IncomeSource, string> = {
+  wages: '#22c55e',
+  interest: '#f97316',
+  nonQualifiedDividends: '#0ea5e9',
+  shortTermGains: '#f43f5e',
+  qualifiedDividends: '#8b5cf6',
+  longTermGains: '#c026d3',
+}
+
+/**
+ * A row in the income/tax composition charts. Individual ordinary sources pass
+ * through as-is; the two preferential sources are merged into one capital-gains
+ * bucket, since their apparent per-source rate difference is only an artifact of
+ * stacking order (whichever fills the remaining 0% room first looks cheaper).
+ */
+export interface CompositionSegment {
+  key: string
+  label: string
+  short: string
+  /** One color, or the two source colors when the capital-gains bucket blends both. */
+  hexes: string[]
+  amount: number
+  tax: number
+  effectiveRate: number
+}
+
+export function compositionSegments(result: TaxResult): CompositionSegment[] {
+  const rows = result.sourceBreakdown.filter((s) => s.amount > 0)
+  const segments: CompositionSegment[] = rows
+    .filter((s) => !PREFERENTIAL_SOURCES.includes(s.source))
+    .map((s) => ({
+      key: s.source,
+      label: SOURCE_META[s.source].label,
+      short: SOURCE_META[s.source].short,
+      hexes: [SOURCE_HEX[s.source]],
+      amount: s.amount,
+      tax: s.tax,
+      effectiveRate: s.effectiveRate,
+    }))
+  const preferential = rows
+    .filter((s) => PREFERENTIAL_SOURCES.includes(s.source))
+    .sort((a, b) => PREFERENTIAL_SOURCES.indexOf(a.source) - PREFERENTIAL_SOURCES.indexOf(b.source))
+  if (preferential.length > 0) {
+    const amount = preferential.reduce((sum, s) => sum + s.amount, 0)
+    const tax = preferential.reduce((sum, s) => sum + s.tax, 0)
+    // With only one preferential source, name it plainly; with both, they share a bucket.
+    const only = preferential.length === 1 ? preferential[0].source : null
+    segments.push({
+      key: 'capitalGains',
+      label: only ? SOURCE_META[only].label : 'Long-term gains & qualified dividends',
+      short: only ? SOURCE_META[only].short : 'Cap. gains',
+      hexes: preferential.map((s) => SOURCE_HEX[s.source]),
+      amount,
+      tax,
+      effectiveRate: amount > 0 ? tax / amount : 0,
+    })
+  }
+  return segments
+}
+
+/**
+ * Background style for a segment fill or swatch: a solid color for a single source,
+ * or diagonal stripes of both colors when a bucket blends two (long-term gains +
+ * qualified dividends). `alpha` is an optional two-hex-digit opacity suffix.
+ */
+export function blendBackground(
+  hexes: string[],
+  opts: { stripe?: number; alpha?: string } = {},
+): { backgroundColor?: string; backgroundImage?: string } {
+  const alpha = opts.alpha ?? ''
+  const stripe = opts.stripe ?? 8
+  if (hexes.length === 1) return { backgroundColor: `${hexes[0]}${alpha}` }
+  const [a, b] = hexes
+  return {
+    backgroundImage: `repeating-linear-gradient(45deg, ${a}${alpha} 0, ${a}${alpha} ${stripe}px, ${b}${alpha} ${stripe}px, ${b}${alpha} ${stripe * 2}px)`,
+  }
 }
 
 /** Color for a capital-gains rate band. */

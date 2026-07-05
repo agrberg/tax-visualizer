@@ -33,6 +33,15 @@ export function axisMaxFor(result: TaxResult): number {
  */
 export function ordinaryAxisMaxFor(result: TaxResult): number {
   const brackets = ORDINARY_BRACKETS[result.filingStatus]
-  const base = Math.max(result.ordinaryIncome, result.federal.standardDeduction + brackets[1].min)
+  const deduction = result.federal.standardDeduction
+  // Normally reserve headroom to show the first bracket above the deduction for
+  // ladder context. But when income is fully shielded (no taxable ordinary income),
+  // that bracket is never reached — reserving for it just leaves a large empty void,
+  // so stop just above the deduction/income instead.
+  const context =
+    result.federal.ordinaryTaxable > 0
+      ? deduction + brackets[1].min
+      : Math.max(result.ordinaryIncome, deduction)
+  const base = Math.max(result.ordinaryIncome, context)
   return Math.max(50000, Math.ceil((base * 1.08) / 5000) * 5000)
 }

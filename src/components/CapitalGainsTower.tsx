@@ -32,14 +32,21 @@ export function CapitalGainsTower({ result, axisMax }: Props) {
     { rate: 0.15, label: '15%', tint: 'bg-amber-500/15', from: rate0Max, to: rate15Max },
     { rate: 0.2, label: '20%', tint: 'bg-red-500/15', from: rate15Max, to: Infinity },
   ]
-  const dividers = [rate0Max, rate15Max]
+  // Each dollar boundary carries the rate that *starts* above it, on the right —
+  // matching the ordinary tower's convention.
+  const dividers = [
+    { value: rate0Max, rateAbove: '15%' },
+    { value: rate15Max, rateAbove: '20%' },
+  ]
   const fifteenOffAxis = offset + rate15Max > axisMax
+  // Center of the 0% band, which has no lower divider line to sit on.
+  const zeroBandCenter = pct(offset + rate0Max / 2, axisMax)
   // Only label a band in-bar when it's tall enough; otherwise the legend carries it.
   const tall = (amount: number) => pct(amount, axisMax) >= 7
 
   return (
-    <div className="flex w-full max-w-xs flex-col items-center sm:w-auto sm:max-w-none">
-      <div className="mb-2 text-center">
+    <div className="flex w-full max-w-xs flex-col items-center sm:max-w-none sm:flex-1">
+      <div className="mb-5 text-center">
         <div className="text-sm font-semibold">Capital gains &amp; qualified dividends</div>
         <div className="text-xs text-muted-foreground">
           Stacked on ordinary income · tax {formatCurrency(fed.capitalGainsTax)}
@@ -47,7 +54,7 @@ export function CapitalGainsTower({ result, axisMax }: Props) {
       </div>
 
       <div
-        className="relative w-full max-w-xs rounded-md border sm:w-28"
+        className="relative w-full max-w-xs rounded-md border sm:max-w-[280px]"
         style={{ height: TOWER_HEIGHT }}
         onMouseMove={tip.onMove}
         onMouseLeave={() => {
@@ -90,10 +97,12 @@ export function CapitalGainsTower({ result, axisMax }: Props) {
           </div>
         )}
 
-        {/* ordinary income occupancy (only when it has taxable income; then offset is 0) */}
+        {/* ordinary income occupancy (only when it has taxable income; then offset is 0).
+            The baseline marker line labels the exact dollar value, so this zone is
+            left unlabeled. */}
         {baseline > 0 && (
           <div
-            className="absolute inset-x-0 flex items-end justify-center pb-1"
+            className="absolute inset-x-0"
             style={{
               bottom: `${posPct(0)}%`,
               height: `${pct(Math.min(baseline, axisMax), axisMax)}%`,
@@ -101,15 +110,7 @@ export function CapitalGainsTower({ result, axisMax }: Props) {
               backgroundImage:
                 'repeating-linear-gradient(45deg, transparent, transparent 5px, rgba(113,113,122,0.30) 5px, rgba(113,113,122,0.30) 10px)',
             }}
-          >
-            {tall(baseline) && (
-              <span className="rounded bg-white/85 px-1.5 py-0.5 text-center text-[10px] font-medium leading-tight text-neutral-700 shadow-sm">
-                Ordinary income
-                <br />
-                {formatCurrency(baseline)}
-              </span>
-            )}
-          </div>
+          />
         )}
 
         {/* room remaining at 0% (between the gains top and the 0% ceiling) */}
@@ -151,22 +152,33 @@ export function CapitalGainsTower({ result, axisMax }: Props) {
           </span>
         )}
 
-        {/* rate-zone labels on the left edge, centered in each visible zone */}
-        {bands.map((band) => {
-          const lo = offset + band.from
-          const hi = Math.min(offset + band.to, axisMax)
-          if (hi - lo <= 0) return null
-          const centerPct = pct((lo + hi) / 2, axisMax)
+        {/* inline per-source labels, centered in each gains layer that is tall enough */}
+        {layers.map((layer) => {
+          if (!tall(layer.taxableAmount)) return null
+          const mid = layer.base + layer.taxableAmount / 2
           return (
             <span
-              key={`zone-${band.label}`}
-              className="pointer-events-none absolute right-1 z-20 -translate-y-1/2 rounded bg-white/80 px-1 text-[10px] font-semibold text-neutral-700 shadow-sm"
-              style={{ top: `${100 - centerPct}%` }}
+              key={`label-${layer.source}`}
+              className="pointer-events-none absolute inset-x-0 z-20 flex -translate-y-1/2 justify-center"
+              style={{ top: `${100 - posPct(mid)}%` }}
             >
-              {band.label}
+              <span className="rounded bg-white/85 px-1.5 py-0.5 text-[10px] font-medium text-neutral-700 shadow-sm">
+                {SOURCE_META[layer.source].short} · {formatCurrency(layer.taxableAmount)}
+              </span>
             </span>
           )
         })}
+
+        {/* 0% rate label — its band has no lower divider line, so center it in-zone.
+            The 15% and 20% rates ride on their divider lines (right side) instead. */}
+        {rate0Max > 0 && (
+          <span
+            className="pointer-events-none absolute right-1 z-20 -translate-y-1/2 rounded bg-white px-1 text-[10px] font-medium text-black shadow-sm ring-1 ring-black/5"
+            style={{ top: `${100 - zeroBandCenter}%` }}
+          >
+            0%
+          </span>
+        )}
 
         {/* baseline marker: top of ordinary income / where gains start */}
         {baseline > 0 && offset + baseline <= axisMax && (
@@ -180,8 +192,8 @@ export function CapitalGainsTower({ result, axisMax }: Props) {
           </div>
         )}
 
-        {/* dollar boundaries between zones, drawn on top */}
-        {dividers.map((value) =>
+        {/* dollar boundaries between zones, drawn on top: threshold left, next rate right */}
+        {dividers.map(({ value, rateAbove }) =>
           value > 0 && offset + value <= axisMax ? (
             <div
               key={value}
@@ -191,20 +203,30 @@ export function CapitalGainsTower({ result, axisMax }: Props) {
               <span className="absolute -top-2.5 left-1 rounded bg-white px-1 text-[10px] font-medium text-black shadow-sm ring-1 ring-black/5">
                 {formatCurrency(value)}
               </span>
+              <span className="absolute -top-2.5 right-1 rounded bg-white px-1 text-[10px] font-medium text-black shadow-sm ring-1 ring-black/5">
+                {rateAbove}
+              </span>
             </div>
           ) : null,
         )}
 
-        {/* note when the 15% band's top is above the visible axis */}
+        {/* 15% → 20% boundary. When it sits above the visible axis, pin it to the top
+            edge but keep the standard marker layout: threshold on the left, the rate
+            that starts there (20%) on the right. */}
         {fifteenOffAxis && (
-          <span className="pointer-events-none absolute right-1 top-1 z-20 rounded bg-white px-1 text-[10px] font-medium text-black shadow-sm ring-1 ring-black/5">
-            15% up to {formatCurrency(rate15Max)}
-          </span>
+          <div className="pointer-events-none absolute inset-x-0 top-0 z-20">
+            <span className="absolute -top-2.5 left-1 rounded bg-white px-1 text-[10px] font-medium text-black shadow-sm ring-1 ring-black/5">
+              {formatCurrency(rate15Max)}
+            </span>
+            <span className="absolute -top-2.5 right-1 rounded bg-white px-1 text-[10px] font-medium text-black shadow-sm ring-1 ring-black/5">
+              20%
+            </span>
+          </div>
         )}
       </div>
 
       {/* room stats */}
-      <div className="mt-3 w-full space-y-1 text-[11px] sm:w-40 sm:text-xs">
+      <div className="mt-3 w-full max-w-[280px] space-y-1 text-[11px] sm:text-xs">
         {offset > 0 && (
           <div className="flex justify-between">
             <span className="flex items-center gap-1.5">

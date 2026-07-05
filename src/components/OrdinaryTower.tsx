@@ -64,8 +64,8 @@ export function OrdinaryTower({ result }: Props) {
   const tall = (amount: number) => pct(amount, axisMax) >= 7
 
   return (
-    <div className="flex w-full max-w-xs flex-col items-center sm:w-auto sm:max-w-none">
-      <div className="mb-2 text-center">
+    <div className="flex w-full max-w-xs flex-col items-center sm:max-w-none sm:flex-1">
+      <div className="mb-5 text-center">
         <div className="text-sm font-semibold">Ordinary income</div>
         <div className="text-xs text-muted-foreground">
           Marginal rate {formatPercent(fed.marginalOrdinaryRate, 0)} · tax{' '}
@@ -74,7 +74,7 @@ export function OrdinaryTower({ result }: Props) {
       </div>
 
       <div
-        className="relative w-full max-w-xs rounded-md border bg-muted/40 sm:w-28"
+        className="relative w-full max-w-xs rounded-md border bg-muted/40 sm:max-w-[280px]"
         style={{ height: TOWER_HEIGHT }}
         onMouseMove={tip.onMove}
         onMouseLeave={() => {
@@ -190,15 +190,47 @@ export function OrdinaryTower({ result }: Props) {
               className="pointer-events-none absolute inset-x-0 z-20 border-t border-dashed border-white/70"
               style={{ bottom: `${pct(value, axisMax)}%` }}
             >
-              <span className="absolute -top-2.5 left-1 rounded bg-white px-1 text-[10px] font-medium text-black shadow-sm ring-1 ring-black/5">
-                {formatCurrency(b.min)}
-              </span>
+              {b.min > 0 && (
+                <span className="absolute -top-2.5 left-1 rounded bg-white px-1 text-[10px] font-medium text-black shadow-sm ring-1 ring-black/5">
+                  {formatCurrency(b.min)}
+                </span>
+              )}
               <span className="absolute -top-2.5 right-1 rounded bg-white px-1 text-[10px] font-medium text-black shadow-sm ring-1 ring-black/5">
                 {formatPercent(b.rate, 0)}
               </span>
             </div>
           )
         })}
+
+        {/* inline per-source labels, centered in each slice that is tall enough;
+            thin slices (interest, non-qual div) stay collapsed and show on hover. */}
+        {grossLayers.map((layer) => {
+          if (!tall(layer.amount)) return null
+          const mid = layer.base + layer.amount / 2
+          return (
+            <span
+              key={`label-${layer.source}`}
+              className="pointer-events-none absolute inset-x-0 z-20 flex -translate-y-1/2 justify-center"
+              style={{ top: `${100 - pct(mid, axisMax)}%` }}
+            >
+              <span className="rounded bg-white/85 px-1.5 py-0.5 text-[10px] font-medium text-neutral-700 shadow-sm">
+                {SOURCE_META[layer.source].short} · {formatCurrency(layer.amount)}
+              </span>
+            </span>
+          )
+        })}
+
+        {/* taxable ordinary income at the top of the stack — labeled in taxable
+            terms (deduction removed) to match the taxable axis, and equal to the
+            capital-gains baseline. */}
+        {fed.ordinaryTaxable > 0 && grossOrdinary <= axisMax && (
+          <span
+            className="pointer-events-none absolute left-1 z-30 -translate-y-1/2 rounded bg-white/90 px-1.5 py-0.5 text-[10px] font-semibold text-neutral-800 shadow-sm ring-1 ring-black/5"
+            style={{ top: `${100 - pct(grossOrdinary, axisMax)}%` }}
+          >
+            {formatCurrency(fed.ordinaryTaxable)}
+          </span>
+        )}
 
         {grossOrdinary === 0 && (
           <div className="absolute inset-x-0 top-2 p-2 text-center text-[11px] text-muted-foreground">
@@ -208,7 +240,7 @@ export function OrdinaryTower({ result }: Props) {
       </div>
 
       {/* legend */}
-      <div className="mt-3 w-full space-y-1 text-[11px] sm:w-40 sm:text-xs">
+      <div className="mt-3 w-full max-w-[280px] space-y-1 text-[11px] sm:text-xs">
         <div className="flex items-center gap-1.5">
           <span
             className="size-2.5 rounded-sm border border-dashed border-neutral-400 bg-neutral-200"

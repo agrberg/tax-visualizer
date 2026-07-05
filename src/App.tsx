@@ -65,7 +65,7 @@ function App() {
               </CardHeader>
               <CardContent className="px-4 sm:px-6">
                 <div className="grid gap-8 xl:grid-cols-[1fr_18rem]">
-                  <div className="flex flex-col items-center gap-8 sm:flex-row sm:flex-wrap sm:items-start sm:justify-start">
+                  <div className="flex flex-col items-center gap-8 sm:flex-row sm:items-start sm:gap-6">
                     <OrdinaryTower result={result} />
                     <CapitalGainsTower result={result} axisMax={axisMax} />
                   </div>
