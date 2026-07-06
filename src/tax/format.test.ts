@@ -67,6 +67,52 @@ describe('compositionSegments', () => {
     expect(segments.some((s) => s.key === 'capitalGains')).toBe(false)
     expect(segments.map((s) => s.key)).toEqual(['wages'])
   })
+
+  it('merges interest, non-qual dividends, and ST gains into one ordinaryInvestment bucket', () => {
+    const r = calculateTax(
+      input({ wages: 80000, interest: 5000, nonQualifiedDividends: 4000, shortTermGains: 3000 }),
+    )
+    const segments = compositionSegments(r)
+
+    const bucket = segments.find((s) => s.key === 'ordinaryInvestment')!
+    expect(bucket).toBeDefined()
+
+    const int = r.sourceBreakdown.find((s) => s.source === 'interest')!
+    const nq = r.sourceBreakdown.find((s) => s.source === 'nonQualifiedDividends')!
+    const st = r.sourceBreakdown.find((s) => s.source === 'shortTermGains')!
+    expect(bucket.amount).toBe(int.amount + nq.amount + st.amount)
+    expect(bucket.tax).toBe(int.tax + nq.tax + st.tax)
+    expect(bucket.effectiveRate).toBe(bucket.tax / bucket.amount)
+    expect(bucket.colors).toHaveLength(3)
+
+    // Individual investment rows are folded into the bucket, not shown separately.
+    expect(segments.some((s) => s.key === 'interest')).toBe(false)
+    expect(segments.some((s) => s.key === 'nonQualifiedDividends')).toBe(false)
+    expect(segments.filter((s) => s.key === 'ordinaryInvestment')).toHaveLength(1)
+  })
+
+  it('labels a single investment source with its own key/short (not the merged bucket)', () => {
+    const r = calculateTax(input({ wages: 80000, interest: 5000 }))
+    const segments = compositionSegments(r)
+
+    expect(segments.some((s) => s.key === 'ordinaryInvestment')).toBe(false)
+    const interest = segments.find((s) => s.key === 'interest')!
+    expect(interest.short).toBe(SOURCE_META.interest.short)
+    expect(interest.colors).toEqual([SOURCE_COLOR.interest])
+  })
+
+  it('keeps wages and retirement separate from the investment bucket', () => {
+    const r = calculateTax(
+      input({ wages: 80000, retirementIncome: 20000, interest: 5000, nonQualifiedDividends: 4000 }),
+    )
+    const segments = compositionSegments(r)
+
+    expect(segments.some((s) => s.key === 'wages')).toBe(true)
+    expect(segments.some((s) => s.key === 'retirementIncome')).toBe(true)
+    expect(segments.some((s) => s.key === 'ordinaryInvestment')).toBe(true)
+    // Order: wages, retirement, investment bucket.
+    expect(segments.map((s) => s.key)).toEqual(['wages', 'retirementIncome', 'ordinaryInvestment'])
+  })
 })
 
 describe('blendBackground', () => {
@@ -90,6 +136,17 @@ describe('blendBackground', () => {
     expect(style.backgroundImage).toContain('repeating-linear-gradient')
     expect(style.backgroundImage).toContain(a)
     expect(style.backgroundImage).toContain(b)
+  })
+
+  it('cycles through all colors for a three-color bucket', () => {
+    const a = 'var(--color-src-interest)'
+    const b = 'var(--color-src-nonqual)'
+    const c = 'var(--color-src-stgains)'
+    const style = blendBackground([a, b, c])
+    expect(style.backgroundImage).toContain('repeating-linear-gradient')
+    expect(style.backgroundImage).toContain(a)
+    expect(style.backgroundImage).toContain(b)
+    expect(style.backgroundImage).toContain(c)
   })
 })
 

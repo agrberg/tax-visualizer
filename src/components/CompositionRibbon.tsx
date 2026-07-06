@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { blendBackground, compositionSegments, formatCurrency, formatPercent } from '@/tax/format'
 import type { TaxResult } from '@/tax/types'
 import { CompositionTooltip, HoverTooltip } from './TowerParts'
@@ -21,6 +21,19 @@ export function CompositionRibbon({ result }: Props) {
   const tip = useTooltip()
   const [hovered, setHovered] = useState<string | null>(null)
 
+  // Bar width in px — needed to tell when a segment's centered % label would fall
+  // under the "Income"/"Tax" axis label (which is pinned to the bar's left edge).
+  const barRef = useRef<HTMLDivElement>(null)
+  const [barWidth, setBarWidth] = useState(0)
+  useEffect(() => {
+    const el = barRef.current
+    if (!el) return
+    const ro = new ResizeObserver(() => setBarWidth(el.offsetWidth))
+    ro.observe(el)
+    setBarWidth(el.offsetWidth)
+    return () => ro.disconnect()
+  }, [])
+
   const totalIncome = result.totalIncome
   const totalTax = result.totalTax
   if (totalIncome <= 0) return null
@@ -38,6 +51,18 @@ export function CompositionRibbon({ result }: Props) {
   })
   const active = placed.find((p) => p.key === hovered)
 
+  // The left px reserved by each axis label (left-2 inset + ~text width + gap), at
+  // the fixed 11px semibold font. A segment hides its centered % when that label
+  // would overlap the axis label; the exact share stays on hover and in the table.
+  const INCOME_LABEL_PX = 60
+  const TAX_LABEL_PX = 36
+  const showPct = (leftFrac: number, share: number, labelPx: number) => {
+    if (share < 0.1) return false
+    if (!barWidth) return true
+    const centerPx = (leftFrac + share / 2) * barWidth
+    return centerPx - 14 >= labelPx
+  }
+
   return (
     <div>
       <div
@@ -50,6 +75,7 @@ export function CompositionRibbon({ result }: Props) {
       >
         {/* income bar */}
         <div
+          ref={barRef}
           className={`relative flex h-7 w-full overflow-hidden text-white ${
             hasTax ? 'rounded-t-md' : 'rounded-md'
           }`}
@@ -66,7 +92,7 @@ export function CompositionRibbon({ result }: Props) {
               style={{ width: `${s.incomeShare * 100}%`, ...blendBackground(s.colors) }}
               onMouseEnter={() => setHovered(s.key)}
             >
-              {s.incomeShare >= 0.1 && (
+              {showPct(s.inLeft, s.incomeShare, INCOME_LABEL_PX) && (
                 <span className="text-[10px] font-semibold">{formatPercent(s.incomeShare, 0)}</span>
               )}
             </div>
@@ -75,29 +101,29 @@ export function CompositionRibbon({ result }: Props) {
 
         {hasTax && (
           <>
-            {/* ribbons connecting each source's income share to its tax share */}
-            <svg
-              className="block h-10 w-full"
-              viewBox="0 0 100 100"
-              preserveAspectRatio="none"
-              aria-hidden
-            >
+            {/* ribbons connecting each source's income share to its tax share.
+                Rendered as clip-path trapezoids so the fill matches the bars — solid
+                for a single-color source, striped for a merged two-color bucket. */}
+            <div className="relative block h-10 w-full" aria-hidden>
               {placed.map((s) => {
                 const inL = s.inLeft * 100
                 const inR = (s.inLeft + s.incomeShare) * 100
                 const taxL = s.taxLeft * 100
                 const taxR = (s.taxLeft + s.taxShare) * 100
                 return (
-                  <path
+                  <div
                     key={`ribbon-${s.key}`}
-                    fill={s.colors[0]}
-                    fillOpacity={hovered && hovered !== s.key ? 0.12 : 0.35}
-                    d={`M ${inL},0 L ${inR},0 L ${taxR},100 L ${taxL},100 Z`}
+                    className="absolute inset-0"
+                    style={{
+                      clipPath: `polygon(${inL}% 0, ${inR}% 0, ${taxR}% 100%, ${taxL}% 100%)`,
+                      opacity: hovered && hovered !== s.key ? 0.12 : 0.35,
+                      ...blendBackground(s.colors),
+                    }}
                     onMouseEnter={() => setHovered(s.key)}
                   />
                 )
               })}
-            </svg>
+            </div>
 
             {/* tax bar */}
             <div className="relative flex h-7 w-full overflow-hidden rounded-b-md text-white">
@@ -113,7 +139,7 @@ export function CompositionRibbon({ result }: Props) {
                   style={{ width: `${s.taxShare * 100}%`, ...blendBackground(s.colors) }}
                   onMouseEnter={() => setHovered(s.key)}
                 >
-                  {s.taxShare >= 0.1 && (
+                  {showPct(s.taxLeft, s.taxShare, TAX_LABEL_PX) && (
                     <span className="text-[10px] font-semibold">{formatPercent(s.taxShare, 0)}</span>
                   )}
                 </div>
@@ -141,6 +167,7 @@ export function CompositionRibbon({ result }: Props) {
             amount={active.amount}
             tax={active.tax}
             effectiveRate={active.effectiveRate}
+            ratio={hasTax && active.incomeShare > 0 ? active.taxShare / active.incomeShare : undefined}
           />
         )}
       </HoverTooltip>

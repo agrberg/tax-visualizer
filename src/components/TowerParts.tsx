@@ -113,6 +113,7 @@ export function CompositionTooltip({
   amount,
   tax,
   effectiveRate,
+  ratio,
 }: {
   colors: string[]
   label: string
@@ -120,6 +121,8 @@ export function CompositionTooltip({
   amount: number
   tax: number
   effectiveRate: number
+  /** Share of tax ÷ share of income (the marimekko height); omitted when N/A. */
+  ratio?: number
 }) {
   return (
     <div>
@@ -148,6 +151,12 @@ export function CompositionTooltip({
             <td className="py-0.5 text-muted-foreground">Effective rate</td>
             <td className="py-0.5 text-right tabular-nums">{formatPercent(effectiveRate, 1)}</td>
           </tr>
+          {ratio !== undefined && (
+            <tr>
+              <td className="py-0.5 text-muted-foreground">Tax ÷ income share</td>
+              <td className="py-0.5 text-right tabular-nums">{ratio.toFixed(2)}×</td>
+            </tr>
+          )}
         </tbody>
       </table>
     </div>
