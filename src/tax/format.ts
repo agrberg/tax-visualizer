@@ -196,6 +196,37 @@ export function compositionSegments(result: TaxResult): CompositionSegment[] {
   return segments
 }
 
+// Surcharge keys that are mandatory payroll tax (FICA) rather than income-tax surtaxes.
+const PAYROLL_SURCHARGE_KEYS = new Set(['socialSecurity', 'medicare'])
+
+/** One flavor of the total tax, for the headline-stat breakout. */
+export interface TaxComponent {
+  key: 'income' | 'payroll' | 'surtax'
+  label: string
+  amount: number
+}
+
+/**
+ * Split the total tax into the three flavors folded into the headline "Total tax"
+ * and effective rate: income tax (ordinary + capital gains), mandatory payroll tax
+ * (Social Security + base Medicare), and income-tax surtaxes (NIIT + Additional
+ * Medicare). Their amounts sum to `result.totalTax`.
+ */
+export function taxComponents(result: TaxResult): TaxComponent[] {
+  const fed = result.federal
+  let payroll = 0
+  let surtax = 0
+  for (const s of fed.surcharges) {
+    if (PAYROLL_SURCHARGE_KEYS.has(s.key)) payroll += s.amount
+    else surtax += s.amount
+  }
+  return [
+    { key: 'income', label: 'Income tax', amount: fed.ordinaryTax + fed.capitalGainsTax },
+    { key: 'payroll', label: 'Payroll tax (FICA)', amount: payroll },
+    { key: 'surtax', label: "Surtaxes (NIIT, Add'l Medicare)", amount: surtax },
+  ]
+}
+
 /**
  * Background style for a segment fill or swatch: a solid color for a single source,
  * or diagonal stripes cycling through every color when a bucket blends two or more

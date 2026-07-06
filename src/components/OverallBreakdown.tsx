@@ -1,6 +1,7 @@
-import { useState } from 'react'
-import { compositionSegments, formatCurrency, formatPercent } from '@/tax/format'
+import { useState, type ReactNode } from 'react'
+import { compositionSegments, formatCurrency, formatPercent, taxComponents } from '@/tax/format'
 import type { TaxResult } from '@/tax/types'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { CompositionRibbon } from './CompositionRibbon'
 import { CompositionMarimekko } from './CompositionMarimekko'
 import { Swatch } from './TowerParts'
@@ -24,16 +25,53 @@ export function OverallBreakdown({ result }: Props) {
   const hasTax = result.totalTax > 0
   const [view, setView] = useState<CompositionView>('bars')
 
+  // The headline total and effective rate fold income tax, payroll tax (FICA), and
+  // surtaxes into one number; a hover breaks them apart so the blend is legible.
+  const components = taxComponents(result).filter((c) => c.amount > 0)
+  // True when FICA/surtaxes fold into a source's "Tax" column below (e.g. wages carry FICA).
+  const sourceTaxIncludesSurcharges = components.some((c) => c.key !== 'income')
+  const taxBreakout = hasTax ? (
+    <div>
+      <div className="font-medium">Total tax by type</div>
+      <div className="mb-1.5 opacity-70">Income tax spans every source; payroll tax is on wages only.</div>
+      <table className="w-full">
+        <tbody>
+          {components.map((c) => (
+            <tr key={c.key}>
+              <td className="py-0.5 pr-3">{c.label}</td>
+              <td className="py-0.5 pr-3 text-right tabular-nums">{formatCurrency(c.amount)}</td>
+              <td className="py-0.5 text-right tabular-nums opacity-80">
+                {total > 0 ? formatPercent(c.amount / total, 1) : '—'}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+        <tfoot>
+          <tr className="border-t border-background/30 font-medium">
+            <td className="py-0.5 pr-3">Total</td>
+            <td className="py-0.5 pr-3 text-right tabular-nums">{formatCurrency(result.totalTax)}</td>
+            <td className="py-0.5 text-right tabular-nums">{formatPercent(result.effectiveRate, 1)}</td>
+          </tr>
+        </tfoot>
+      </table>
+      <div className="mt-1.5 opacity-70">
+        The source table below splits this same total by income source instead — each source's
+        tax there includes its share of payroll tax and surtaxes.
+      </div>
+    </div>
+  ) : null
+
   return (
     <div className="space-y-4">
       {/* headline stats */}
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
         <Stat label="Total income" value={formatCurrency(total)} />
-        <Stat label="Total tax" value={formatCurrency(result.totalTax)} />
+        <Stat label="Total tax" value={formatCurrency(result.totalTax)} tooltip={taxBreakout} />
         <Stat label="Take-home" value={formatCurrency(takeHome)} />
         <Stat
           label="Weighted effective rate"
           value={formatPercent(result.effectiveRate, 1)}
+          tooltip={taxBreakout}
           emphasis
         />
       </div>
@@ -136,6 +174,15 @@ export function OverallBreakdown({ result }: Props) {
         )}
       </table>
 
+      {sourceTaxIncludesSurcharges && (
+        <p className="text-[10px] text-muted-foreground">
+          Each source's <span className="font-medium">Tax</span> is by income source — it includes
+          the payroll tax (FICA) and surtaxes attributed to it (e.g. FICA on wages), so it is more
+          than income tax alone. Hover <span className="font-medium">Total tax</span> to see the
+          split by kind of tax.
+        </p>
+      )}
+
       {segments.some((s) => s.key === 'ordinaryInvestment') && (
         <p className="text-[10px] text-muted-foreground">
           Interest, non-qualified dividends, and short-term gains are all ordinary income taxed
@@ -150,15 +197,28 @@ export function OverallBreakdown({ result }: Props) {
 function Stat({
   label,
   value,
+  tooltip,
   emphasis = false,
 }: {
   label: string
   value: string
+  tooltip?: ReactNode
   emphasis?: boolean
 }) {
-  return (
-    <div className="flex h-full flex-col rounded-lg border p-2 sm:p-3">
-      <div className="text-xs text-muted-foreground">{label}</div>
+  const card = (
+    <div
+      className={`flex h-full flex-col rounded-lg border p-2 sm:p-3 ${
+        tooltip ? 'cursor-help' : ''
+      }`}
+    >
+      <div className="text-xs text-muted-foreground">
+        {label}
+        {tooltip && (
+          <span aria-hidden className="ml-1 text-muted-foreground/60">
+            ⓘ
+          </span>
+        )}
+      </div>
       <div
         className={`mt-auto pt-1 ${
           emphasis ? 'text-lg font-bold sm:text-xl' : 'text-base font-semibold sm:text-lg'
@@ -167,5 +227,16 @@ function Stat({
         {value}
       </div>
     </div>
+  )
+  if (!tooltip) return card
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button type="button" className="block h-full w-full text-left">
+          {card}
+        </button>
+      </TooltipTrigger>
+      <TooltipContent className="w-64 text-xs">{tooltip}</TooltipContent>
+    </Tooltip>
   )
 }
