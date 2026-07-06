@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { compositionSegments, blendBackground, formatRatePercent, SOURCE_META, SOURCE_COLOR } from './format'
+import { compositionSegments, blendBackground, formatRatePercent, taxComponents, SOURCE_META, SOURCE_COLOR } from './format'
 import { calculateTax } from './calculate'
 import type { TaxInput } from './types'
 
@@ -156,5 +156,35 @@ describe('formatRatePercent', () => {
     expect(formatRatePercent(0.0145)).toBe('1.45%') // the case formatPercent(_, 1) mis-rounds to 1.5%
     expect(formatRatePercent(0.038)).toBe('3.8%')
     expect(formatRatePercent(0.009)).toBe('0.9%')
+  })
+})
+
+describe('taxComponents', () => {
+  it('splits the total into income tax, payroll tax, and surtaxes that sum to totalTax', () => {
+    // single, wages 300k + 5k interest: income tax + FICA + Add'l Medicare + NIIT all present
+    const r = calculateTax(input({ wages: 300000, interest: 5000 }))
+    const c = taxComponents(r)
+    const by = (k: string) => c.find((x) => x.key === k)!
+
+    expect(by('income').amount).toBeCloseTo(r.federal.ordinaryTax + r.federal.capitalGainsTax, 2)
+    // payroll = Social Security (capped) + base Medicare
+    const ss = r.federal.surcharges.find((s) => s.key === 'socialSecurity')!.amount
+    const med = r.federal.surcharges.find((s) => s.key === 'medicare')!.amount
+    expect(by('payroll').amount).toBeCloseTo(ss + med, 2)
+    // surtax = Additional Medicare + NIIT
+    const addl = r.federal.surcharges.find((s) => s.key === 'additionalMedicare')!.amount
+    const niit = r.federal.surcharges.find((s) => s.key === 'niit')!.amount
+    expect(by('surtax').amount).toBeCloseTo(addl + niit, 2)
+
+    const sum = c.reduce((acc, x) => acc + x.amount, 0)
+    expect(sum).toBeCloseTo(r.totalTax, 2)
+  })
+
+  it('reports zero payroll and surtax for retirement-only income', () => {
+    const r = calculateTax(input({ retirementIncome: 100000 }))
+    const c = taxComponents(r)
+    expect(c.find((x) => x.key === 'payroll')!.amount).toBe(0)
+    expect(c.find((x) => x.key === 'surtax')!.amount).toBe(0)
+    expect(c.find((x) => x.key === 'income')!.amount).toBeCloseTo(r.totalTax, 2)
   })
 })

@@ -1,19 +1,25 @@
 import { ALL_SOURCES, type TaxInput } from './tax/types'
+import { isFilingStatus } from './tax/brackets'
 import type { Scenarios } from './scenarios'
 
 const KEY = 'tax-visualizer:input:v1'
 const SCENARIOS_KEY = 'tax-visualizer:saved:v1'
 
 /**
- * Fill any missing or non-finite income field with 0. Input saved before a source
- * existed (e.g. retirement distributions) would otherwise carry `undefined`, which
- * renders as "undefined" in the form and breaks the math.
+ * Fill any missing or non-finite income field with 0, and reset an unrecognized
+ * filing status to `single`. Input saved before a source existed (e.g. retirement
+ * distributions) would otherwise carry `undefined`, which renders as "undefined" in
+ * the form and breaks the math; a hand-edited or corrupted filing status would have
+ * no bracket table and crash the engine on load.
  */
 export function normalizeInput(input: TaxInput): TaxInput {
   const normalized = { ...input }
   for (const source of ALL_SOURCES) {
     const n = normalized[source]
     normalized[source] = Number.isFinite(n) ? n : 0
+  }
+  if (!isFilingStatus(normalized.filingStatus)) {
+    normalized.filingStatus = 'single'
   }
   return normalized
 }
@@ -56,5 +62,17 @@ export function saveScenarios(scenarios: Scenarios): void {
     localStorage.setItem(SCENARIOS_KEY, JSON.stringify(scenarios))
   } catch {
     // ignore quota / privacy-mode errors
+  }
+}
+
+/** Remove only this app's persisted keys — used to recover from corrupted saved input. */
+export function clearStoredData(): void {
+  try {
+    localStorage.removeItem(KEY)
+    localStorage.removeItem(SCENARIOS_KEY)
+  } catch (err) {
+    // On the recovery path, surface the failure rather than swallowing it silently:
+    // if the reset can't clear storage, the reload will hit the same corrupt data.
+    console.error('Failed to clear saved tax-visualizer data:', err)
   }
 }
