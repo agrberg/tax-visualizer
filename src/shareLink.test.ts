@@ -58,6 +58,11 @@ describe('encodeInput / decodeInput', () => {
     expect(decodeInput('v=1&filing=bogus')).toBeNull()
   })
 
+  it('returns null for inherited Object.prototype keys (regression: `in` would accept "toString")', () => {
+    expect(decodeInput('v=1&filing=toString')).toBeNull()
+    expect(decodeInput('v=1&filing=constructor')).toBeNull()
+  })
+
   it('returns null without the version marker', () => {
     expect(decodeInput('filing=single&wages=100')).toBeNull()
     expect(decodeInput('')).toBeNull()

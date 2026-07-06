@@ -1,5 +1,5 @@
 import type { TaxInput } from './tax/types'
-import { FILING_STATUS_LABELS } from './tax/brackets'
+import { isFilingStatus } from './tax/brackets'
 
 const SHARE_VERSION = '1'
 
@@ -37,7 +37,7 @@ export function decodeInput(encoded: string): TaxInput | null {
   const params = new URLSearchParams(encoded)
   if (!params.has('v')) return null
   const filingStatus = params.get('filing')
-  if (!filingStatus || !(filingStatus in FILING_STATUS_LABELS)) return null
+  if (!isFilingStatus(filingStatus)) return null
   const input = { filingStatus } as TaxInput
   for (const field of Object.keys(FIELD_ALIAS) as NumericField[]) {
     const n = Number(params.get(FIELD_ALIAS[field]))

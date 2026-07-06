@@ -1,6 +1,18 @@
-import { describe, it, expect } from 'vitest'
-import { normalizeInput } from './storage'
+import { describe, it, expect, vi } from 'vitest'
+import { normalizeInput, clearStoredData } from './storage'
 import type { TaxInput } from './tax/types'
+
+// Minimal in-memory localStorage for the node test env (no DOM by default).
+function stubLocalStorage() {
+  const store = new Map<string, string>()
+  vi.stubGlobal('localStorage', {
+    getItem: (k: string) => (store.has(k) ? store.get(k)! : null),
+    setItem: (k: string, v: string) => void store.set(k, v),
+    removeItem: (k: string) => void store.delete(k),
+    clear: () => store.clear(),
+  })
+  return store
+}
 
 describe('normalizeInput', () => {
   it('fills a field missing from older saved input with 0', () => {
@@ -19,5 +31,51 @@ describe('normalizeInput', () => {
     const normalized = normalizeInput(dirty)
     expect(normalized.wages).toBe(0)
     expect(normalized.longTermGains).toBe(15000)
+  })
+
+  it('coerces an unknown filing status back to single (a bad one would crash the engine)', () => {
+    const dirty = { filingStatus: 'xyz', wages: 100000 } as unknown as TaxInput
+    const normalized = normalizeInput(dirty)
+    expect(normalized.filingStatus).toBe('single')
+  })
+
+  it('rejects inherited Object.prototype keys (regression: `in` would accept "toString")', () => {
+    for (const key of ['toString', 'constructor', 'hasOwnProperty']) {
+      const dirty = { filingStatus: key } as unknown as TaxInput
+      expect(normalizeInput(dirty).filingStatus).toBe('single')
+    }
+  })
+
+  it('keeps a valid filing status untouched', () => {
+    for (const status of ['single', 'mfj', 'hoh', 'mfs'] as const) {
+      expect(normalizeInput({ filingStatus: status } as unknown as TaxInput).filingStatus).toBe(status)
+    }
+  })
+})
+
+describe('clearStoredData', () => {
+  it('removes only this app\'s keys and leaves unrelated origin data intact', () => {
+    const store = stubLocalStorage()
+    store.set('tax-visualizer:input:v1', '{}')
+    store.set('tax-visualizer:saved:v1', '{}')
+    store.set('other-app:data', 'keep')
+    clearStoredData()
+    expect(store.has('tax-visualizer:input:v1')).toBe(false)
+    expect(store.has('tax-visualizer:saved:v1')).toBe(false)
+    expect(store.get('other-app:data')).toBe('keep')
+    vi.unstubAllGlobals()
+  })
+
+  it('swallows and logs a removeItem failure instead of throwing (recovery path)', () => {
+    vi.stubGlobal('localStorage', {
+      removeItem: () => {
+        throw new Error('storage access denied')
+      },
+    })
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    expect(() => clearStoredData()).not.toThrow()
+    expect(spy).toHaveBeenCalled()
+    spy.mockRestore()
+    vi.unstubAllGlobals()
   })
 })
