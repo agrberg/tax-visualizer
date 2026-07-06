@@ -106,10 +106,12 @@ export const SOURCE_COLOR: Record<IncomeSource, string> = {
 }
 
 /**
- * A row in the income/tax composition charts. Individual ordinary sources pass
- * through as-is; the two preferential sources are merged into one capital-gains
- * bucket, since their apparent per-source rate difference is only an artifact of
- * stacking order (whichever fills the remaining 0% room first looks cheaper).
+ * A row in the income/tax composition charts. Wages and retirement pass through
+ * individually; the fungible investment-type ordinary sources (interest / non-qual
+ * div / ST gains) merge into one bucket, and the two preferential sources merge
+ * into a capital-gains bucket. Both merges exist because a per-source rate
+ * difference *within* a bucket is only an artifact of stacking order (whichever
+ * source fills the lower brackets / remaining 0% room first looks cheaper).
  */
 export interface CompositionSegment {
   key: string
@@ -122,19 +124,57 @@ export interface CompositionSegment {
   effectiveRate: number
 }
 
+// Ordinary income taxed identically and treated as investment income (NIIT-eligible).
+// They share a bracket ladder, so a per-source rate gap is only a stacking artifact.
+const ORDINARY_INVESTMENT_SOURCES: IncomeSource[] = [
+  'interest',
+  'nonQualifiedDividends',
+  'shortTermGains',
+]
+
 export function compositionSegments(result: TaxResult): CompositionSegment[] {
   const rows = result.sourceBreakdown.filter((s) => s.amount > 0)
+  const passThrough = (s: (typeof rows)[number]): CompositionSegment => ({
+    key: s.source,
+    label: SOURCE_META[s.source].label,
+    short: SOURCE_META[s.source].short,
+    colors: [SOURCE_COLOR[s.source]],
+    amount: s.amount,
+    tax: s.tax,
+    effectiveRate: s.effectiveRate,
+  })
+
+  // Wages and retirement are their own ordinary flavors (FICA / plain); pass them through.
   const segments: CompositionSegment[] = rows
-    .filter((s) => !PREFERENTIAL_SOURCES.includes(s.source))
-    .map((s) => ({
-      key: s.source,
-      label: SOURCE_META[s.source].label,
-      short: SOURCE_META[s.source].short,
-      colors: [SOURCE_COLOR[s.source]],
-      amount: s.amount,
-      tax: s.tax,
-      effectiveRate: s.effectiveRate,
-    }))
+    .filter(
+      (s) =>
+        !PREFERENTIAL_SOURCES.includes(s.source) && !ORDINARY_INVESTMENT_SOURCES.includes(s.source),
+    )
+    .map(passThrough)
+
+  // Merge the investment-type ordinary sources into one bucket (one source names itself).
+  const investment = rows
+    .filter((s) => ORDINARY_INVESTMENT_SOURCES.includes(s.source))
+    .sort(
+      (a, b) =>
+        ORDINARY_INVESTMENT_SOURCES.indexOf(a.source) - ORDINARY_INVESTMENT_SOURCES.indexOf(b.source),
+    )
+  if (investment.length === 1) {
+    segments.push(passThrough(investment[0]))
+  } else if (investment.length > 1) {
+    const amount = investment.reduce((sum, s) => sum + s.amount, 0)
+    const tax = investment.reduce((sum, s) => sum + s.tax, 0)
+    segments.push({
+      key: 'ordinaryInvestment',
+      label: investment.map((s) => SOURCE_META[s.source].label).join(' · '),
+      short: investment.map((s) => SOURCE_META[s.source].short).join(' · '),
+      colors: investment.map((s) => SOURCE_COLOR[s.source]),
+      amount,
+      tax,
+      effectiveRate: amount > 0 ? tax / amount : 0,
+    })
+  }
+
   const preferential = rows
     .filter((s) => PREFERENTIAL_SOURCES.includes(s.source))
     .sort((a, b) => PREFERENTIAL_SOURCES.indexOf(a.source) - PREFERENTIAL_SOURCES.indexOf(b.source))
@@ -158,8 +198,9 @@ export function compositionSegments(result: TaxResult): CompositionSegment[] {
 
 /**
  * Background style for a segment fill or swatch: a solid color for a single source,
- * or diagonal stripes of both colors when a bucket blends two (long-term gains +
- * qualified dividends). `alpha` is an optional opacity percentage (0–100).
+ * or diagonal stripes cycling through every color when a bucket blends two or more
+ * (e.g. long-term gains + qualified dividends, or the three ordinary investment
+ * sources). `alpha` is an optional opacity percentage (0–100).
  */
 export function blendBackground(
   colors: string[],
@@ -169,9 +210,12 @@ export function blendBackground(
   const tint = (c: string) =>
     opts.alpha === undefined ? c : `color-mix(in oklch, ${c} ${opts.alpha}%, transparent)`
   if (colors.length === 1) return { backgroundColor: tint(colors[0]) }
-  const [a, b] = colors.map(tint)
+  const stops = colors
+    .map(tint)
+    .map((c, i) => `${c} ${i * stripe}px, ${c} ${(i + 1) * stripe}px`)
+    .join(', ')
   return {
-    backgroundImage: `repeating-linear-gradient(45deg, ${a} 0, ${a} ${stripe}px, ${b} ${stripe}px, ${b} ${stripe * 2}px)`,
+    backgroundImage: `repeating-linear-gradient(45deg, ${stops})`,
   }
 }
 

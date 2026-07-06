@@ -135,6 +135,14 @@ export function OverallBreakdown({ result }: Props) {
           </tfoot>
         )}
       </table>
+
+      {segments.some((s) => s.key === 'ordinaryInvestment') && (
+        <p className="text-[10px] text-muted-foreground">
+          Interest, non-qualified dividends, and short-term gains are all ordinary income taxed
+          identically — grouped here. Any per-source rate differences reflect stacking order, not
+          the tax treatment.
+        </p>
+      )}
     </div>
   )
 }
