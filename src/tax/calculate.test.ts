@@ -45,7 +45,7 @@ describe('ordinary income only', () => {
   })
 
   it('marginal ordinary rate is 0 while income is still inside the standard deduction', () => {
-    const r = calculateTax(input({ wages: 10000 })) // single, deduction 15000
+    const r = calculateTax(input({ wages: 10000 })) // single, deduction 16100
     expect(r.federal.ordinaryTaxable).toBe(0)
     expect(r.federal.ordinaryTax).toBe(0)
     // the next ordinary dollar just uses up more deduction — it is not taxed
@@ -53,7 +53,7 @@ describe('ordinary income only', () => {
   })
 
   it('marginal ordinary rate is the current bracket once past the deduction', () => {
-    const r = calculateTax(input({ wages: 100000 })) // single, taxable 84900 in 22% bracket
+    const r = calculateTax(input({ wages: 100000 })) // single, taxable 83900 in 22% bracket
     expect(r.federal.marginalOrdinaryRate).toBe(0.22)
   })
 })
