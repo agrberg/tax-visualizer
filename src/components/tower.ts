@@ -1,5 +1,5 @@
 import type { OrdinaryBracket, TaxResult } from '@/tax/types'
-import { ORDINARY_BRACKETS } from '@/tax/brackets'
+import { taxTablesFor } from '@/tax/years'
 
 /** Fixed pixel height of a tower column; segment heights are a fraction of this. */
 export const TOWER_HEIGHT = 440
@@ -38,7 +38,7 @@ export function axisMaxFor(result: TaxResult): number {
 
 /** Index of the ordinary bracket holding the marginal (last taxable) dollar. */
 export function marginalOrdinaryIdx(result: TaxResult): number {
-  const brackets = ORDINARY_BRACKETS[result.filingStatus]
+  const brackets = taxTablesFor(result.taxYear).ordinaryBrackets[result.filingStatus]
   return brackets.findIndex((b) => result.federal.ordinaryTaxable < b.max)
 }
 
@@ -49,7 +49,7 @@ export function marginalOrdinaryIdx(result: TaxResult): number {
  * income) the marginal bracket is the lowest (10%), so this returns the 12% bracket.
  */
 export function nextOrdinaryBracket(result: TaxResult): OrdinaryBracket | null {
-  const brackets = ORDINARY_BRACKETS[result.filingStatus]
+  const brackets = taxTablesFor(result.taxYear).ordinaryBrackets[result.filingStatus]
   return brackets[marginalOrdinaryIdx(result) + 1] ?? null
 }
 

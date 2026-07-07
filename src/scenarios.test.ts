@@ -12,6 +12,7 @@ import type { TaxInput } from './tax/types'
 function input(overrides: Partial<TaxInput> = {}): TaxInput {
   return {
     filingStatus: 'single',
+    taxYear: 2026,
     wages: 0,
     retirementIncome: 0,
     interest: 0,

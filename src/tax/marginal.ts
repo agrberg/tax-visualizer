@@ -1,4 +1,5 @@
 import { federalSurchargeRules } from './surcharges'
+import { taxTablesFor } from './years'
 import type { MarginalComponent, MarginalScenario, SurchargeResult, TaxResult } from './types'
 
 /**
@@ -8,7 +9,7 @@ import type { MarginalComponent, MarginalScenario, SurchargeResult, TaxResult } 
  */
 export function marginalNextDollar(result: TaxResult): MarginalScenario[] {
   const fed = result.federal
-  const rules = federalSurchargeRules(result.filingStatus)
+  const rules = federalSurchargeRules(result.filingStatus, taxTablesFor(result.taxYear))
   const assessed: Record<string, SurchargeResult> = Object.fromEntries(
     fed.surcharges.map((s) => [s.key, s]),
   )

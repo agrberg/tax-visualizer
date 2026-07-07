@@ -51,6 +51,19 @@ describe('normalizeInput', () => {
       expect(normalizeInput({ filingStatus: status } as unknown as TaxInput).filingStatus).toBe(status)
     }
   })
+
+  it('defaults a missing or unsupported tax year to the default year', () => {
+    // Input persisted before multi-year support had no taxYear.
+    const legacy = { filingStatus: 'single', wages: 50000 } as unknown as TaxInput
+    expect(normalizeInput(legacy).taxYear).toBe(2026)
+    const bogus = { filingStatus: 'single', taxYear: 1999 } as unknown as TaxInput
+    expect(normalizeInput(bogus).taxYear).toBe(2026)
+  })
+
+  it('keeps a supported tax year untouched', () => {
+    const input = { filingStatus: 'single', taxYear: 2025 } as unknown as TaxInput
+    expect(normalizeInput(input).taxYear).toBe(2025)
+  })
 })
 
 describe('clearStoredData', () => {

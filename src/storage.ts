@@ -1,5 +1,6 @@
 import { ALL_SOURCES, type TaxInput } from './tax/types'
 import { isFilingStatus } from './tax/brackets'
+import { DEFAULT_TAX_YEAR, isTaxYear } from './tax/years'
 import type { Scenarios } from './scenarios'
 
 const KEY = 'tax-visualizer:input:v1'
@@ -10,7 +11,8 @@ const SCENARIOS_KEY = 'tax-visualizer:saved:v1'
  * filing status to `single`. Input saved before a source existed (e.g. retirement
  * distributions) would otherwise carry `undefined`, which renders as "undefined" in
  * the form and breaks the math; a hand-edited or corrupted filing status would have
- * no bracket table and crash the engine on load.
+ * no bracket table and crash the engine on load. Input saved before multi-year
+ * support (or with a dropped/unsupported year) falls back to the default year.
  */
 export function normalizeInput(input: TaxInput): TaxInput {
   const normalized = { ...input }
@@ -20,6 +22,9 @@ export function normalizeInput(input: TaxInput): TaxInput {
   }
   if (!isFilingStatus(normalized.filingStatus)) {
     normalized.filingStatus = 'single'
+  }
+  if (!isTaxYear(normalized.taxYear)) {
+    normalized.taxYear = DEFAULT_TAX_YEAR
   }
   return normalized
 }

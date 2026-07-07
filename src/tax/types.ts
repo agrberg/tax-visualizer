@@ -43,6 +43,8 @@ export const INVESTMENT_SOURCES: IncomeSource[] = [
 
 export interface TaxInput {
   filingStatus: FilingStatus
+  /** Tax year whose tables drive the calculation. See TaxYearTables / the years registry. */
+  taxYear: number
   wages: number
   retirementIncome: number
   interest: number
@@ -57,6 +59,35 @@ export interface OrdinaryBracket {
   rate: number
   min: number
   max: number // Infinity for the top bracket
+}
+
+/** Long-term capital-gains / qualified-dividend breakpoints: 0% up to rate0Max, 15% up to rate15Max, 20% above. */
+export interface CapitalGainsBreakpoints {
+  rate0Max: number
+  rate15Max: number
+}
+
+/**
+ * Everything that varies from one tax year to the next, bundled so a new year is a
+ * data edit rather than a code change. Thresholds move most (brackets, wage base,
+ * cap-gains breakpoints); rates and the number of brackets can change too, so both
+ * are data here. The federal surcharge *set* is fixed (see federalSurchargeRules);
+ * only the rates/thresholds below drive it.
+ */
+export interface TaxYearTables {
+  year: number
+  /** Sourcing citation for these figures, surfaced in the app footer. */
+  source: string
+  ordinaryBrackets: Record<FilingStatus, OrdinaryBracket[]>
+  standardDeduction: Record<FilingStatus, number>
+  capitalGains: {
+    breakpoints: Record<FilingStatus, CapitalGainsBreakpoints>
+    rates: { rate0: number; rate15: number; rate20: number }
+  }
+  niit: { rate: number; threshold: Record<FilingStatus, number> }
+  socialSecurity: { rate: number; wageBase: number }
+  medicare: { rate: number }
+  additionalMedicare: { rate: number; threshold: Record<FilingStatus, number> }
 }
 
 /** How many dollars of income landed in one bracket, and the tax on them. */

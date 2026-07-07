@@ -14,6 +14,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { FILING_STATUS_LABELS } from '@/tax/brackets'
+import { AVAILABLE_YEARS } from '@/tax/years'
 import { SOURCE_META } from '@/tax/format'
 import type { FilingStatus, IncomeSource, TaxInput } from '@/tax/types'
 
@@ -85,6 +86,27 @@ export function IncomeForm({ value, onChange }: IncomeFormProps) {
 
   return (
     <div className="space-y-6">
+      <div className="space-y-1.5">
+        <Label htmlFor="taxYear" className="text-sm">
+          Tax year
+        </Label>
+        <Select
+          value={String(value.taxYear)}
+          onValueChange={(v) => set({ taxYear: Number(v) })}
+        >
+          <SelectTrigger id="taxYear" className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {AVAILABLE_YEARS.map((y) => (
+              <SelectItem key={y} value={String(y)}>
+                {y}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
       <div className="space-y-1.5">
         <Label htmlFor="filingStatus" className="text-sm">
           Filing status

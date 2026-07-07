@@ -4,6 +4,7 @@ import type { TaxInput } from './tax/types'
 
 const sample: TaxInput = {
   filingStatus: 'mfj',
+  taxYear: 2025,
   wages: 245000,
   retirementIncome: 30000,
   interest: 4000,
@@ -37,9 +38,10 @@ describe('encodeInput / decodeInput', () => {
     expect(decodeInput(encodeInput({ ...sample, wages: -500 }))?.wages).toBe(0)
   })
 
-  it('defaults missing amounts to 0', () => {
+  it('defaults missing amounts to 0 and a missing year to the default', () => {
     expect(decodeInput('v=1&filing=single')).toEqual({
       filingStatus: 'single',
+      taxYear: 2026,
       wages: 0,
       retirementIncome: 0,
       interest: 0,
@@ -48,6 +50,16 @@ describe('encodeInput / decodeInput', () => {
       qualifiedDividends: 0,
       longTermGains: 0,
     })
+  })
+
+  it('carries the tax year in the link and round-trips it', () => {
+    expect(encodeInput(sample)).toContain('y=2025')
+    expect(decodeInput(encodeInput(sample))?.taxYear).toBe(2025)
+  })
+
+  it('falls back to the default year for an unsupported or non-numeric year', () => {
+    expect(decodeInput('v=1&filing=single&y=1999')?.taxYear).toBe(2026)
+    expect(decodeInput('v=1&filing=single&y=abc')?.taxYear).toBe(2026)
   })
 
   it('treats a non-numeric amount as 0', () => {

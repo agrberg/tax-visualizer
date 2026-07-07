@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { CAPITAL_GAINS_BREAKPOINTS } from '@/tax/brackets'
+import { taxTablesFor } from '@/tax/years'
 import { SOURCE_META, formatCurrency } from '@/tax/format'
 import type { IncomeSource, TaxResult } from '@/tax/types'
 import { pct, tall } from './tower'
@@ -24,7 +24,7 @@ interface Props {
 
 export function CapitalGainsTower({ result, axisMax }: Props) {
   const fed = result.federal
-  const { rate0Max, rate15Max } = CAPITAL_GAINS_BREAKPOINTS[result.filingStatus]
+  const { rate0Max, rate15Max } = taxTablesFor(result.taxYear).capitalGains.breakpoints[result.filingStatus]
   const baseline = fed.capitalGainsBaseline
   const topOfGains = baseline + fed.preferentialTaxable
   const layers = fed.layers.preferential.filter((l) => l.taxableAmount > 0)
