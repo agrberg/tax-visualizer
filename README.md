@@ -1,7 +1,9 @@
-# 2026 Federal Tax Bracket Visualizer
+# Federal Tax Bracket Visualizer
 
 A frontend-only app that shows how income flows through US federal tax brackets:
 
+- Pick the **tax year** (2025 or 2026) — brackets, deductions, thresholds, and
+  rates all switch to that year's figures.
 - **Ordinary income** (wages, interest, non-qualified dividends, short-term gains)
   filling the 10–37% marginal brackets.
 - **Qualified dividends & long-term capital gains** stacked on top of ordinary
@@ -14,8 +16,9 @@ A frontend-only app that shows how income flows through US federal tax brackets:
 - Save, reload, rename, and delete named **scenarios** of your inputs, persisted
   in the browser.
 
-Estimates for education, not tax advice. Federal only. 2026 figures per IRS
-Rev. Proc. 2025-32; NIIT / Additional Medicare thresholds are statutory.
+Estimates for education, not tax advice. Federal only. Figures depend on the
+selected year — 2026 per IRS Rev. Proc. 2025-32; 2025 per IRS Rev. Proc. 2024-40
+with the OBBBA standard deductions. NIIT / Additional Medicare thresholds are statutory.
 
 ## Stack
 
@@ -59,14 +62,19 @@ Change it to `/` if you deploy to a custom domain or a `user.github.io` root.
 
 ## Where things live
 
-- `src/tax/brackets.ts` — 2026 rate tables, keyed by `TAX_YEAR`.
-- `src/tax/calculate.ts` — the top-level `calculateTax` orchestrator; the pure
-  tax logic lives in focused modules alongside it: `income.ts` (classification),
+- `src/tax/years/` — the per-year tax tables (`2025.ts`, `2026.ts`) plus the
+  registry `index.ts` (`taxTablesFor`, `AVAILABLE_YEARS`, `DEFAULT_TAX_YEAR`,
+  `isTaxYear`). Adding a year is a new file registered here.
+- `src/tax/filingStatus.ts` — filing-status labels, the validity guard, and the
+  canonical status list.
+- `src/tax/calculate.ts` — the top-level `calculateTax` orchestrator; it resolves
+  the selected year's tables (`taxTablesFor(input.taxYear)`) and wires together the
+  pure tax logic in focused modules alongside it: `income.ts` (classification),
   `deduction.ts`, `engine.ts` (bracket fills), `federal.ts` / `jurisdiction.ts`
   (the federal computation), `surcharges.ts` (NIIT / Additional Medicare),
   `marginal.ts` (next-dollar cost), and `attribution.ts` (per-source breakdown).
 - `src/tax/*.test.ts` — unit tests for those modules (`calculate`, `deduction`,
-  `engine`, `surcharges`).
+  `engine`, `surcharges`, `years`).
 - `src/components/` — the income form, the two towers, the marginal
   next-dollar view, the income/tax composition views, surcharge indicators,
   the overall breakdown, and the saved-scenarios panel.

@@ -56,10 +56,12 @@ flowchart TB
 
 The whole app is a pure function of the input: `App` keeps a single
 `TaxInput` in state, memoizes `calculateTax(input)` into a `TaxResult`, and hands
-that result to every visualization. Editing the form replaces the input, which
-recomputes the result, which re-renders the views. The input — and any named
-scenarios saved from it — are mirrored to `localStorage` on every change so a
-reload restores them.
+that result to every visualization. The `TaxInput` carries the filing status and
+the selected `taxYear` (both chosen in `IncomeForm`) alongside the income fields.
+Editing the form replaces the input, which recomputes the result, which re-renders
+the views. The input — and any named scenarios saved from it — are mirrored to
+`localStorage` on every change so a reload restores them, and it can also be encoded
+into a share link (the year rides along as the `y` param).
 
 ## The tax engine pipeline
 
@@ -75,7 +77,7 @@ flowchart LR
     end
 
     subgraph build["federal.ts"]
-        fj["federalJurisdiction()<br/>assemble Jurisdiction<br/>(data) from brackets.ts"]
+        fj["federalJurisdiction()<br/>assemble Jurisdiction<br/>(data) from the year's tables"]
     end
 
     subgraph compute["jurisdiction.ts — computeJurisdiction()"]
@@ -88,7 +90,7 @@ flowchart LR
     attr["buildBreakdown()<br/>(attribution.ts)<br/>per-source tax + eff. rate"]
     result["TaxResult"]
 
-    tables[("brackets.ts<br/>2026 tables,<br/>keyed by TAX_YEAR")]
+    tables[("tax/years/<br/>per-year tables (2025, 2026)<br/>via taxTablesFor(taxYear)")]
 
     input --> ci
     ci -->|ClassifiedIncome| compute
@@ -112,7 +114,8 @@ flowchart LR
 2. **`federalJurisdiction`** (`federal.ts`) — assembles a `Jurisdiction`: a plain
    data object with an ordinary bracket ladder, a standard deduction, a
    preferential (0/15/20%) capital-gains ladder, and a list of surcharge rules —
-   all pulled from the 2026 tables in `brackets.ts` for the given filing status.
+   all pulled from the selected year's tables (`src/tax/years/`, resolved by
+   `taxTablesFor(input.taxYear)`) for the given filing status.
 
 3. **`computeJurisdiction`** (`jurisdiction.ts`) — the core. Runs the classified
    income through one jurisdiction's rules:
@@ -150,10 +153,12 @@ income into ordinary when there's no ladder already exists for that path.
 
 | Module | Responsibility |
 |---|---|
-| `tax/brackets.ts` | 2026 rate tables, deductions, thresholds — keyed by `TAX_YEAR` |
-| `tax/types.ts` | Shared types: `TaxInput`, `TaxResult`, `JurisdictionResult`, etc. |
+| `tax/years/{2025,2026}.ts` | Per-year rate tables, deductions, thresholds (one `TaxYearTables` each) |
+| `tax/years/index.ts` | Year registry: `TAX_YEARS`, `AVAILABLE_YEARS`, `DEFAULT_TAX_YEAR`, `taxTablesFor`, `isTaxYear` |
+| `tax/filingStatus.ts` | Filing-status labels, validity guard, canonical status list |
+| `tax/types.ts` | Shared types: `TaxInput`, `TaxResult`, `JurisdictionResult`, `TaxYearTables`, etc. |
 | `tax/income.ts` | Classify raw input into ordinary / preferential pools |
-| `tax/federal.ts` | Assemble the federal `Jurisdiction` from the tables |
+| `tax/federal.ts` | Assemble the federal `Jurisdiction` from the selected year's tables |
 | `tax/jurisdiction.ts` | `computeJurisdiction` — run income through one jurisdiction |
 | `tax/engine.ts` | Band math: `fillBands`, `taxOverRange`, `marginalRateAt` |
 | `tax/deduction.ts` | Split a deduction across the two pools |
@@ -173,7 +178,8 @@ income into ordinary when there's no ladder already exists for that path.
   no globals, no clock, no randomness — which is what makes the unit tests
   (`*.test.ts`) exhaustive and fast.
 - **Data-driven rules.** Brackets, ladders, and surcharges are data, not
-  branching logic. Adding a tax year is a copy-and-adjust in `brackets.ts`;
+  branching logic. Adding a tax year is a new file in `src/tax/years/`, registered
+  in `years/index.ts` (and listed in `AVAILABLE_YEARS` to surface it in the picker);
   adding a jurisdiction is a new `Jurisdiction` object.
 - **One direction of dependency.** UI depends on the engine; the engine depends
   on nothing in `src/components/`. The `@/` alias points at `src/`.
