@@ -14,7 +14,10 @@ const INF = Number.POSITIVE_INFINITY
  *   unchanged.
  * - Social Security wage base ($176,100 for 2025) per the SSA; SS 6.2% and Medicare 1.45%
  *   rates are statutory.
- * - mfs brackets/cap-gains follow the standard single-mirror + MFJ/2 top-bracket pattern.
+ * - mfs ordinary brackets mirror single except the top bracket, which starts at half of
+ *   the mfj threshold ($375,800). The cap-gains breakpoints are the IRS's published mfs
+ *   figures — roughly, but not exactly, half of mfj (e.g. the 15% ceiling is $300,000,
+ *   not mfj's $600,050 / 2).
  */
 export const TAX_YEAR_2025: TaxYearTables = {
   year: 2025,

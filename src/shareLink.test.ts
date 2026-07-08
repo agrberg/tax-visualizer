@@ -75,6 +75,12 @@ describe('encodeInput / decodeInput', () => {
     expect(decodeInput('v=1&filing=constructor')).toBeNull()
   })
 
+  it('returns null for a version that does not match SHARE_VERSION', () => {
+    // A link written by a future format must not be silently parsed under the v1 rules.
+    expect(decodeInput('v=2&filing=single')).toBeNull()
+    expect(decodeInput('v=&filing=single')).toBeNull()
+  })
+
   it('returns null without the version marker', () => {
     expect(decodeInput('filing=single&wages=100')).toBeNull()
     expect(decodeInput('')).toBeNull()

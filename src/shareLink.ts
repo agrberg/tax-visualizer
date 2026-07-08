@@ -31,14 +31,16 @@ export function encodeInput(input: TaxInput): string {
 }
 
 /**
- * Decode inputs from the share params. Requires the version marker; unknown
- * filing status → null; negative / missing / non-numeric amounts → 0 — so a
- * hand-edited or stale link can never inject a bad TaxInput. A missing or
- * unsupported year falls back to the default (older links have no `y`). Null if unusable.
+ * Decode inputs from the share params. Requires the version marker to match the
+ * current SHARE_VERSION (a missing or different version → null, so a link written by
+ * a future format isn't silently mis-parsed under the old rules); unknown filing
+ * status → null; negative / missing / non-numeric amounts → 0 — so a hand-edited or
+ * stale link can never inject a bad TaxInput. A missing or unsupported year falls back
+ * to the default (older links have no `y`). Null if unusable.
  */
 export function decodeInput(encoded: string): TaxInput | null {
   const params = new URLSearchParams(encoded)
-  if (!params.has('v')) return null
+  if (params.get('v') !== SHARE_VERSION) return null
   const filingStatus = params.get('filing')
   if (!isFilingStatus(filingStatus)) return null
   const year = Number(params.get('y'))
