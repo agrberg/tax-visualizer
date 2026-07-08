@@ -64,7 +64,8 @@ Change it to `/` if you deploy to a custom domain or a `user.github.io` root.
 
 - `src/tax/years/` — the per-year tax tables (`2025.ts`, `2026.ts`) plus the
   registry `index.ts` (`taxTablesFor`, `AVAILABLE_YEARS`, `DEFAULT_TAX_YEAR`,
-  `isTaxYear`). Adding a year is a new file registered here.
+  `isTaxYear`). Adding a year is a new file registered here — see
+  [`src/tax/years/README.md`](src/tax/years/README.md) for the step-by-step.
 - `src/tax/filingStatus.ts` — filing-status labels, the validity guard, and the
   canonical status list.
 - `src/tax/calculate.ts` — the top-level `calculateTax` orchestrator; it resolves

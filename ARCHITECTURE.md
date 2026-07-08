@@ -179,8 +179,9 @@ income into ordinary when there's no ladder already exists for that path.
   (`*.test.ts`) exhaustive and fast.
 - **Data-driven rules.** Brackets, ladders, and surcharges are data, not
   branching logic. Adding a tax year is a new file in `src/tax/years/`, registered
-  in `years/index.ts` (and listed in `AVAILABLE_YEARS` to surface it in the picker);
-  adding a jurisdiction is a new `Jurisdiction` object.
+  in `years/index.ts` (and listed in `AVAILABLE_YEARS` to surface it in the picker) —
+  see [`src/tax/years/README.md`](src/tax/years/README.md) for the checklist, source
+  map, and a copy-paste template; adding a jurisdiction is a new `Jurisdiction` object.
 - **One direction of dependency.** UI depends on the engine; the engine depends
   on nothing in `src/components/`. The `@/` alias points at `src/`.
 - **Federal only.** No state tax, credits, phase-outs, or AMT — by design (see
