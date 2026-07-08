@@ -9,11 +9,14 @@ import {
 } from './tower'
 import { calculateTax } from '@/tax/calculate'
 import type { TaxInput } from '@/tax/types'
-import { STANDARD_DEDUCTION, ORDINARY_BRACKETS } from '@/tax/brackets'
+import { taxTablesFor } from '@/tax/years'
+
+const { standardDeduction: STANDARD_DEDUCTION, ordinaryBrackets: ORDINARY_BRACKETS } = taxTablesFor(2026)
 
 function input(overrides: Partial<TaxInput> = {}): TaxInput {
   return {
     filingStatus: 'mfj',
+    taxYear: 2026,
     wages: 0,
     retirementIncome: 0,
     interest: 0,

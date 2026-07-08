@@ -10,7 +10,7 @@ import { SurchargeIndicators } from '@/components/SurchargeIndicators'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { calculateTax } from '@/tax/calculate'
-import { TAX_YEAR } from '@/tax/brackets'
+import { DEFAULT_TAX_YEAR, taxTablesFor } from '@/tax/years'
 import { axisMaxFor } from '@/components/tower'
 import { loadInput, saveInput, loadScenarios, saveScenarios } from '@/storage'
 import {
@@ -25,6 +25,7 @@ import type { TaxInput } from '@/tax/types'
 
 const DEFAULT_INPUT: TaxInput = {
   filingStatus: 'single',
+  taxYear: DEFAULT_TAX_YEAR,
   wages: 120000,
   retirementIncome: 0,
   interest: 2000,
@@ -108,7 +109,7 @@ function App() {
       <div className="mx-auto max-w-7xl px-4 py-6 sm:py-8">
         <header className="mb-6">
           <h1 className="text-2xl font-bold tracking-tight">
-            {TAX_YEAR} Federal Tax Bracket Visualizer
+            {result.taxYear} Federal Tax Bracket Visualizer
           </h1>
           <p className="text-sm text-muted-foreground">
             See how each dollar of income fills the ordinary and capital-gains brackets — and where
@@ -185,7 +186,7 @@ function App() {
 
         <footer className="mt-8 text-center text-xs text-muted-foreground">
           Estimates for education, not tax advice. Federal only; excludes state tax, credits, and
-          many deductions. {TAX_YEAR} figures per IRS Rev. Proc. 2025-32.
+          many deductions. {result.taxYear} figures per {taxTablesFor(input.taxYear).source}.
         </footer>
       </div>
     </TooltipProvider>

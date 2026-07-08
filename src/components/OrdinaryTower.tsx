@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ORDINARY_BRACKETS } from '@/tax/brackets'
+import { taxTablesFor } from '@/tax/years'
 import { SOURCE_META, formatCurrency, formatPercent, wagesBracketFill } from '@/tax/format'
 import { ORDINARY_SOURCES, type IncomeSource, type TaxResult } from '@/tax/types'
 import { marginalOrdinaryIdx, nextOrdinaryBracket, ordinaryAxisMaxFor, pct, tall } from './tower'
@@ -23,7 +23,7 @@ interface Props {
 
 export function OrdinaryTower({ result }: Props) {
   const fed = result.federal
-  const brackets = ORDINARY_BRACKETS[result.filingStatus]
+  const brackets = taxTablesFor(result.taxYear).ordinaryBrackets[result.filingStatus]
   const deduction = fed.standardDeduction
   const axisMax = ordinaryAxisMaxFor(result)
   // The marginal bracket holds the last taxable dollar; the one above it is pinned

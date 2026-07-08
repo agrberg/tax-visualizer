@@ -1,13 +1,14 @@
-import { TAX_YEAR } from './brackets'
 import type { TaxInput, TaxResult } from './types'
 import { classifyIncome } from './income'
 import { federalJurisdiction } from './federal'
 import { computeJurisdiction } from './jurisdiction'
 import { buildBreakdown } from './attribution'
+import { taxTablesFor } from './years'
 
 export function calculateTax(inputRaw: TaxInput): TaxResult {
   const income = classifyIncome(inputRaw)
-  const jurisdiction = federalJurisdiction(inputRaw.filingStatus)
+  const tables = taxTablesFor(inputRaw.taxYear)
+  const jurisdiction = federalJurisdiction(inputRaw.filingStatus, tables)
   const fed = computeJurisdiction(jurisdiction, income)
 
   const surcharges = jurisdiction.surcharges.map((rule, i) => ({ rule, result: fed.surcharges[i] }))
@@ -22,7 +23,7 @@ export function calculateTax(inputRaw: TaxInput): TaxResult {
 
   return {
     filingStatus: inputRaw.filingStatus,
-    taxYear: TAX_YEAR,
+    taxYear: tables.year,
     totalIncome: income.totalIncome,
     ordinaryIncome: income.ordinaryIncome,
     preferentialIncome: income.preferentialIncome,

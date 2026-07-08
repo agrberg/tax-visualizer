@@ -1,8 +1,11 @@
 import { describe, it, expect } from 'vitest'
 import { medicareBaseRule, medicareRule, niitRule, socialSecurityRule } from './surcharges'
+import { taxTablesFor } from './years'
+
+const t = taxTablesFor(2026)
 
 describe('niitRule', () => {
-  const rule = niitRule('mfj') // threshold 250000
+  const rule = niitRule('mfj', t.niit) // threshold 250000
 
   it('taxes the lesser of NII and MAGI over the threshold', () => {
     const a = rule.assess({ wages: 200000, netInvestmentIncome: 100000, magi: 300000 })
@@ -30,7 +33,7 @@ describe('niitRule', () => {
 })
 
 describe('medicareRule', () => {
-  const rule = medicareRule('single') // threshold 200000
+  const rule = medicareRule('single', t.additionalMedicare) // threshold 200000
 
   it('taxes wages over the threshold', () => {
     const a = rule.assess({ wages: 250000, netInvestmentIncome: 0, magi: 250000 })
@@ -43,7 +46,7 @@ describe('medicareRule', () => {
 })
 
 describe('socialSecurityRule (capped, the inverse of a threshold)', () => {
-  const rule = socialSecurityRule()
+  const rule = socialSecurityRule(t.socialSecurity)
   const ctx = (wages: number) => ({ wages, netInvestmentIncome: 0, magi: wages })
 
   it('taxes 6.2% of wages below the wage-base cap', () => {
@@ -81,7 +84,7 @@ describe('socialSecurityRule (capped, the inverse of a threshold)', () => {
 })
 
 describe('medicareBaseRule (flat, uncapped)', () => {
-  const rule = medicareBaseRule()
+  const rule = medicareBaseRule(t.medicare)
   const ctx = (wages: number) => ({ wages, netInvestmentIncome: 0, magi: wages })
 
   it('taxes 1.45% of all wages with no cap or threshold', () => {
