@@ -13,12 +13,10 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { FILING_STATUS_LABELS } from '@/tax/brackets'
+import { FILING_STATUS_LABELS, FILING_STATUSES } from '@/tax/filingStatus'
 import { AVAILABLE_YEARS } from '@/tax/years'
 import { SOURCE_META } from '@/tax/format'
 import type { FilingStatus, IncomeSource, TaxInput } from '@/tax/types'
-
-const FILING_STATUSES: FilingStatus[] = ['single', 'mfj', 'hoh', 'mfs']
 
 const ORDINARY_FIELDS: IncomeSource[] = [
   'wages',

@@ -1,5 +1,5 @@
 import { ALL_SOURCES, type TaxInput } from './tax/types'
-import { isFilingStatus } from './tax/brackets'
+import { isFilingStatus } from './tax/filingStatus'
 import { DEFAULT_TAX_YEAR, isTaxYear } from './tax/years'
 import type { Scenarios } from './scenarios'
 
