@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { calculateTax } from './calculate'
+import { calculateTax, marginalNextDollar } from './calculate'
 import { taxTablesFor, isTaxYear, DEFAULT_TAX_YEAR } from './years'
 import type { TaxInput } from './types'
 
@@ -75,5 +75,21 @@ describe('switching only the year changes the tax', () => {
     expect(r2026.taxYear).toBe(2026)
     // 2026's higher standard deduction and wider brackets lower the bill.
     expect(r2025.totalTax).toBeGreaterThan(r2026.totalTax)
+  })
+})
+
+describe('the selected year threads through marginalNextDollar', () => {
+  it("drops Social Security from the next wage dollar once wages clear that year's cap", () => {
+    // $180k wages sits above the 2025 SS wage base ($176,100) but below 2026's ($184,500),
+    // so the next wage dollar still incurs SS in 2026 but not in 2025 — proving the year's
+    // tables reach the marginal calc, not just the assessment.
+    const wagesSs = (year: number) => {
+      const wages = marginalNextDollar(calculateTax(input({ wages: 180000, taxYear: year }))).find(
+        (m) => m.key === 'wages',
+      )!
+      return wages.surtaxes.find((s) => s.label === 'Soc. Sec.')?.rate ?? 0
+    }
+    expect(wagesSs(2025)).toBe(0)
+    expect(wagesSs(2026)).toBeCloseTo(0.062, 5)
   })
 })
