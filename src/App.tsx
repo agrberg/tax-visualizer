@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { IncomeForm } from '@/components/IncomeForm'
+import { ImportReturn } from '@/components/ImportReturn'
 import { SavedScenarios } from '@/components/SavedScenarios'
 import { ShareLinkButton } from '@/components/ShareLinkButton'
 import { OrdinaryTower } from '@/components/OrdinaryTower'
@@ -124,7 +125,16 @@ function App() {
               <CardTitle className="text-base">Your income</CardTitle>
             </CardHeader>
             <CardContent>
-              <IncomeForm value={input} onChange={setInput} />
+              <ImportReturn
+                current={input}
+                onApply={(next) => {
+                  setInput(next)
+                  setSelectedName(null)
+                }}
+              />
+              <div className="mt-6 border-t pt-4">
+                <IncomeForm value={input} onChange={setInput} />
+              </div>
               <div className="mt-6 border-t pt-4">
                 <ShareLinkButton input={input} />
               </div>
