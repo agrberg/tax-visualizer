@@ -85,13 +85,13 @@ describe('extract1040Fields', () => {
       ...line(1, 738, [['Form', 40], ['1040', 70], ['U.S. Individual Income Tax Return', 120]]),
       ...line(1, 520, [
         ['if', 20], ['required.', 35], ['3a', 60], ['Qualified', 80], ['dividends', 120],
-        ['3a', 300], ['58,986.', 340],
-        ['b', 380], ['Ordinary', 400], ['dividends', 440], ['3b', 560], ['84,388.', 600],
+        ['3a', 300], ['1,000.', 340],
+        ['b', 380], ['Ordinary', 400], ['dividends', 440], ['3b', 560], ['3,000.', 600],
       ]),
     ]
     const { fields } = extract1040Fields(items)
-    expect(fields.qualifiedDividends).toBe(58986)
-    expect(fields.nonQualifiedDividends).toBe(25402) // 3b 84,388 − 3a 58,986
+    expect(fields.qualifiedDividends).toBe(1000)
+    expect(fields.nonQualifiedDividends).toBe(2000) // 3b 3,000 − 3a 1,000
   })
 
   it('reads short- and long-term gains from Schedule D when present', () => {
