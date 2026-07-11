@@ -263,7 +263,6 @@ export function extract1040Fields(items: TextItem[]): ParsedReturn {
     fields.filingStatus = filingStatus
     provenance.filingStatus = '1040 filing-status checkbox'
     ilog(`matched filingStatus = ${filingStatus}`)
-    warnings.push('Filing status was auto-detected — please confirm it below.')
   } else {
     warnings.push("Couldn't detect your filing status — please choose it below.")
   }
