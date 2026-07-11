@@ -77,6 +77,66 @@ describe('extract1040Fields', () => {
     expect(provenance.nonQualifiedDividends).toBe('1040 line 3b − 3a')
   })
 
+  it('reads each amount when 3a and 3b share a baseline', () => {
+    // Real forms print the 3a and 3b amount boxes side by side, so our row grouping
+    // yields one row with both. The value must come from each line's own segment, not
+    // the rightmost amount (which would give 3a its neighbour's 3b figure).
+    const items = [
+      ...line(1, 738, [['Form', 40], ['1040', 70], ['U.S. Individual Income Tax Return', 120]]),
+      ...line(1, 520, [
+        ['if', 20], ['required.', 35], ['3a', 60], ['Qualified', 80], ['dividends', 120],
+        ['3a', 300], ['58,986.', 340],
+        ['b', 380], ['Ordinary', 400], ['dividends', 440], ['3b', 560], ['84,388.', 600],
+      ]),
+    ]
+    const { fields } = extract1040Fields(items)
+    expect(fields.qualifiedDividends).toBe(58986)
+    expect(fields.nonQualifiedDividends).toBe(25402) // 3b 84,388 − 3a 58,986
+  })
+
+  it('reads short- and long-term gains from Schedule D when present', () => {
+    const items = [
+      ...line(1, 738, [['Form', 40], ['1040', 70], ['U.S. Individual Income Tax Return', 120]]),
+      ...line(1, 300, [['7', 40], ['Capital gain or (loss)', 70], ['20,000', 520]]),
+      ...line(3, 750, [['SCHEDULE D', 40], ['(Form 1040)', 130], ['Capital Gains and Losses', 220]]),
+      ...line(3, 400, [['7', 40], ['Net short-term capital gain or (loss)', 70], ['3,000', 520]]),
+      ...line(3, 200, [['15', 40], ['Net long-term capital gain or (loss)', 70], ['17,000', 520]]),
+    ]
+    const { fields, provenance } = extract1040Fields(items)
+    expect(fields.shortTermGains).toBe(3000)
+    expect(fields.longTermGains).toBe(17000) // not the 20,000 from 1040 line 7
+    expect(provenance.shortTermGains).toBe('Schedule D line 7 (net short-term)')
+    expect(provenance.longTermGains).toBe('Schedule D line 15 (net long-term)')
+  })
+
+  it('clamps a Schedule D capital loss to $0 and warns', () => {
+    const items = [
+      ...line(1, 738, [['Form', 40], ['1040', 70], ['U.S. Individual Income Tax Return', 120]]),
+      ...line(3, 750, [['SCHEDULE D', 40], ['Capital Gains and Losses', 220]]),
+      ...line(3, 400, [['7', 40], ['Net short-term capital gain or (loss)', 70], ['(2,500)', 520]]),
+      ...line(3, 200, [['15', 40], ['Net long-term capital gain or (loss)', 70], ['9,000', 520]]),
+    ]
+    const { fields, warnings } = extract1040Fields(items)
+    expect(fields.shortTermGains).toBe(0)
+    expect(fields.longTermGains).toBe(9000)
+    expect(warnings.some((w) => w.toLowerCase().includes('short-term') && w.toLowerCase().includes('loss'))).toBe(true)
+  })
+
+  it('does not mistake Schedule 2 line 7 for 1040 capital gains', () => {
+    // Schedule 2 line 7 ("additional SS/Medicare tax") is a different form; a loose
+    // page-wide "7" match used to pull its line number in as $7 of long-term gains.
+    const items = [
+      ...line(1, 738, [['Form', 40], ['1040', 70], ['U.S. Individual Income Tax Return', 120]]),
+      ...line(1, 600, [['1z', 40], ['Add lines 1a through 1h', 70], ['50,000', 520]]),
+      ...line(5, 750, [['SCHEDULE 2', 40], ['Additional Taxes', 200]]),
+      ...line(5, 300, [['7', 40], ['Total additional social security and Medicare tax. Add lines 5 and 6', 70], ['7', 900]]),
+    ]
+    const { fields } = extract1040Fields(items)
+    expect(fields.wages).toBe(50000)
+    expect(fields.longTermGains).toBeUndefined()
+    expect(fields.shortTermGains).toBeUndefined()
+  })
+
   it('detects filing status and tax year', () => {
     const { fields } = extract1040Fields(sample1040())
     expect(fields.filingStatus).toBe('single')

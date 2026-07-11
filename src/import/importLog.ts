@@ -5,11 +5,21 @@
 // further (e.g. in tests) with setImportLogging(false).
 
 let enabled = import.meta.env.DEV
+let step = ''
 
 export function setImportLogging(on: boolean): void {
   enabled = on
 }
 
+/**
+ * Tag subsequent logs with the pipeline step they belong to (e.g. "extract",
+ * "match", "result"), so the trace reads as sections rather than an undifferentiated
+ * stream. Pass '' to clear.
+ */
+export function setImportStep(name: string): void {
+  step = name
+}
+
 export function ilog(...args: unknown[]): void {
-  if (enabled) console.log('[1040 import]', ...args)
+  if (enabled) console.log(step ? `[1040 import:${step}]` : '[1040 import]', ...args)
 }

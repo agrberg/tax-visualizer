@@ -1,7 +1,7 @@
 import { ALL_SOURCES, type FilingStatus, type IncomeSource, type TaxInput } from '../tax/types'
 import { isTaxYear } from '../tax/years'
 import type { ParsedReturn } from './parsedReturn'
-import { ilog } from './importLog'
+import { ilog, setImportStep } from './importLog'
 
 /**
  * A single positioned piece of text from the PDF, in PDF user-space coordinates
@@ -66,23 +66,47 @@ export function parseAmount(text: string): number | null {
   return negative ? -value : value
 }
 
-/** The rightmost parseable dollar amount on a row (the 1040's amount column). */
-function rowAmount(row: Row): number | null {
-  for (let i = row.items.length - 1; i >= 0; i--) {
-    // Skip the leftmost item when there are others — on a 1040 it is always a
-    // line identifier ("7", "1z", …) and never the value column.
-    if (i === 0 && row.items.length > 1) continue
-    const value = parseAmount(row.items[i].text)
-    if (value !== null) return value
+/** The page of the first row whose text contains `needle` (case-insensitive), or null. */
+function pageOf(rows: Row[], needle: string): number | null {
+  const want = needle.toLowerCase()
+  for (const row of rows) {
+    if (row.text.toLowerCase().includes(want)) return row.page
   }
   return null
 }
 
-/** Find the row whose leading cells contain a standalone line number (e.g. "1z", "3a"). */
-function findLine(rows: Row[], line: string): Row | null {
-  const want = line.toLowerCase()
+/**
+ * The dollar amount belonging to a line identifier (e.g. "3a", "7").
+ *
+ * A single printed line renders as `<id> <label…> <amount>`, but two sibling lines
+ * often share a baseline — e.g. 3a and 3b print side by side, so our row grouping
+ * yields one row "3a Qualified dividends … 3a 58,986 b Ordinary dividends … 3b 84,388".
+ * Reading the rightmost amount there would hand 3a its neighbour's value. So we take
+ * the rightmost amount within the id's *segment*: from the id up to the next sibling
+ * id in `boundaryIds`. Tokens equal to the id are skipped (the id is often reprinted
+ * beside its own amount, and "7" must not be read as $7).
+ */
+function amountForLine(rows: Row[], id: string, boundaryIds: string[]): number | null {
+  const want = id.toLowerCase()
+  const bounds = new Set(boundaryIds.map((b) => b.toLowerCase()).filter((b) => b !== want))
   for (const row of rows) {
-    if (row.items.some((i) => i.text.trim().toLowerCase() === want)) return row
+    const items = row.items
+    const start = items.findIndex((it) => it.text.trim().toLowerCase() === want)
+    if (start === -1) continue
+    let end = items.length
+    for (let i = start + 1; i < items.length; i++) {
+      if (bounds.has(items[i].text.trim().toLowerCase())) {
+        end = i
+        break
+      }
+    }
+    for (let i = end - 1; i > start; i--) {
+      const tok = items[i].text.trim()
+      if (tok.toLowerCase() === want) continue
+      const value = parseAmount(tok)
+      if (value !== null) return value
+    }
+    // Matched the line but found no value in its segment; keep looking on other rows.
   }
   return null
 }
@@ -120,14 +144,12 @@ function detectFilingStatus(rows: Row[]): FilingStatus | null {
 }
 
 /**
- * A plausible 4-digit tax year (a 20xx token) near the top of page 1. Whether it's
- * one the app actually supports is left to `isTaxYear` at the call site, so a newly
- * filed year still reaches the "unsupported year" warning rather than looking
- * undetected.
+ * A plausible 4-digit tax year (a 20xx token) on the 1040 face. Whether it's one the
+ * app actually supports is left to `isTaxYear` at the call site, so a newly filed year
+ * still reaches the "unsupported year" warning rather than looking undetected.
  */
-function detectTaxYear(rows: Row[]): number | null {
-  const topOfPage1 = rows.filter((r) => r.page === 1)
-  for (const row of topOfPage1) {
+function detectTaxYear(faceRows: Row[]): number | null {
+  for (const row of faceRows) {
     for (const item of row.items) {
       const m = item.text.trim().match(/^(20[12]\d)$/)
       if (m) return Number(m[1])
@@ -142,6 +164,10 @@ function detectTaxYear(rows: Row[]): number | null {
  * warns about anything the user must confirm or that the 1040 face can't express
  * (short vs. long-term split, capital losses). Undetected fields are simply omitted.
  */
+// The 1040-face income lines we read, in the order they appear on page 1. Passed as
+// each other's segment boundaries so a value never bleeds across sibling lines.
+const FACE_IDS = ['1z', '2b', '3a', '3b', '4b', '5b', '7']
+
 export function extract1040Fields(items: TextItem[]): ParsedReturn {
   const rows = groupRows(items)
   ilog(`grouped ${items.length} text items into ${rows.length} rows`)
@@ -156,11 +182,15 @@ export function extract1040Fields(items: TextItem[]): ParsedReturn {
     ilog(`matched ${field} = ${value} (${source})`)
   }
 
-  // Simple single-line amounts.
+  // Scope the face lines to the 1040's own page, so a stray "7" on Schedule 2 (or a
+  // repeated line number deep in the return) can't be mistaken for a 1040 value.
+  setImportStep('match')
+  const facePage = pageOf(rows, 'u.s. individual income tax return') ?? pageOf(rows, 'form 1040') ?? 1
+  const faceRows = rows.filter((r) => r.page === facePage)
+  ilog(`reading 1040 face on page ${facePage}`)
   const amountAt = (line: string): number | null => {
-    const row = findLine(rows, line)
-    const value = row ? rowAmount(row) : null
-    ilog(`line ${line}: ${row ? `row "${row.text}"` : 'not found'} -> ${value}`)
+    const value = amountForLine(faceRows, line, FACE_IDS)
+    ilog(`line ${line}: -> ${value}`)
     return value
   }
 
@@ -192,20 +222,42 @@ export function extract1040Fields(items: TextItem[]): ParsedReturn {
     )
   }
 
-  const capitalGain = amountAt('7')
-  if (capitalGain !== null) {
-    if (capitalGain < 0) {
-      warnings.push("Line 7 is a capital loss; set to $0 (the app doesn't model losses).")
-      setMoney('longTermGains', 0, '1040 line 7')
+  // Capital gains: prefer Schedule D for a real short/long-term split; fall back to
+  // 1040 line 7 (assumed long-term) when it isn't attached. The app can't represent a
+  // loss or net short against long, so a negative on either line is clamped with a warning.
+  const setCapitalGain = (field: 'shortTermGains' | 'longTermGains', value: number, source: string, label: string) => {
+    if (value < 0) {
+      warnings.push(
+        `Schedule D shows a net ${label} capital loss; set to $0 (the app doesn't model capital losses or net them against gains).`,
+      )
+      setMoney(field, 0, source)
     } else {
+      setMoney(field, value, source)
+    }
+  }
+  const schedDPage = pageOf(rows, 'capital gains and losses')
+  const schedDRows = schedDPage !== null ? rows.filter((r) => r.page === schedDPage) : []
+  const shortTerm = schedDPage !== null ? amountForLine(schedDRows, '7', ['7', '15']) : null
+  const longTerm = schedDPage !== null ? amountForLine(schedDRows, '15', ['7', '15']) : null
+  if (shortTerm !== null || longTerm !== null) {
+    ilog(`Schedule D (page ${schedDPage}): line 7 short-term ${shortTerm}, line 15 long-term ${longTerm}`)
+    if (shortTerm !== null) setCapitalGain('shortTermGains', shortTerm, 'Schedule D line 7 (net short-term)', 'short-term')
+    if (longTerm !== null) setCapitalGain('longTermGains', longTerm, 'Schedule D line 15 (net long-term)', 'long-term')
+  } else {
+    const capitalGain = amountAt('7')
+    if (capitalGain !== null && capitalGain < 0) {
+      warnings.push("1040 line 7 is a capital loss; set to $0 (the app doesn't model capital losses).")
+      setMoney('longTermGains', 0, '1040 line 7')
+    } else if (capitalGain !== null) {
       setMoney('longTermGains', capitalGain, '1040 line 7 (assumed long-term)')
       warnings.push(
-        'Capital gains from line 7 were treated as long-term. If some were short-term, move them in the review below.',
+        'Capital gains from 1040 line 7 were treated as long-term (no Schedule D found to split them). Adjust below if some were short-term.',
       )
     }
   }
 
-  const filingStatus = detectFilingStatus(rows)
+  setImportStep('detect')
+  const filingStatus = detectFilingStatus(faceRows)
   if (filingStatus) {
     fields.filingStatus = filingStatus
     provenance.filingStatus = '1040 filing-status checkbox'
@@ -215,7 +267,7 @@ export function extract1040Fields(items: TextItem[]): ParsedReturn {
     warnings.push("Couldn't detect your filing status — please choose it below.")
   }
 
-  const taxYear = detectTaxYear(rows)
+  const taxYear = detectTaxYear(faceRows)
   if (taxYear !== null && isTaxYear(taxYear)) {
     fields.taxYear = taxYear
     provenance.taxYear = '1040 form header'
@@ -233,7 +285,9 @@ export function extract1040Fields(items: TextItem[]): ParsedReturn {
     )
   }
 
+  setImportStep('result')
   ilog('final fields', fields)
   ilog('warnings', warnings)
+  setImportStep('')
   return { fields, provenance, warnings }
 }
