@@ -119,16 +119,18 @@ function detectFilingStatus(rows: Row[]): FilingStatus | null {
   return null
 }
 
-/** A 4-digit tax year near the top of page 1. */
+/**
+ * A plausible 4-digit tax year (a 20xx token) near the top of page 1. Whether it's
+ * one the app actually supports is left to `isTaxYear` at the call site, so a newly
+ * filed year still reaches the "unsupported year" warning rather than looking
+ * undetected.
+ */
 function detectTaxYear(rows: Row[]): number | null {
   const topOfPage1 = rows.filter((r) => r.page === 1)
   for (const row of topOfPage1) {
     for (const item of row.items) {
       const m = item.text.trim().match(/^(20[12]\d)$/)
-      if (m) {
-        const year = Number(m[1])
-        if (year >= 2015 && year <= 2027) return year
-      }
+      if (m) return Number(m[1])
     }
   }
   return null
