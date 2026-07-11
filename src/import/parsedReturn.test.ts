@@ -43,6 +43,15 @@ describe('mergeParsedInput', () => {
     expect(merged.shortTermGains).toBe(0)
   })
 
+  it('preserves negatives when clampNegatives is false (for the review draft)', () => {
+    const draft = mergeParsedInput(CURRENT, { shortTermGains: -500 }, { clampNegatives: false })
+    expect(draft.shortTermGains).toBe(-500)
+    // ...but a normal merge (as Apply does) still clamps it to 0.
+    expect(mergeParsedInput(CURRENT, draft).shortTermGains).toBe(0)
+    // non-finite is still normalized even when negatives are kept.
+    expect(mergeParsedInput(CURRENT, { wages: Number.NaN }, { clampNegatives: false }).wages).toBe(0)
+  })
+
   it('resets an unrecognized filing status to single', () => {
     const merged = mergeParsedInput(CURRENT, {
       filingStatus: 'qss' as TaxInput['filingStatus'],
