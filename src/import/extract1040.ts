@@ -66,9 +66,9 @@ export function parseAmount(text: string): number | null {
   return negative ? -value : value
 }
 
-/** The page of the first row whose text contains `needle` (case-insensitive), or null. */
-function pageOf(rows: Row[], needle: string): number | null {
-  const want = needle.toLowerCase()
+/** The page of the first row whose text contains `phrase` (case-insensitive), or null. */
+function pageOf(rows: Row[], phrase: string): number | null {
+  const want = phrase.toLowerCase()
   for (const row of rows) {
     if (row.text.toLowerCase().includes(want)) return row.page
   }
@@ -91,7 +91,7 @@ function amountForLine(rows: Row[], id: string, boundaryIds: string[]): number |
   const bounds = new Set(boundaryIds.map((b) => b.toLowerCase()).filter((b) => b !== want))
   for (const row of rows) {
     const items = row.items
-    const start = items.findIndex((it) => it.text.trim().toLowerCase() === want)
+    const start = items.findIndex((item) => item.text.trim().toLowerCase() === want)
     if (start === -1) continue
     let end = items.length
     for (let i = start + 1; i < items.length; i++) {
@@ -101,9 +101,9 @@ function amountForLine(rows: Row[], id: string, boundaryIds: string[]): number |
       }
     }
     for (let i = end - 1; i > start; i--) {
-      const tok = items[i].text.trim()
-      if (tok.toLowerCase() === want) continue
-      const value = parseAmount(tok)
+      const token = items[i].text.trim()
+      if (token.toLowerCase() === want) continue
+      const value = parseAmount(token)
       if (value !== null) return value
     }
     // Matched the line but found no value in its segment; keep looking on other rows.
@@ -111,11 +111,11 @@ function amountForLine(rows: Row[], id: string, boundaryIds: string[]): number |
   return null
 }
 
-const STATUS_KEYWORDS: { status: FilingStatus; needles: string[] }[] = [
-  { status: 'mfj', needles: ['married filing jointly'] },
-  { status: 'mfs', needles: ['married filing separately'] },
-  { status: 'hoh', needles: ['head of household'] },
-  { status: 'single', needles: ['single'] },
+const STATUS_KEYWORDS: { status: FilingStatus; labels: string[] }[] = [
+  { status: 'mfj', labels: ['married filing jointly'] },
+  { status: 'mfs', labels: ['married filing separately'] },
+  { status: 'hoh', labels: ['head of household'] },
+  { status: 'single', labels: ['single'] },
 ]
 
 const CHECK_TOKENS = new Set(['x', '☒', '✗', '✓', '■'])
@@ -136,8 +136,8 @@ function detectFilingStatus(rows: Row[]): FilingStatus | null {
       .toLowerCase()
       .replace(/\s+/g, ' ')
       .trim()
-    for (const { status, needles } of STATUS_KEYWORDS) {
-      if (needles.some((n) => after.startsWith(n))) return status
+    for (const { status, labels } of STATUS_KEYWORDS) {
+      if (labels.some((label) => after.startsWith(label))) return status
     }
   }
   return null
