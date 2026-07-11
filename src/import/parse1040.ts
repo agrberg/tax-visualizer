@@ -1,17 +1,19 @@
 import type { ParsedReturn } from './parsedReturn'
+import { extract1040Fields } from './extract1040'
+import { ilog } from './importLog'
 
 /**
- * Read income values out of a Form 1040 PDF.
+ * Read income values out of a Form 1040 PDF, entirely in the browser.
  *
- * Stub for now — this is the seam. PR2 replaces the body with pdf.js text
- * extraction (plus heavy logging of what the reader sees), while the signature
- * and return type stay fixed so the intake/review UI in ImportReturn.tsx doesn't
- * have to change.
+ * pdf.js is imported dynamically so its ~1 MB bundle only loads when a user
+ * actually drops a file, rather than on initial page load. Text extraction is
+ * isolated in ./pdfText; the mapping in ./extract1040 is pure and unit-tested.
+ * Everything the reader sees and every match decision is logged (see ./importLog)
+ * so we can tune the mapping against real returns.
  */
-export async function parse1040(_file: File): Promise<ParsedReturn> {
-  return {
-    fields: {},
-    provenance: {},
-    warnings: ["Reading your 1040 isn't wired up yet — coming soon."],
-  }
+export async function parse1040(file: File): Promise<ParsedReturn> {
+  ilog('parsing', file.name)
+  const { extractTextItems } = await import('./pdfText')
+  const items = await extractTextItems(file)
+  return extract1040Fields(items)
 }
