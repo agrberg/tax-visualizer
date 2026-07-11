@@ -21,7 +21,7 @@ function sample1040(): TextItem[] {
     ...line(1, 500, [['3b', 40], ['Ordinary dividends', 70], ['9,500', 520]]),
     ...line(1, 460, [['4b', 40], ['IRA distributions', 70], ['5,000', 520]]),
     ...line(1, 420, [['5b', 40], ['Pensions and annuities', 70], ['3,000', 520]]),
-    ...line(1, 360, [['7', 40], ['Capital gain or (loss)', 70], ['15,000', 520]]),
+    ...line(1, 360, [['7a', 40], ['Capital gain or (loss)', 70], ['15,000', 520]]),
   ]
 }
 
@@ -68,7 +68,7 @@ describe('extract1040Fields', () => {
     expect(fields.qualifiedDividends).toBe(8000)
     expect(fields.nonQualifiedDividends).toBe(1500) // 3b 9,500 − 3a 8,000
     expect(fields.retirementIncome).toBe(8000) // 4b 5,000 + 5b 3,000
-    expect(fields.longTermGains).toBe(15000) // line 7, assumed long-term
+    expect(fields.longTermGains).toBe(15000) // line 7a, assumed long-term
   })
 
   it('records provenance for detected fields', () => {
@@ -97,14 +97,14 @@ describe('extract1040Fields', () => {
   it('reads short- and long-term gains from Schedule D when present', () => {
     const items = [
       ...line(1, 738, [['Form', 40], ['1040', 70], ['U.S. Individual Income Tax Return', 120]]),
-      ...line(1, 300, [['7', 40], ['Capital gain or (loss)', 70], ['20,000', 520]]),
+      ...line(1, 300, [['7a', 40], ['Capital gain or (loss)', 70], ['20,000', 520]]),
       ...line(3, 750, [['SCHEDULE D', 40], ['(Form 1040)', 130], ['Capital Gains and Losses', 220]]),
       ...line(3, 400, [['7', 40], ['Net short-term capital gain or (loss)', 70], ['3,000', 520]]),
       ...line(3, 200, [['15', 40], ['Net long-term capital gain or (loss)', 70], ['17,000', 520]]),
     ]
     const { fields, provenance } = extract1040Fields(items)
     expect(fields.shortTermGains).toBe(3000)
-    expect(fields.longTermGains).toBe(17000) // not the 20,000 from 1040 line 7
+    expect(fields.longTermGains).toBe(17000) // not the 20,000 from 1040 line 7a
     expect(provenance.shortTermGains).toBe('Schedule D line 7 (net short-term)')
     expect(provenance.longTermGains).toBe('Schedule D line 15 (net long-term)')
   })
@@ -182,8 +182,8 @@ describe('extract1040Fields', () => {
     expect(warnings.some((w) => w.includes('long-term'))).toBe(true)
   })
 
-  it('reports a 1040 line 7 capital loss with its real sign and warns', () => {
-    const items = line(1, 360, [['7', 40], ['Capital gain or (loss)', 70], ['(4,000)', 520]])
+  it('reports a 1040 line 7a capital loss with its real sign and warns', () => {
+    const items = line(1, 360, [['7a', 40], ['Capital gain or (loss)', 70], ['(4,000)', 520]])
     const { fields, warnings } = extract1040Fields(items)
     expect(fields.longTermGains).toBe(-4000)
     expect(warnings.some((w) => w.toLowerCase().includes('loss'))).toBe(true)
@@ -200,9 +200,9 @@ describe('extract1040Fields', () => {
   })
 
   it('does not extract the line number when a targeted line has no dollar value', () => {
-    // Blank line 7 (no capital gains): only the line-number item and label are present.
-    // rowAmount must not return 7 (the line number) as $7 of capital gains.
-    const items = line(1, 360, [['7', 40], ['Capital gain or (loss)', 70]])
+    // Blank line 7a (no capital gains): only the line-number item and label are present.
+    // amountForLine must not return the line identifier itself as a dollar value.
+    const items = line(1, 360, [['7a', 40], ['Capital gain or (loss)', 70]])
     const { fields } = extract1040Fields(items)
     expect(fields.longTermGains).toBeUndefined()
   })

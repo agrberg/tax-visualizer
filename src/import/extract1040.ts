@@ -166,7 +166,7 @@ function detectTaxYear(faceRows: Row[]): number | null {
  */
 // The 1040-face income lines we read, in the order they appear on page 1. Passed as
 // each other's segment boundaries so a value never bleeds across sibling lines.
-const FACE_IDS = ['1z', '2b', '3a', '3b', '4b', '5b', '7']
+const FACE_IDS = ['1z', '2b', '3a', '3b', '4b', '5b', '7a']
 
 export function extract1040Fields(items: TextItem[]): ParsedReturn {
   const rows = groupRows(items)
@@ -223,7 +223,7 @@ export function extract1040Fields(items: TextItem[]): ParsedReturn {
   }
 
   // Capital gains: prefer Schedule D for a real short/long-term split; fall back to
-  // 1040 line 7 (assumed long-term) when it isn't attached. Losses are reported with
+  // 1040 line 7a (assumed long-term) when it isn't attached. Losses are reported with
   // their real sign so the review shows them; the app doesn't model losses or net
   // short against long yet, so a negative applies as $0 unless the user reconciles it.
   const setCapitalGain = (field: 'shortTermGains' | 'longTermGains', value: number, source: string, label: string) => {
@@ -243,16 +243,16 @@ export function extract1040Fields(items: TextItem[]): ParsedReturn {
     if (shortTerm !== null) setCapitalGain('shortTermGains', shortTerm, 'Schedule D line 7 (net short-term)', 'short-term')
     if (longTerm !== null) setCapitalGain('longTermGains', longTerm, 'Schedule D line 15 (net long-term)', 'long-term')
   } else {
-    const capitalGain = amountAt('7')
+    const capitalGain = amountAt('7a')
     if (capitalGain !== null && capitalGain < 0) {
-      setMoney('longTermGains', capitalGain, '1040 line 7')
+      setMoney('longTermGains', capitalGain, '1040 line 7a')
       warnings.push(
-        `1040 line 7 is a capital loss of $${Math.abs(capitalGain).toLocaleString()}. It's shown below as a negative; the app doesn't model losses yet, so it applies as $0 unless you adjust the values.`,
+        `1040 line 7a is a capital loss of $${Math.abs(capitalGain).toLocaleString()}. It's shown below as a negative; the app doesn't model losses yet, so it applies as $0 unless you adjust the values.`,
       )
     } else if (capitalGain !== null) {
-      setMoney('longTermGains', capitalGain, '1040 line 7 (assumed long-term)')
+      setMoney('longTermGains', capitalGain, '1040 line 7a (assumed long-term)')
       warnings.push(
-        'Capital gains from 1040 line 7 were treated as long-term (no Schedule D found to split them). Adjust below if some were short-term.',
+        'Capital gains from 1040 line 7a were treated as long-term (no Schedule D found to split them). Adjust below if some were short-term.',
       )
     }
   }
