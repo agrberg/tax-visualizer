@@ -54,7 +54,9 @@ export function ImportReturn({ current, onApply }: ImportReturnProps) {
     try {
       const result = await parse1040(file)
       setReview({
-        draft: mergeParsedInput(current, result.fields),
+        // Keep negatives (e.g. a capital loss) visible in the review; Apply merges
+        // again with the clamp on before anything reaches the engine.
+        draft: mergeParsedInput(current, result.fields, { clampNegatives: false }),
         provenance: result.provenance,
         detected: new Set(Object.keys(result.fields) as (keyof TaxInput)[]),
         warnings: result.warnings,

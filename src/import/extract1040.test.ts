@@ -109,7 +109,7 @@ describe('extract1040Fields', () => {
     expect(provenance.longTermGains).toBe('Schedule D line 15 (net long-term)')
   })
 
-  it('clamps a Schedule D capital loss to $0 and warns', () => {
+  it('reports a Schedule D capital loss with its real sign and warns', () => {
     const items = [
       ...line(1, 738, [['Form', 40], ['1040', 70], ['U.S. Individual Income Tax Return', 120]]),
       ...line(3, 750, [['SCHEDULE D', 40], ['Capital Gains and Losses', 220]]),
@@ -117,7 +117,8 @@ describe('extract1040Fields', () => {
       ...line(3, 200, [['15', 40], ['Net long-term capital gain or (loss)', 70], ['9,000', 520]]),
     ]
     const { fields, warnings } = extract1040Fields(items)
-    expect(fields.shortTermGains).toBe(0)
+    // The reader keeps the sign; clamping to $0 happens later at the merge boundary.
+    expect(fields.shortTermGains).toBe(-2500)
     expect(fields.longTermGains).toBe(9000)
     expect(warnings.some((w) => w.toLowerCase().includes('short-term') && w.toLowerCase().includes('loss'))).toBe(true)
   })
@@ -181,10 +182,10 @@ describe('extract1040Fields', () => {
     expect(warnings.some((w) => w.includes('long-term'))).toBe(true)
   })
 
-  it('clamps a capital loss on line 7 to zero and warns', () => {
+  it('reports a 1040 line 7 capital loss with its real sign and warns', () => {
     const items = line(1, 360, [['7', 40], ['Capital gain or (loss)', 70], ['(4,000)', 520]])
     const { fields, warnings } = extract1040Fields(items)
-    expect(fields.longTermGains).toBe(0)
+    expect(fields.longTermGains).toBe(-4000)
     expect(warnings.some((w) => w.toLowerCase().includes('loss'))).toBe(true)
   })
 

@@ -223,17 +223,16 @@ export function extract1040Fields(items: TextItem[]): ParsedReturn {
   }
 
   // Capital gains: prefer Schedule D for a real short/long-term split; fall back to
-  // 1040 line 7 (assumed long-term) when it isn't attached. The app can't represent a
-  // loss or net short against long, so a negative on either line is clamped with a warning.
+  // 1040 line 7 (assumed long-term) when it isn't attached. Losses are reported with
+  // their real sign so the review shows them; the app doesn't model losses or net
+  // short against long yet, so a negative applies as $0 unless the user reconciles it.
   const setCapitalGain = (field: 'shortTermGains' | 'longTermGains', value: number, source: string, label: string) => {
     if (value < 0) {
       warnings.push(
-        `Schedule D shows a net ${label} capital loss; set to $0 (the app doesn't model capital losses or net them against gains).`,
+        `Schedule D shows a net ${label} capital loss of $${Math.abs(value).toLocaleString()}. It's shown below as a negative; the app doesn't model losses yet, so it applies as $0 unless you adjust the values.`,
       )
-      setMoney(field, 0, source)
-    } else {
-      setMoney(field, value, source)
     }
+    setMoney(field, value, source)
   }
   const schedDPage = pageOf(rows, 'capital gains and losses')
   const schedDRows = schedDPage !== null ? rows.filter((r) => r.page === schedDPage) : []
@@ -246,8 +245,10 @@ export function extract1040Fields(items: TextItem[]): ParsedReturn {
   } else {
     const capitalGain = amountAt('7')
     if (capitalGain !== null && capitalGain < 0) {
-      warnings.push("1040 line 7 is a capital loss; set to $0 (the app doesn't model capital losses).")
-      setMoney('longTermGains', 0, '1040 line 7')
+      setMoney('longTermGains', capitalGain, '1040 line 7')
+      warnings.push(
+        `1040 line 7 is a capital loss of $${Math.abs(capitalGain).toLocaleString()}. It's shown below as a negative; the app doesn't model losses yet, so it applies as $0 unless you adjust the values.`,
+      )
     } else if (capitalGain !== null) {
       setMoney('longTermGains', capitalGain, '1040 line 7 (assumed long-term)')
       warnings.push(
