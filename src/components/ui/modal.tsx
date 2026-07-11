@@ -1,5 +1,6 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useState } from 'react'
 import { cn } from '@/lib/utils'
+import { ModalContainerContext } from '@/components/ui/modal-context'
 
 interface ModalProps {
   open: boolean
@@ -20,14 +21,15 @@ interface ModalProps {
  * imperative open/close with the `open` prop below.
  */
 export function Modal({ open, onClose, labelledBy, className, children }: ModalProps) {
-  const ref = useRef<HTMLDialogElement>(null)
+  // A callback ref (state) rather than useRef so the container context updates once the
+  // dialog mounts, giving portaled overlays a target to render into.
+  const [dialog, setDialog] = useState<HTMLDialogElement | null>(null)
 
   useEffect(() => {
-    const dialog = ref.current
     if (!dialog) return
     if (open && !dialog.open) dialog.showModal()
     else if (!open && dialog.open) dialog.close()
-  }, [open])
+  }, [open, dialog])
 
   // Lock background scroll while the modal is open.
   useEffect(() => {
@@ -41,7 +43,7 @@ export function Modal({ open, onClose, labelledBy, className, children }: ModalP
 
   return (
     <dialog
-      ref={ref}
+      ref={setDialog}
       aria-labelledby={labelledBy}
       onClose={onClose}
       className={cn(
@@ -51,7 +53,9 @@ export function Modal({ open, onClose, labelledBy, className, children }: ModalP
         className,
       )}
     >
-      {children}
+      <ModalContainerContext.Provider value={dialog}>
+        {children}
+      </ModalContainerContext.Provider>
     </dialog>
   )
 }
