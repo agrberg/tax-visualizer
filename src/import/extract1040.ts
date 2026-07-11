@@ -145,7 +145,6 @@ function detectTaxYear(rows: Row[]): number | null {
 export function extract1040Fields(items: TextItem[]): ParsedReturn {
   const rows = groupRows(items)
   ilog(`grouped ${items.length} text items into ${rows.length} rows`)
-  for (const row of rows) ilog(`  p${row.page} y${Math.round(row.y)}: ${row.text}`)
 
   const fields: Partial<TaxInput> = {}
   const provenance: Partial<Record<keyof TaxInput, string>> = {}
