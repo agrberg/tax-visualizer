@@ -76,6 +76,23 @@ function pageOf(rows: Row[], phrase: string): number | null {
 }
 
 /**
+ * Dump a matched line and its raw token pieces so we can eyeball how pdf.js split the
+ * text — e.g. whether a "(2,500)" loss arrives as one box or three (`(`, `2,500`, `)`),
+ * which decides whether parseAmount can see the sign. `seg` flags the pieces that fall
+ * in this line id's own segment (the tokens the value is read from). JSON so the console
+ * output pastes cleanly back into review notes.
+ */
+function logMatchedLine(id: string, row: Row, start: number, end: number): void {
+  const pieces = row.items.map((item, i) => ({
+    text: item.text,
+    x: Math.round(item.x),
+    seg: i >= start && i < end,
+  }))
+  ilog(`matched line "${id}" on page ${row.page}: "${row.text}"`)
+  ilog(`  pieces: ${JSON.stringify(pieces)}`)
+}
+
+/**
  * The dollar amount belonging to a line identifier (e.g. "3a", "7").
  *
  * A single printed line renders as `<id> <label…> <amount>`, but two sibling lines
@@ -100,6 +117,7 @@ function amountForLine(rows: Row[], id: string, boundaryIds: string[]): number |
         break
       }
     }
+    logMatchedLine(id, row, start, end)
     for (let i = end - 1; i > start; i--) {
       const token = items[i].text.trim()
       if (token.toLowerCase() === want) continue
