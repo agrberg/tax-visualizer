@@ -20,25 +20,33 @@ interface PdfTextItem {
  */
 export async function extractTextItems(file: File): Promise<TextItem[]> {
   const data = new Uint8Array(await file.arrayBuffer())
-  const pdf = await pdfjs.getDocument({ data }).promise
-  ilog(`opened "${file.name}" (${(file.size / 1024).toFixed(0)} KB), ${pdf.numPages} page(s)`)
+  // Hold the loading task so its worker/document resources are released whether
+  // extraction succeeds or throws — otherwise importing several PDFs in one
+  // session leaks them.
+  const loadingTask = pdfjs.getDocument({ data })
+  try {
+    const pdf = await loadingTask.promise
+    ilog(`opened "${file.name}" (${(file.size / 1024).toFixed(0)} KB), ${pdf.numPages} page(s)`)
 
-  const items: TextItem[] = []
-  for (let page = 1; page <= pdf.numPages; page++) {
-    const content = await (await pdf.getPage(page)).getTextContent()
-    for (const raw of content.items) {
-      if (!('str' in raw)) continue
-      const item = raw as PdfTextItem
-      if (item.str.trim() === '') continue
-      items.push({
-        text: item.str,
-        x: item.transform[4],
-        y: item.transform[5],
-        width: item.width,
-        page,
-      })
+    const items: TextItem[] = []
+    for (let page = 1; page <= pdf.numPages; page++) {
+      const content = await (await pdf.getPage(page)).getTextContent()
+      for (const raw of content.items) {
+        if (!('str' in raw)) continue
+        const item = raw as PdfTextItem
+        if (item.str.trim() === '') continue
+        items.push({
+          text: item.str,
+          x: item.transform[4],
+          y: item.transform[5],
+          width: item.width,
+          page,
+        })
+      }
     }
+    ilog(`extracted ${items.length} text items`)
+    return items
+  } finally {
+    await loadingTask.destroy()
   }
-  ilog(`extracted ${items.length} text items`)
-  return items
 }
