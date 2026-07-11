@@ -171,10 +171,12 @@ describe('extract1040Fields', () => {
   })
 
   it('routes a future 4-digit year to the unsupported-year warning, not "not found"', () => {
-    const items = line(1, 720, [['Form', 60], ['1040', 90], ['2028', 300]])
+    // 2030 is past the old hard-coded 20[12]x range, so this also guards that the
+    // detector recognizes any 20xx token and lets isTaxYear() decide apply-vs-warn.
+    const items = line(1, 720, [['Form', 60], ['1040', 90], ['2030', 300]])
     const { fields, warnings } = extract1040Fields(items)
     expect(fields.taxYear).toBeUndefined()
-    expect(warnings.some((w) => w.includes('2028') && w.includes('supported'))).toBe(true)
+    expect(warnings.some((w) => w.includes('2030') && w.includes('supported'))).toBe(true)
   })
 
   it('warns that line 7 was treated as long-term', () => {

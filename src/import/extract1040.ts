@@ -151,7 +151,7 @@ function detectFilingStatus(rows: Row[]): FilingStatus | null {
 function detectTaxYear(faceRows: Row[]): number | null {
   for (const row of faceRows) {
     for (const item of row.items) {
-      const m = item.text.trim().match(/^(20[12]\d)$/)
+      const m = item.text.trim().match(/^(20\d\d)$/)
       if (m) return Number(m[1])
     }
   }
