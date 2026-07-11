@@ -3,6 +3,7 @@ import { FileUp, Upload } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Modal } from '@/components/ui/modal'
 import {
   Select,
   SelectContent,
@@ -83,124 +84,125 @@ export function ImportReturn({ current, onApply }: ImportReturnProps) {
     setReview(null)
   }
 
-  if (review) {
-    const { draft, provenance, detected, warnings } = review
-    return (
-      <div className="space-y-4">
-        <div className="flex items-center gap-2 text-sm font-medium">
-          <FileUp className="size-4" />
-          Review imported values
-        </div>
-
-        {warnings.length > 0 && (
-          <ul className="space-y-1 rounded-md bg-amber-50 p-2 text-xs text-amber-900">
-            {warnings.map((w, i) => (
-              <li key={i}>⚠ {w}</li>
-            ))}
-          </ul>
-        )}
-
-        <div className="space-y-1.5">
-          <Label htmlFor="import-filing-status" className="text-sm">Filing status</Label>
-          <Select
-            value={draft.filingStatus}
-            onValueChange={(v) => { if (isFilingStatus(v)) setField({ filingStatus: v }) }}
-          >
-            <SelectTrigger id="import-filing-status" className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {FILING_STATUSES.map((s) => (
-                <SelectItem key={s} value={s}>
-                  {FILING_STATUS_LABELS[s]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {detected.has('filingStatus') && provenance.filingStatus && (
-            <p className="text-xs text-muted-foreground">from {provenance.filingStatus}</p>
-          )}
-        </div>
-
-        <div className="space-y-1.5">
-          <Label htmlFor="import-tax-year" className="text-sm">Tax year</Label>
-          <Select value={String(draft.taxYear)} onValueChange={(v) => setField({ taxYear: Number(v) })}>
-            <SelectTrigger id="import-tax-year" className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {AVAILABLE_YEARS.map((y) => (
-                <SelectItem key={y} value={String(y)}>
-                  {y}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {detected.has('taxYear') && provenance.taxYear && (
-            <p className="text-xs text-muted-foreground">from {provenance.taxYear}</p>
-          )}
-        </div>
-
-        {ALL_SOURCES.map((source) => (
-          <ReviewMoneyField
-            key={source}
-            source={source}
-            value={draft[source]}
-            provenance={detected.has(source) ? provenance[source] : undefined}
-            onChange={(n) => setField({ [source]: n })}
-          />
-        ))}
-
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" className="flex-1" onClick={() => setReview(null)}>
-            Cancel
-          </Button>
-          <Button size="sm" className="flex-1" onClick={apply}>
-            Apply values
-          </Button>
-        </div>
-      </div>
-    )
-  }
-
   return (
-    <div className="space-y-2">
-      <div className="text-sm font-medium">Start from last year's return</div>
-      <button
-        type="button"
-        onClick={() => inputRef.current?.click()}
-        onDrop={onDrop}
-        onDragOver={(e) => {
-          e.preventDefault()
-          setDragging(true)
-        }}
-        onDragLeave={() => setDragging(false)}
-        className={`flex w-full flex-col items-center gap-1.5 rounded-md border border-dashed px-3 py-6 text-center text-sm transition-colors ${
-          dragging ? 'border-primary bg-primary/5' : 'border-input hover:bg-accent'
-        }`}
-      >
-        <Upload className="size-5 text-muted-foreground" />
-        <span className="text-muted-foreground">
-          {parsing ? 'Reading…' : 'Drop your 1040 PDF here, or click to choose'}
-        </span>
-      </button>
-      <input
-        ref={inputRef}
-        type="file"
-        accept=".pdf,application/pdf"
-        className="hidden"
-        onChange={(e) => {
-          const file = e.target.files?.[0]
-          if (file) void handleFile(file)
-          e.target.value = ''
-        }}
-      />
-      <p className="text-xs text-destructive" aria-live="polite">{error}</p>
-      <p className="text-xs text-muted-foreground">
-        Reads income figures only, in your browser — nothing is uploaded. You'll confirm the values
-        before they're applied.
-      </p>
-    </div>
+    <>
+      <div className="space-y-2">
+        <div className="text-sm font-medium">Start from last year's return</div>
+        <button
+          type="button"
+          onClick={() => inputRef.current?.click()}
+          onDrop={onDrop}
+          onDragOver={(e) => {
+            e.preventDefault()
+            setDragging(true)
+          }}
+          onDragLeave={() => setDragging(false)}
+          className={`flex w-full flex-col items-center gap-1.5 rounded-md border border-dashed px-3 py-6 text-center text-sm transition-colors ${
+            dragging ? 'border-primary bg-primary/5' : 'border-input hover:bg-accent'
+          }`}
+        >
+          <Upload className="size-5 text-muted-foreground" />
+          <span className="text-muted-foreground">
+            {parsing ? 'Reading…' : 'Drop your 1040 PDF here, or click to choose'}
+          </span>
+        </button>
+        <input
+          ref={inputRef}
+          type="file"
+          accept=".pdf,application/pdf"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0]
+            if (file) void handleFile(file)
+            e.target.value = ''
+          }}
+        />
+        <p className="text-xs text-destructive" aria-live="polite">{error}</p>
+        <p className="text-xs text-muted-foreground">
+          Reads income figures only, in your browser — nothing is uploaded. You'll confirm the values
+          before they're applied.
+        </p>
+      </div>
+
+      <Modal open={!!review} onClose={() => setReview(null)} labelledBy="import-review-title">
+        {review && (
+          <div className="space-y-4">
+            <div id="import-review-title" className="flex items-center gap-2 text-base font-medium">
+              <FileUp className="size-4" />
+              Review imported values
+            </div>
+
+            {review.warnings.length > 0 && (
+              <ul className="space-y-1 rounded-md bg-amber-50 p-2 text-xs text-amber-900">
+                {review.warnings.map((w, i) => (
+                  <li key={i}>⚠ {w}</li>
+                ))}
+              </ul>
+            )}
+
+            <div className="space-y-1.5">
+              <Label htmlFor="import-filing-status" className="text-sm">Filing status</Label>
+              <Select
+                value={review.draft.filingStatus}
+                onValueChange={(v) => { if (isFilingStatus(v)) setField({ filingStatus: v }) }}
+              >
+                <SelectTrigger id="import-filing-status" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {FILING_STATUSES.map((s) => (
+                    <SelectItem key={s} value={s}>
+                      {FILING_STATUS_LABELS[s]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {review.detected.has('filingStatus') && review.provenance.filingStatus && (
+                <p className="text-xs text-muted-foreground">from {review.provenance.filingStatus}</p>
+              )}
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="import-tax-year" className="text-sm">Tax year</Label>
+              <Select value={String(review.draft.taxYear)} onValueChange={(v) => setField({ taxYear: Number(v) })}>
+                <SelectTrigger id="import-tax-year" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {AVAILABLE_YEARS.map((y) => (
+                    <SelectItem key={y} value={String(y)}>
+                      {y}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {review.detected.has('taxYear') && review.provenance.taxYear && (
+                <p className="text-xs text-muted-foreground">from {review.provenance.taxYear}</p>
+              )}
+            </div>
+
+            {ALL_SOURCES.map((source) => (
+              <ReviewMoneyField
+                key={source}
+                source={source}
+                value={review.draft[source]}
+                provenance={review.detected.has(source) ? review.provenance[source] : undefined}
+                onChange={(n) => setField({ [source]: n })}
+              />
+            ))}
+
+            <div className="flex gap-2 pt-2">
+              <Button variant="outline" size="sm" className="flex-1" onClick={() => setReview(null)}>
+                Cancel
+              </Button>
+              <Button size="sm" className="flex-1" onClick={apply}>
+                Apply values
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
+    </>
   )
 }
 
