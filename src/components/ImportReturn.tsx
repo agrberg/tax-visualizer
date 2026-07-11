@@ -198,7 +198,7 @@ export function ImportReturn({ current, onApply }: ImportReturnProps) {
                 Cancel
               </Button>
               <Button size="sm" className="flex-1" onClick={apply}>
-                Apply values
+                Import
               </Button>
             </div>
           </div>
