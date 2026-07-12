@@ -1,9 +1,9 @@
 import { useRef, useState } from 'react'
 import { FileUp, Upload } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Modal } from '@/components/ui/modal'
+import { MoneyInput } from '@/components/MoneyInput'
 import {
   Select,
   SelectContent,
@@ -14,7 +14,7 @@ import {
 import { SOURCE_META } from '@/tax/format'
 import { FILING_STATUS_LABELS, FILING_STATUSES, isFilingStatus } from '@/tax/filingStatus'
 import { AVAILABLE_YEARS } from '@/tax/years'
-import { ALL_SOURCES, type IncomeSource, type TaxInput } from '@/tax/types'
+import { ALL_SOURCES, allowsNegativeAmount, type IncomeSource, type TaxInput } from '@/tax/types'
 import { parse1040 } from '@/import/parse1040'
 import { mergeParsedInput, type ParsedReturn } from '@/import/parsedReturn'
 
@@ -54,9 +54,8 @@ export function ImportReturn({ current, onApply }: ImportReturnProps) {
     try {
       const result = await parse1040(file)
       setReview({
-        // Keep negatives (e.g. a capital loss) visible in the review; Apply merges
-        // again with the clamp on before anything reaches the engine.
-        draft: mergeParsedInput(current, result.fields, { clampNegatives: false }),
+        // A capital loss keeps its sign through the review and Apply; the engine nets it.
+        draft: mergeParsedInput(current, result.fields),
         provenance: result.provenance,
         detected: new Set(Object.keys(result.fields) as (keyof TaxInput)[]),
         warnings: result.warnings,
@@ -227,23 +226,12 @@ function ReviewMoneyField({
           {SOURCE_META[source].label}
         </Label>
       </div>
-      <div className="relative">
-        <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
-          $
-        </span>
-        <Input
-          id={`import-${source}`}
-          type="text"
-          inputMode="numeric"
-          className="pl-6"
-          value={value === 0 ? '' : String(value)}
-          placeholder="0"
-          onChange={(e) => {
-            const digits = e.target.value.replace(/[^0-9]/g, '')
-            onChange(digits === '' ? 0 : Number(digits))
-          }}
-        />
-      </div>
+      <MoneyInput
+        id={`import-${source}`}
+        value={value}
+        allowNegative={allowsNegativeAmount(source)}
+        onChange={onChange}
+      />
       {provenance && <p className="text-xs text-muted-foreground">from {provenance}</p>}
     </div>
   )

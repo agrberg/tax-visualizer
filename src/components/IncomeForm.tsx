@@ -6,8 +6,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { MoneyInput } from '@/components/MoneyInput'
 import {
   Tooltip,
   TooltipContent,
@@ -15,8 +15,14 @@ import {
 } from '@/components/ui/tooltip'
 import { FILING_STATUS_LABELS, FILING_STATUSES } from '@/tax/filingStatus'
 import { AVAILABLE_YEARS } from '@/tax/years'
-import { SOURCE_META } from '@/tax/format'
-import type { FilingStatus, IncomeSource, TaxInput } from '@/tax/types'
+import { SOURCE_META, formatCurrency } from '@/tax/format'
+import {
+  allowsNegativeAmount,
+  type FilingStatus,
+  type IncomeSource,
+  type TaxInput,
+  type TaxResult,
+} from '@/tax/types'
 
 const ORDINARY_FIELDS: IncomeSource[] = [
   'wages',
@@ -30,6 +36,8 @@ const PREFERENTIAL_FIELDS: IncomeSource[] = ['qualifiedDividends', 'longTermGain
 interface IncomeFormProps {
   value: TaxInput
   onChange: (next: TaxInput) => void
+  /** The engine's capital-gains netting summary for the current input, for the netting note. */
+  capitalGains: TaxResult['capitalGains']
 }
 
 function MoneyField({
@@ -58,28 +66,60 @@ function MoneyField({
           <TooltipContent className="max-w-60">{meta.hint}</TooltipContent>
         </Tooltip>
       </div>
-      <div className="relative">
-        <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
-          $
-        </span>
-        <Input
-          id={source}
-          type="text"
-          inputMode="numeric"
-          className="pl-6"
-          value={value === 0 ? '' : String(value)}
-          placeholder="0"
-          onChange={(e) => {
-            const digits = e.target.value.replace(/[^0-9]/g, '')
-            onChange(digits === '' ? 0 : Number(digits))
-          }}
-        />
-      </div>
+      <MoneyInput id={source} value={value} allowNegative={allowsNegativeAmount(source)} onChange={onChange} />
     </div>
   )
 }
 
-export function IncomeForm({ value, onChange }: IncomeFormProps) {
+/**
+ * Explains what the engine did with a capital *loss*: short- and long-term results net
+ * against each other first (IRS Schedule D), and a residual net loss offsets income up to
+ * $3,000 / $1,500 MFS (IRC §1211(b)) — limited by taxable income — with the rest carried
+ * forward (IRC §1212(b)), which this single-year tool reports but doesn't yet apply. Shown
+ * only when netting changed a taxable amount — i.e. a loss was present on at least one leg,
+ * whether it merely offset a gain or produced a net loss. Reads the engine's already-computed
+ * summary rather than recomputing, so form and results never disagree.
+ */
+function CapitalNettingNote({ capitalGains }: { capitalGains: TaxResult['capitalGains'] }) {
+  const { netShortTerm, netLongTerm, taxableShortTerm, taxableLongTerm, lossDeduction, carryover } =
+    capitalGains
+  const changed = netShortTerm !== taxableShortTerm || netLongTerm !== taxableLongTerm
+  if (!changed) return null
+
+  const carryoverTotal = carryover.shortTerm + carryover.longTerm
+  const netLoss = lossDeduction > 0 || carryoverTotal > 0
+
+  return (
+    <div role="note" className="space-y-1 rounded-md bg-muted/60 p-2.5 text-xs text-muted-foreground">
+      <p className="font-medium text-foreground">Capital gains netted</p>
+      {netLoss ? (
+        <p>
+          Your capital results net to a loss.{' '}
+          {lossDeduction > 0 ? (
+            <>
+              {formatCurrency(lossDeduction)} offsets ordinary income this year (max $3,000; $1,500 if
+              filing separately)
+              {carryoverTotal > 0 && <> and {formatCurrency(carryoverTotal)} would carry to future years</>}.
+            </>
+          ) : (
+            <>
+              None offsets income this year (taxable income is already $0), so the full{' '}
+              {formatCurrency(carryoverTotal)} would carry to future years.
+            </>
+          )}{' '}
+          Loss carryovers aren&apos;t applied yet, so any carryover is informational.
+        </p>
+      ) : (
+        <p>
+          A capital loss offset part of your gains. Taxed after netting:{' '}
+          {formatCurrency(taxableShortTerm)} short-term, {formatCurrency(taxableLongTerm)} long-term.
+        </p>
+      )}
+    </div>
+  )
+}
+
+export function IncomeForm({ value, onChange, capitalGains }: IncomeFormProps) {
   const set = (patch: Partial<TaxInput>) => onChange({ ...value, ...patch })
 
   return (
@@ -143,6 +183,8 @@ export function IncomeForm({ value, onChange }: IncomeFormProps) {
           <MoneyField key={f} source={f} value={value[f]} onChange={(n) => set({ [f]: n })} />
         ))}
       </fieldset>
+
+      <CapitalNettingNote capitalGains={capitalGains} />
     </div>
   )
 }

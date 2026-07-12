@@ -133,7 +133,7 @@ function App() {
                 }}
               />
               <div className="mt-6 border-t pt-4">
-                <IncomeForm value={input} onChange={setInput} />
+                <IncomeForm value={input} onChange={setInput} capitalGains={result.capitalGains} />
               </div>
               <div className="mt-6 border-t pt-4">
                 <ShareLinkButton input={input} />
