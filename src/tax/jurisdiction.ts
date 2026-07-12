@@ -20,6 +20,47 @@ export interface Jurisdiction {
   surcharges: SurchargeRule[]
 }
 
+/**
+ * Size the IRC §1211(b) net-capital-loss deduction and the §1212(b) carryover for one
+ * jurisdiction. A net loss offsets income up to two limits — the annual filing-status cap
+ * (`capitalLossLimit`) and the taxable income available to absorb it (`preLossTaxable`, which
+ * keeps the deduction from driving taxable income below zero). The deduction is the net loss
+ * clamped by both; the unused remainder carries forward, short-term used first. The loss reduces
+ * income *before* the standard deduction, ordinary side first; only a loss exceeding all ordinary
+ * income (rare: under ~$3k of ordinary income) reaches the preferential base. `incomeLimited` is
+ * true when taxable income (not the cap or the loss itself) was the binding limit — meaning the
+ * next dollar of income would grow the deduction and be absorbed (a genuine 0% marginal rate).
+ */
+function applyCapitalLoss(
+  capitalNetLoss: ClassifiedIncome['capitalNetLoss'],
+  grossOrdinary: number,
+  grossPreferential: number,
+  standardDeduction: number,
+  capitalLossLimit: number,
+) {
+  const netCapitalLoss = capitalNetLoss.shortTerm + capitalNetLoss.longTerm
+  const preLossTaxable = Math.max(0, grossOrdinary + grossPreferential - standardDeduction)
+  const deduction = Math.min(netCapitalLoss, capitalLossLimit, preLossTaxable)
+  const ordinaryIncome = Math.max(0, grossOrdinary - deduction)
+  const absorbedOnOrdinary = grossOrdinary - ordinaryIncome
+  const preferentialIncome = Math.max(0, grossPreferential - (deduction - absorbedOnOrdinary))
+
+  const usedShort = Math.min(deduction, capitalNetLoss.shortTerm)
+  const carryover = {
+    shortTerm: capitalNetLoss.shortTerm - usedShort,
+    longTerm: capitalNetLoss.longTerm - (deduction - usedShort),
+  }
+
+  return {
+    deduction,
+    ordinaryIncome,
+    preferentialIncome,
+    absorbedOnOrdinary,
+    carryover,
+    incomeLimited: deduction < Math.min(netCapitalLoss, capitalLossLimit),
+  }
+}
+
 /** Run the shared classified income through one jurisdiction's rules. */
 export function computeJurisdiction(j: Jurisdiction, income: ClassifiedIncome): JurisdictionResult {
   const ladder = j.preferentialLadder
@@ -31,27 +72,23 @@ export function computeJurisdiction(j: Jurisdiction, income: ClassifiedIncome): 
   const grossOrdinary = hasLadder ? income.ordinaryIncome : income.ordinaryIncome + income.preferentialIncome
   const grossPreferential = hasLadder ? income.preferentialIncome : 0
 
-  // A net capital loss offsets income (IRC §1211(b)), but only up to two limits: the annual
-  // filing-status cap (`capitalLossLimit`) and the taxable income available to absorb it — it
-  // can't drive taxable income below zero. `preLossTaxable` is the taxable income there would
-  // be with no loss; the deduction is the net loss clamped by both, and the unused remainder
-  // carries forward (IRC §1212(b)). The loss reduces AGI *before* the standard deduction,
-  // ordinary side first; only a loss exceeding all ordinary income (rare: under ~$3k of
-  // ordinary income) reaches the preferential base.
-  const netCapitalLoss = income.capitalNetLoss.shortTerm + income.capitalNetLoss.longTerm
-  const preLossTaxable = Math.max(0, grossOrdinary + grossPreferential - j.standardDeduction)
-  const lossDeduction = Math.min(netCapitalLoss, j.capitalLossLimit, preLossTaxable)
-  const ordinaryIncome = Math.max(0, grossOrdinary - lossDeduction)
-  const lossAbsorbedOnOrdinary = grossOrdinary - ordinaryIncome
-  const lossSpilledToPreferential = lossDeduction - lossAbsorbedOnOrdinary
-  const preferentialIncome = Math.max(0, grossPreferential - lossSpilledToPreferential)
-
-  // §1212(b): carry the unused loss forward, short-term used against the deduction first.
-  const usedShort = Math.min(lossDeduction, income.capitalNetLoss.shortTerm)
-  const capitalLossCarryover = {
-    shortTerm: income.capitalNetLoss.shortTerm - usedShort,
-    longTerm: income.capitalNetLoss.longTerm - (lossDeduction - usedShort),
-  }
+  // Size the §1211(b) deduction and §1212(b) carryover (see applyCapitalLoss). The loss reduces
+  // income before the standard deduction, ordinary side first; `lossAbsorbsNextDollar` is true
+  // when the binding limit was taxable income (so the next dollar of income would be absorbed).
+  const {
+    deduction: lossDeduction,
+    ordinaryIncome,
+    preferentialIncome,
+    absorbedOnOrdinary: lossAbsorbedOnOrdinary,
+    carryover: capitalLossCarryover,
+    incomeLimited: lossAbsorbsNextDollar,
+  } = applyCapitalLoss(
+    income.capitalNetLoss,
+    grossOrdinary,
+    grossPreferential,
+    j.standardDeduction,
+    j.capitalLossLimit,
+  )
 
   const { deductionOnOrdinary, leftoverDeduction, ordinaryTaxable, preferentialTaxable, preferentialDeduction } =
     applyDeduction(j.standardDeduction, ordinaryIncome, preferentialIncome)
@@ -79,11 +116,9 @@ export function computeJurisdiction(j: Jurisdiction, income: ClassifiedIncome): 
   const roomAt0 = hasLadder ? Math.max(0, rate0Max - topOfGains) : 0
   const roomAt15 = hasLadder ? Math.max(0, rate15Max - topOfGains) : 0
 
-  // A net loss whose use is limited by taxable income (rather than the annual cap or the
-  // loss itself) still has headroom: the next dollar of income raises preLossTaxable, hence
-  // lossDeduction, and is fully absorbed — a genuine 0% marginal rate that the standard-
-  // deduction leftover alone doesn't capture.
-  const lossAbsorbsNextDollar = lossDeduction < Math.min(netCapitalLoss, j.capitalLossLimit)
+  // When the loss is income-limited (`lossAbsorbsNextDollar`, from applyCapitalLoss), the next
+  // dollar of income grows the deduction and is absorbed — a genuine 0% marginal rate the
+  // standard-deduction leftover alone doesn't capture.
   const nextOrdinaryDollarShielded = leftoverDeduction > 0 || lossAbsorbsNextDollar
   const nextPreferentialDollarShielded = leftoverDeduction > preferentialIncome || lossAbsorbsNextDollar
 
