@@ -1,0 +1,149 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { ImportReturn } from './ImportReturn'
+import type { ParsedReturn } from '@/import/parsedReturn'
+import type { TaxInput } from '@/tax/types'
+
+vi.mock('@/import/parse1040', () => ({ parse1040: vi.fn() }))
+import { parse1040 } from '@/import/parse1040'
+
+const mockParse = vi.mocked(parse1040)
+
+function input(overrides: Partial<TaxInput> = {}): TaxInput {
+  return {
+    filingStatus: 'single',
+    taxYear: 2026,
+    wages: 0,
+    retirementIncome: 0,
+    interest: 0,
+    nonQualifiedDividends: 0,
+    shortTermGains: 0,
+    qualifiedDividends: 0,
+    longTermGains: 0,
+    ...overrides,
+  }
+}
+
+function parsed(overrides: Partial<ParsedReturn> = {}): ParsedReturn {
+  return { fields: {}, provenance: {}, warnings: [], ...overrides }
+}
+
+function fileInput(): HTMLInputElement {
+  const el = document.querySelector('input[type="file"]')
+  if (!el) throw new Error('no file input')
+  return el as HTMLInputElement
+}
+
+function pdf(name = 'return.pdf', sizeBytes?: number): File {
+  const file = new File(['%PDF-1.7'], name, { type: 'application/pdf' })
+  if (sizeBytes != null) Object.defineProperty(file, 'size', { value: sizeBytes })
+  return file
+}
+
+// fireEvent.change bypasses userEvent.upload's `accept`-attribute filtering, so we can
+// drive the invalid-type path too.
+function upload(file: File) {
+  fireEvent.change(fileInput(), { target: { files: [file] } })
+}
+
+beforeEach(() => mockParse.mockReset())
+
+describe('ImportReturn file validation', () => {
+  it('rejects a non-PDF without parsing', () => {
+    render(<ImportReturn current={input()} onApply={vi.fn()} />)
+    upload(new File(['x'], 'notes.txt', { type: 'text/plain' }))
+    expect(screen.getByText('Please choose a PDF file.')).toBeInTheDocument()
+    expect(mockParse).not.toHaveBeenCalled()
+  })
+
+  it('rejects a PDF larger than 10 MB without parsing', () => {
+    render(<ImportReturn current={input()} onApply={vi.fn()} />)
+    upload(pdf('big.pdf', 11 * 1024 * 1024))
+    expect(screen.getByText(/larger than 10 MB/i)).toBeInTheDocument()
+    expect(mockParse).not.toHaveBeenCalled()
+  })
+})
+
+describe('ImportReturn review flow', () => {
+  it('opens the review modal, showing provenance for detected fields and warnings', async () => {
+    mockParse.mockResolvedValueOnce(
+      parsed({
+        fields: { wages: 120000 },
+        provenance: { wages: '1040 line 1z' },
+        warnings: ['Couldn’t detect the tax year — please choose it below.'],
+      }),
+    )
+    render(<ImportReturn current={input()} onApply={vi.fn()} />)
+    upload(pdf())
+
+    expect(await screen.findByText('Review imported values')).toBeInTheDocument()
+    expect(screen.getByText('from 1040 line 1z')).toBeInTheDocument()
+    expect(screen.getByText(/Couldn.t detect the tax year/)).toBeInTheDocument()
+  })
+
+  it('carries a capital loss through the review and Import with its sign intact', async () => {
+    const user = userEvent.setup()
+    const onApply = vi.fn()
+    mockParse.mockResolvedValueOnce(
+      parsed({
+        fields: { shortTermGains: -323 },
+        provenance: { shortTermGains: 'Schedule D line 7 (net short-term)' },
+        warnings: [],
+      }),
+    )
+    render(<ImportReturn current={input()} onApply={onApply} />)
+    upload(pdf())
+
+    await screen.findByText('Review imported values')
+    // The loss is shown in the review with its sign.
+    expect(document.getElementById('import-shortTermGains')).toHaveValue('-323')
+
+    await user.click(screen.getByRole('button', { name: 'Import' }))
+    // Capital-gains sources are signed end to end — the loss reaches the engine, which nets it.
+    expect(onApply).toHaveBeenCalledTimes(1)
+    expect(onApply.mock.calls[0][0]).toMatchObject({ shortTermGains: -323 })
+  })
+
+  it('applies an edited field value', async () => {
+    const user = userEvent.setup()
+    const onApply = vi.fn()
+    mockParse.mockResolvedValueOnce(parsed({ fields: { wages: 100000 } }))
+    render(<ImportReturn current={input()} onApply={onApply} />)
+    upload(pdf())
+
+    await screen.findByText('Review imported values')
+    const wages = document.getElementById('import-wages') as HTMLInputElement
+    await user.clear(wages)
+    await user.type(wages, '250,000')
+    await user.click(screen.getByRole('button', { name: 'Import' }))
+    expect(onApply.mock.calls[0][0]).toMatchObject({ wages: 250000 })
+  })
+
+  it('closes on Cancel without applying', async () => {
+    const user = userEvent.setup()
+    const onApply = vi.fn()
+    mockParse.mockResolvedValueOnce(parsed({ fields: { wages: 42 } }))
+    render(<ImportReturn current={input()} onApply={onApply} />)
+    upload(pdf())
+
+    await screen.findByText('Review imported values')
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    await waitFor(() => expect(screen.queryByText('Review imported values')).not.toBeInTheDocument())
+    expect(onApply).not.toHaveBeenCalled()
+  })
+
+  it('shows an error and opens no modal when parsing fails', async () => {
+    // The component logs the failure via console.error; capture it so the expected
+    // error doesn't leak to the test runner's stderr, and assert it was logged.
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    mockParse.mockRejectedValueOnce(new Error('boom'))
+    render(<ImportReturn current={input()} onApply={vi.fn()} />)
+    upload(pdf())
+
+    expect(await screen.findByText(/Couldn.t read that PDF/)).toBeInTheDocument()
+    expect(screen.queryByText('Review imported values')).not.toBeInTheDocument()
+    expect(errorSpy).toHaveBeenCalledWith('[1040 import] parse failed:', expect.any(Error))
+    errorSpy.mockRestore()
+  })
+})

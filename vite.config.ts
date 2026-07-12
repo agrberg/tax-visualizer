@@ -15,7 +15,23 @@ export default defineConfig({
     },
   },
   test: {
-    environment: 'node',
-    include: ['src/**/*.test.ts'],
+    // Pure-logic tests stay in the node env (untouched); component tests (.test.tsx)
+    // run under jsdom with the DOM setup file. Split as projects so neither disturbs
+    // the other — e.g. node's absent localStorage vs. jsdom's built-in one.
+    projects: [
+      {
+        extends: true,
+        test: { name: 'node', environment: 'node', include: ['src/**/*.test.ts'] },
+      },
+      {
+        extends: true,
+        test: {
+          name: 'dom',
+          environment: 'jsdom',
+          include: ['src/**/*.test.tsx'],
+          setupFiles: ['./src/test/setup.ts'],
+        },
+      },
+    ],
   },
 })
