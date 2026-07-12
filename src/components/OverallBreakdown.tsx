@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import { compositionSegments, formatCurrency, formatPercent, taxComponents } from '@/tax/format'
 import type { TaxResult } from '@/tax/types'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { CompositionRibbon } from './CompositionRibbon'
 import { CompositionMarimekko } from './CompositionMarimekko'
 import { Swatch } from './TowerParts'
@@ -47,7 +47,7 @@ export function OverallBreakdown({ result }: Props) {
           ))}
         </tbody>
         <tfoot>
-          <tr className="border-t border-background/30 font-medium">
+          <tr className="border-t border-border font-medium">
             <td className="py-0.5 pr-3">Total</td>
             <td className="py-0.5 pr-3 text-right tabular-nums">{formatCurrency(result.totalTax)}</td>
             <td className="py-0.5 text-right tabular-nums">{formatPercent(result.effectiveRate, 1)}</td>
@@ -69,7 +69,7 @@ export function OverallBreakdown({ result }: Props) {
         <Stat label="Total tax" value={formatCurrency(result.totalTax)} tooltip={taxBreakout} />
         <Stat label="Take-home" value={formatCurrency(takeHome)} />
         <Stat
-          label="Weighted effective rate"
+          label="Weighted rate"
           value={formatPercent(result.effectiveRate, 1)}
           tooltip={taxBreakout}
           emphasis
@@ -79,12 +79,12 @@ export function OverallBreakdown({ result }: Props) {
       {/* income & tax composition — switch between the two views */}
       {total > 0 && (
         <div className="space-y-3">
-          <div className="flex items-center justify-between gap-2">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div className="text-sm font-medium">
               {hasTax ? 'Income & tax composition' : 'Income composition'}
             </div>
             {hasTax && (
-              <div className="inline-flex rounded-md border p-0.5 text-xs">
+              <div className="inline-flex w-fit rounded-md border p-0.5 text-xs">
                 {COMPOSITION_VIEWS.map((o) => (
                   <button
                     key={o.value}
@@ -208,7 +208,7 @@ function Stat({
   const card = (
     <div
       className={`flex h-full flex-col rounded-lg border p-2 sm:p-3 ${
-        tooltip ? 'cursor-help' : ''
+        tooltip ? 'cursor-pointer' : ''
       }`}
     >
       <div className="text-xs text-muted-foreground">
@@ -230,13 +230,13 @@ function Stat({
   )
   if (!tooltip) return card
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
+    <Popover>
+      <PopoverTrigger asChild>
         <button type="button" className="block h-full w-full text-left">
           {card}
         </button>
-      </TooltipTrigger>
-      <TooltipContent className="w-64 text-xs">{tooltip}</TooltipContent>
-    </Tooltip>
+      </PopoverTrigger>
+      <PopoverContent className="w-64 text-xs">{tooltip}</PopoverContent>
+    </Popover>
   )
 }

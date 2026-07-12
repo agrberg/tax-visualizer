@@ -9,10 +9,10 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from '@/components/ui/tooltip'
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
 import { FILING_STATUS_LABELS, FILING_STATUSES } from '@/tax/filingStatus'
 import { AVAILABLE_YEARS } from '@/tax/years'
 import { SOURCE_META } from '@/tax/format'
@@ -49,14 +49,14 @@ function MoneyField({
         <Label htmlFor={source} className="text-sm">
           {meta.label}
         </Label>
-        <Tooltip>
-          <TooltipTrigger asChild>
+        <Popover>
+          <PopoverTrigger asChild>
             <button type="button" className="text-muted-foreground" aria-label={`About ${meta.label}`}>
               <Info className="size-3.5" />
             </button>
-          </TooltipTrigger>
-          <TooltipContent className="max-w-60">{meta.hint}</TooltipContent>
-        </Tooltip>
+          </PopoverTrigger>
+          <PopoverContent className="max-w-60 text-xs">{meta.hint}</PopoverContent>
+        </Popover>
       </div>
       <div className="relative">
         <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
@@ -66,6 +66,7 @@ function MoneyField({
           id={source}
           type="text"
           inputMode="numeric"
+          aria-describedby={`${source}-hint`}
           className="pl-6"
           value={value === 0 ? '' : String(value)}
           placeholder="0"
@@ -75,6 +76,11 @@ function MoneyField({
           }}
         />
       </div>
+      {/* Same copy as the ⓘ popover, exposed to assistive tech on focus (the popover
+          content isn't in the DOM until opened). */}
+      <span id={`${source}-hint`} className="sr-only">
+        {meta.hint}
+      </span>
     </div>
   )
 }
