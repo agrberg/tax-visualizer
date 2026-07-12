@@ -34,8 +34,23 @@ describe('encodeInput / decodeInput', () => {
     expect(encoded).not.toContain('ltcg=')
   })
 
-  it('clamps negative amounts to 0', () => {
+  it('clamps a negative on the non-capital-gains fields to 0', () => {
     expect(decodeInput(encodeInput({ ...sample, wages: -500 }))?.wages).toBe(0)
+  })
+
+  it('round-trips a negative capital gain (a shared loss)', () => {
+    const withLoss = { ...sample, shortTermGains: -500, longTermGains: -1200 }
+    const encoded = encodeInput(withLoss)
+    expect(encoded).toContain('stcg=-500')
+    expect(encoded).toContain('ltcg=-1200')
+    expect(decodeInput(encoded)).toEqual(withLoss)
+  })
+
+  it('omits a non-finite capital-gains amount rather than emitting NaN/Infinity', () => {
+    // A signed field is emitted when `!== 0`, which NaN/Infinity satisfy; without a finite
+    // guard the link would carry `stcg=NaN` and decode back to 0, silently losing the value.
+    expect(encodeInput({ ...sample, shortTermGains: NaN })).not.toContain('stcg=')
+    expect(encodeInput({ ...sample, longTermGains: Infinity })).not.toContain('ltcg=')
   })
 
   it('defaults missing amounts to 0 and a missing year to the default', () => {

@@ -29,6 +29,21 @@ export const PREFERENTIAL_SOURCES: IncomeSource[] = [
 export const ALL_SOURCES: IncomeSource[] = [...ORDINARY_SOURCES, ...PREFERENTIAL_SOURCES]
 
 /**
+ * Sources that may be negative — a capital *loss*. Short- and long-term gains net
+ * against each other (see `nettedCapitalGains`), so both carry a real sign end to end
+ * (input → storage → share link → engine). Every other source is clamped to ≥0.
+ */
+export const SIGNED_SOURCES: IncomeSource[] = ['shortTermGains', 'longTermGains']
+
+/**
+ * Whether a source may hold a negative amount (a capital loss). The one predicate behind
+ * every place that asks "is this signed?" / "is a negative allowed here?" — input parsing,
+ * the share-link codec, and the import merge clamp.
+ */
+export const allowsNegativeAmount = (source: IncomeSource): boolean =>
+  SIGNED_SOURCES.includes(source)
+
+/**
  * The investment sources that make up net investment income (the NIIT base).
  * An explicit allowlist — it excludes wages *and* retirement distributions, which
  * are ordinary income but not investment income.

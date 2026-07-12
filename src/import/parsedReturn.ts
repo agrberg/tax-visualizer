@@ -1,4 +1,4 @@
-import { ALL_SOURCES, type TaxInput } from '../tax/types'
+import { ALL_SOURCES, allowsNegativeAmount, type TaxInput } from '../tax/types'
 import { normalizeInput } from '../storage'
 
 /**
@@ -21,22 +21,15 @@ export interface ParsedReturn {
  * hand-entered or restored-from-storage input (non-finite → 0, bogus filing
  * status → single, unsupported tax year → default).
  *
- * Negative income is clamped to 0 by default: the engine doesn't model losses yet, so
- * this is the boundary that keeps them out. Pass `clampNegatives: false` to preserve
- * the real sign — used to seed the import review draft so a capital loss is shown to
- * the user for reconciliation before Apply (which merges again with the clamp on)
- * writes an engine-safe value. Fields the reader didn't detect keep their current values.
+ * Capital-gains fields keep their real sign — a short-/long-term loss flows through to
+ * the engine, which nets it (see `nettedCapitalGains`). Every other source is clamped to
+ * 0, since a negative wage or interest figure from a bad parse is garbage, not a loss.
+ * Fields the reader didn't detect keep their current values.
  */
-export function mergeParsedInput(
-  current: TaxInput,
-  fields: Partial<TaxInput>,
-  { clampNegatives = true }: { clampNegatives?: boolean } = {},
-): TaxInput {
+export function mergeParsedInput(current: TaxInput, fields: Partial<TaxInput>): TaxInput {
   const merged = normalizeInput({ ...current, ...fields })
-  if (clampNegatives) {
-    for (const source of ALL_SOURCES) {
-      if (merged[source] < 0) merged[source] = 0
-    }
+  for (const source of ALL_SOURCES) {
+    if (!allowsNegativeAmount(source) && merged[source] < 0) merged[source] = 0
   }
   return merged
 }

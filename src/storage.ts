@@ -1,4 +1,4 @@
-import { ALL_SOURCES, type TaxInput } from './tax/types'
+import { ALL_SOURCES, allowsNegativeAmount, type TaxInput } from './tax/types'
 import { isFilingStatus } from './tax/filingStatus'
 import { DEFAULT_TAX_YEAR, isTaxYear } from './tax/years'
 import type { Scenarios } from './scenarios'
@@ -13,12 +13,19 @@ const SCENARIOS_KEY = 'tax-visualizer:saved:v1'
  * the form and breaks the math; a hand-edited or corrupted filing status would have
  * no bracket table and crash the engine on load. Input saved before multi-year
  * support (or with a dropped/unsupported year) falls back to the default year.
+ *
+ * Enforces the per-field sign rule (`allowsNegativeAmount`), the same invariant the other
+ * input boundaries apply (`mergeParsedInput`, the share-link decoder): the capital-gains
+ * fields carry a real sign (a loss) that the engine nets (see `nettedCapitalGains`); every
+ * other field is clamped to ≥0, so a corrupted or hand-edited store can't reload a negative
+ * wage into the form.
  */
 export function normalizeInput(input: TaxInput): TaxInput {
   const normalized = { ...input }
   for (const source of ALL_SOURCES) {
     const n = normalized[source]
-    normalized[source] = Number.isFinite(n) ? n : 0
+    if (!Number.isFinite(n)) normalized[source] = 0
+    else if (!allowsNegativeAmount(source)) normalized[source] = Math.max(0, n)
   }
   if (!isFilingStatus(normalized.filingStatus)) {
     normalized.filingStatus = 'single'
