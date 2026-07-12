@@ -105,11 +105,14 @@ flowchart LR
 
 ### Step by step
 
-1. **`classifyIncome`** (`income.ts`) — normalizes raw input (negatives clamped
-   to 0) and splits it into two pools: **ordinary** (wages, interest,
-   non-qualified dividends, short-term gains) and **preferential** (qualified
-   dividends, long-term gains). Also derives net investment income (NII) and MAGI
-   for the surcharges.
+1. **`classifyIncome`** (`income.ts`) — nets the two capital-gains fields against
+   each other (see [Capital-gains netting](#capital-gains-netting--the-net-loss-deduction)
+   below), clamps every other source to ≥0, and splits the result into two pools:
+   **ordinary** (wages, interest, non-qualified dividends, short-term gains) and
+   **preferential** (qualified dividends, long-term gains). The capital-gains fields
+   are the only ones that may arrive negative (a loss); the taxable pools it produces
+   are always ≥0, and any residual net loss is carried out separately. Also derives
+   net investment income (NII) for the surcharges.
 
 2. **`federalJurisdiction`** (`federal.ts`) — assembles a `Jurisdiction`: a plain
    data object with an ordinary bracket ladder, a standard deduction, a
@@ -119,6 +122,11 @@ flowchart LR
 
 3. **`computeJurisdiction`** (`jurisdiction.ts`) — the core. Runs the classified
    income through one jurisdiction's rules:
+   - the **net-capital-loss deduction** — a residual net loss reduces income
+     (ordinary first, then preferential) before the standard deduction, capped and
+     carried forward per [Capital-gains netting](#capital-gains-netting--the-net-loss-deduction).
+     This is finalized here, not in `classifyIncome`, because only the jurisdiction
+     knows the filing-status cap and the taxable income that limits the loss.
    - `applyDeduction` (`deduction.ts`) — deduction eats ordinary income first;
      any remainder shields preferential income proportionally.
    - `fillBands` / `marginalRateAt` (`engine.ts`) — the band arithmetic: fill an
@@ -139,6 +147,65 @@ flowchart LR
 The assembled `TaxResult` nests the federal figures under `result.federal`
 (a `JurisdictionResult`) plus the cross-jurisdiction totals.
 
+## Capital-gains netting & the net-loss deduction
+
+Short- and long-term capital results don't just each get taxed in place — they net
+against each other, and a leftover *net loss* offsets other income. This is the one
+piece of the engine whose rules come straight from the tax code (IRC §1211/§1212/§1222,
+Schedule D), so it's worth spelling out. The work is split across two modules by what
+each one can know:
+
+- **`nettedCapitalGains(shortTerm, longTerm)`** (`income.ts`) — pure §1222 netting, and
+  nothing else. The two inputs are already each period's *net* figure (Schedule D nets
+  within a period first). Either may be negative (a loss). It returns the taxable gain
+  per pool plus any residual loss, split by holding-period character:
+
+  | net ST | net LT | taxable ST | taxable LT | residual loss | rule |
+  |---|---|---|---|---|---|
+  | +100 | +1000 | 100 | 1000 | — | two gains, no interaction |
+  | −100 | +1000 | 0 | 900 | — | ST loss absorbs into LT gain; survivor is **long-term** |
+  | +1000 | −100 | 900 | 0 | — | LT loss absorbs into ST gain; survivor is **short-term** |
+  | −1000 | +1000 | 0 | 0 | — | exact wash |
+  | +100 | −1000 | 0 | 0 | 900 LT | net loss keeps the **loss leg's** character |
+  | −100 | −1000 | 0 | 0 | 100 ST + 1000 LT | two losses; each carries on its own character |
+
+  A surviving *gain* keeps the character of the **gain** leg; a surviving *loss* keeps
+  the character of the **loss** leg. Qualified dividends are deliberately not an input,
+  so a capital loss can never offset them.
+
+- **`computeJurisdiction`** (`jurisdiction.ts`) — turns that residual loss into the
+  actual §1211(b) deduction and §1212(b) carryover, which it can only size once the
+  filing-status cap and taxable income are known:
+
+  1. **`netCapitalLoss`** = short-term + long-term residual loss (both ≥0 from step above).
+  2. **`preLossTaxable`** = `max(0, grossOrdinary + grossPreferential − standardDeduction)`
+     — the taxable income there would be with no loss at all.
+  3. **`lossDeduction`** = `min(netCapitalLoss, capitalLossLimit, preLossTaxable)`. The
+     loss is limited by *both* the annual filing-status cap (`capitalLossLimit`, $3,000 /
+     $1,500 MFS) *and* available taxable income — it can't drive taxable income below zero.
+     Matching the IRS *Capital Loss Carryover Worksheet*, the limit is taxable income
+     **after** the standard deduction (Form 1040 line 15), so a loss against income already
+     covered by the standard deduction is fully *carried forward*, not spent.
+  4. **Apply it, ordinary side first.** `lossAbsorbedOnOrdinary` comes off the ordinary
+     pool; only the part that exceeds all ordinary income (rare — under ~$3k of ordinary
+     income) spills onto the preferential pool. The standard deduction then applies on top
+     of the loss-reduced income, so total taxable income = `gross − lossDeduction − standardDeduction`.
+  5. **Carryover** (§1212(b)) = the residual loss minus what the deduction consumed,
+     **short-term used first**.
+  6. **MAGI** (the NIIT threshold basis) is reduced by the full `lossDeduction` — the loss
+     reduces AGI, so a net loss can pull income under the NIIT threshold. (The standard
+     deduction does *not* reduce AGI, so it isn't subtracted here.)
+
+  Per-source attribution then divides the loss the same way for the towers: the ordinary
+  layers absorb `deductionOnOrdinary + lossAbsorbedOnOrdinary` from the bottom, and the
+  preferential layers are shielded by `preferentialShieldFraction` (derived from *gross*
+  preferential income so the per-source slices still sum to `preferentialTaxable` when a
+  loss spills over). Which source is shielded is a visualizer approximation; the **total
+  tax is exact** regardless.
+
+Carryover is *informational* — a single-year tool has no future year to apply it to — but
+the current-year deduction is fully applied.
+
 ## The jurisdiction abstraction
 
 The federal computation is modeled as one **`Jurisdiction`** — data describing
@@ -157,7 +224,7 @@ income into ordinary when there's no ladder already exists for that path.
 | `tax/years/index.ts` | Year registry: `TAX_YEARS`, `AVAILABLE_YEARS`, `DEFAULT_TAX_YEAR`, `taxTablesFor`, `isTaxYear` |
 | `tax/filingStatus.ts` | Filing-status labels, validity guard, canonical status list |
 | `tax/types.ts` | Shared types: `TaxInput`, `TaxResult`, `JurisdictionResult`, `TaxYearTables`, etc. |
-| `tax/income.ts` | Classify raw input into ordinary / preferential pools |
+| `tax/income.ts` | Net capital gains (`nettedCapitalGains`) and classify raw input into ordinary / preferential pools |
 | `tax/federal.ts` | Assemble the federal `Jurisdiction` from the selected year's tables |
 | `tax/jurisdiction.ts` | `computeJurisdiction` — run income through one jurisdiction |
 | `tax/engine.ts` | Band math: `fillBands`, `taxOverRange`, `marginalRateAt` |

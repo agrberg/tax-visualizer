@@ -20,6 +20,11 @@ export function federalJurisdiction(filingStatus: FilingStatus, tables: TaxYearT
     key: 'federal',
     ordinaryBands: bracketsToBands(tables.ordinaryBrackets[filingStatus]),
     standardDeduction: tables.standardDeduction[filingStatus],
+    // IRC §1211(b) annual net-capital-loss deduction limit, resolved per filing status like
+    // the standard deduction. Hardcoded rather than kept in the per-year tables because —
+    // unlike brackets and the standard deduction — it has not changed since the Revenue Act
+    // of 1978 and is not indexed for inflation.
+    capitalLossLimit: filingStatus === 'mfs' ? 1500 : 3000,
     preferentialLadder: preferentialLadder(filingStatus, tables),
     surcharges: federalSurchargeRules(filingStatus, tables),
   }
