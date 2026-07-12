@@ -29,19 +29,26 @@ export const PREFERENTIAL_SOURCES: IncomeSource[] = [
 export const ALL_SOURCES: IncomeSource[] = [...ORDINARY_SOURCES, ...PREFERENTIAL_SOURCES]
 
 /**
- * Sources that may be negative — a capital *loss*. Short- and long-term gains net
- * against each other (see `nettedCapitalGains`), so both carry a real sign end to end
+ * The subset of sources that may be negative — a capital *loss*. Short- and long-term gains
+ * net against each other (see `nettedCapitalGains`), so both carry a real sign end to end
  * (input → storage → share link → engine). Every other source is clamped to ≥0.
  */
-export const SIGNED_SOURCES: IncomeSource[] = ['shortTermGains', 'longTermGains']
+export type SignedSource = 'shortTermGains' | 'longTermGains'
+
+export const SIGNED_SOURCES: readonly SignedSource[] = ['shortTermGains', 'longTermGains']
 
 /**
  * Whether a source may hold a negative amount (a capital loss). The one predicate behind
  * every place that asks "is this signed?" / "is a negative allowed here?" — input parsing,
  * the share-link codec, and the import merge clamp.
+ *
+ * A type predicate (`source is SignedSource`), so a `true` result also *narrows* the argument
+ * to the signed subset for the compiler — callers can then treat it as a `SignedSource` without
+ * a cast. The `as SignedSource` on the argument is only needed because `Array<SignedSource>`'s
+ * `includes` accepts just `SignedSource`; the runtime check is still a plain membership test.
  */
-export const allowsNegativeAmount = (source: IncomeSource): boolean =>
-  SIGNED_SOURCES.includes(source)
+export const allowsNegativeAmount = (source: IncomeSource): source is SignedSource =>
+  SIGNED_SOURCES.includes(source as SignedSource)
 
 /**
  * The investment sources that make up net investment income (the NIIT base).
