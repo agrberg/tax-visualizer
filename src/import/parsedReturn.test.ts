@@ -32,24 +32,23 @@ describe('mergeParsedInput', () => {
     expect(merged.taxYear).toBe(2025)
   })
 
-  it('normalizes non-finite and negative income to 0', () => {
+  it('clamps a negative on the non-capital-gains fields and coerces non-finite to 0', () => {
     const merged = mergeParsedInput(CURRENT, {
       wages: Number.NaN,
       interest: Infinity,
-      shortTermGains: -500,
+      nonQualifiedDividends: -500, // a negative here is garbage, not a loss
     })
     expect(merged.wages).toBe(0)
     expect(merged.interest).toBe(0)
-    expect(merged.shortTermGains).toBe(0)
+    expect(merged.nonQualifiedDividends).toBe(0)
   })
 
-  it('preserves negatives when clampNegatives is false (for the review draft)', () => {
-    const draft = mergeParsedInput(CURRENT, { shortTermGains: -500 }, { clampNegatives: false })
-    expect(draft.shortTermGains).toBe(-500)
-    // ...but a normal merge (as Apply does) still clamps it to 0.
-    expect(mergeParsedInput(CURRENT, draft).shortTermGains).toBe(0)
-    // non-finite is still normalized even when negatives are kept.
-    expect(mergeParsedInput(CURRENT, { wages: Number.NaN }, { clampNegatives: false }).wages).toBe(0)
+  it('preserves a negative capital gain (a loss) so it reaches the netting engine', () => {
+    const merged = mergeParsedInput(CURRENT, { shortTermGains: -500, longTermGains: -1200 })
+    expect(merged.shortTermGains).toBe(-500)
+    expect(merged.longTermGains).toBe(-1200)
+    // non-finite is still coerced to 0 even for the signed fields.
+    expect(mergeParsedInput(CURRENT, { shortTermGains: Number.NaN }).shortTermGains).toBe(0)
   })
 
   it('resets an unrecognized filing status to single', () => {
