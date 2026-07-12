@@ -1,15 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
-
-/** Parse the field's text buffer to a number; '', a lone '-', and any non-finite value mean 0. */
-function parseAmountText(text: string): number {
-  if (text === '' || text === '-') return 0
-  const n = Number(text)
-  // A very long pasted digit string overflows to Infinity; the rest of the app treats
-  // non-finite as invalid (storage/share-link normalize it to 0), so match that here.
-  return Number.isFinite(n) ? n : 0
-}
+import { parseAmountText, sanitizeAmountText } from './amountText'
 
 /**
  * A `$`-prefixed whole-dollar input shared by the income form and the import review.
@@ -19,8 +11,8 @@ function parseAmountText(text: string): number {
  * to 0, and a value-derived controlled input would immediately snap the field back to ""
  * and eat the minus, so a loss typed left-to-right ("-", "5", "0", "0") could never be
  * entered. The buffer lets "-" persist until digits arrive. `allowNegative` gates the sign;
- * other fields strip it. External `value` changes (import apply, reset, share link) still
- * flow in, without clobbering an in-progress edit.
+ * other fields strip it. External `value` changes (import apply, reset, share link) are
+ * folded into the buffer during render, without clobbering an in-progress edit.
  */
 export function MoneyInput({
   id,
@@ -38,13 +30,16 @@ export function MoneyInput({
   describedBy?: string
 }) {
   const [text, setText] = useState(() => (value === 0 ? '' : String(value)))
+  const [lastValue, setLastValue] = useState(value)
 
-  useEffect(() => {
-    // Resync only when the external value diverges from what's typed, so a transient
-    // "-" (which parses to 0) isn't wiped while the value legitimately stays 0.
+  // Fold an external `value` change into the buffer during render rather than in an Effect —
+  // an Effect would commit one stale frame with the old text first. Resync only when the
+  // external value diverges from what's typed, so a transient "-" (which parses to 0) isn't
+  // wiped while the value legitimately stays 0.
+  if (value !== lastValue) {
+    setLastValue(value)
     if (parseAmountText(text) !== value) setText(value === 0 ? '' : String(value))
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- resync on external value only
-  }, [value])
+  }
 
   return (
     <div className="relative">
@@ -62,10 +57,7 @@ export function MoneyInput({
         value={text}
         placeholder="0"
         onChange={(e) => {
-          let cleaned = e.target.value.replace(/[^0-9-]/g, '')
-          // Keep at most one leading minus (only when the field allows it), then digits.
-          const negative = allowNegative && cleaned.startsWith('-')
-          cleaned = (negative ? '-' : '') + cleaned.replace(/-/g, '')
+          const cleaned = sanitizeAmountText(e.target.value, allowNegative)
           setText(cleaned)
           onChange(parseAmountText(cleaned))
         }}
