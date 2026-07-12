@@ -190,7 +190,39 @@ export function OverallBreakdown({ result }: Props) {
           the tax treatment.
         </p>
       )}
+
+      <CapitalLossNote capitalGains={result.capitalGains} />
     </div>
+  )
+}
+
+/**
+ * A capital loss nets away in the table above (its taxable amount is $0), so a short note
+ * explains where it went: up to $3,000 / $1,500 MFS offsets ordinary income this year
+ * (IRC §1211(b)); the rest carries forward (IRC §1212(b)), which this tool reports but
+ * doesn't yet apply.
+ */
+function CapitalLossNote({ capitalGains }: { capitalGains: TaxResult['capitalGains'] }) {
+  const carryover = capitalGains.carryover.shortTerm + capitalGains.carryover.longTerm
+  const deduction = capitalGains.lossDeduction
+  if (deduction <= 0 && carryover <= 0) return null
+  return (
+    <p className="text-[10px] text-muted-foreground">
+      Your capital gains net to a loss.{' '}
+      {deduction > 0 ? (
+        <>
+          {formatCurrency(deduction)} offsets ordinary income this year (the annual limit is $3,000;
+          $1,500 if married filing separately)
+          {carryover > 0 && <> and {formatCurrency(carryover)} would carry to future years</>}.
+        </>
+      ) : (
+        <>
+          None of it offsets income this year (taxable income is already $0), so the full{' '}
+          {formatCurrency(carryover)} would carry to future years.
+        </>
+      )}{' '}
+      Loss carryovers aren&apos;t applied yet.
+    </p>
   )
 }
 
