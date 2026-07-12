@@ -187,6 +187,11 @@ export interface JurisdictionResult {
   capitalGainsTax: number
   /** This jurisdiction's total tax: income tax + its surcharges. */
   tax: number
+  /**
+   * The net capital loss applied this year (§1211(b), limited by taxable income) and the
+   * remainder carried forward by character (§1212(b)). Both zero when there's no net loss.
+   */
+  capitalLoss: { deduction: number; carryover: { shortTerm: number; longTerm: number } }
   surcharges: SurchargeResult[]
   marginalOrdinaryRate: number
   marginalCapitalGainsRate: number
@@ -205,6 +210,25 @@ export interface TaxResult {
 
   /** Federal computation. A second jurisdiction (state) would sit alongside as `state`. */
   federal: JurisdictionResult
+
+  /**
+   * Capital-gains netting summary (IRC §1222/§1211/§1212): the net short-/long-term
+   * figures the user entered, what became taxable after netting the two against each
+   * other, and any net capital loss. `lossDeduction` is the amount actually deducted
+   * from income this year — income-limited, so it can be less than the $3,000/$1,500-MFS
+   * §1211(b) cap (down to $0 when taxable income is already $0) — and `carryover` is the
+   * remainder taken to future years by character. `lossDeduction`/`carryover` are the
+   * federal figures (from `federal.capitalLoss`); a future state jurisdiction would expose
+   * its own.
+   */
+  capitalGains: {
+    netShortTerm: number
+    netLongTerm: number
+    taxableShortTerm: number
+    taxableLongTerm: number
+    lossDeduction: number
+    carryover: { shortTerm: number; longTerm: number }
+  }
 
   /** Per-source amount + tax + effective rate, combined across jurisdictions (today: federal). */
   sourceBreakdown: SourceBreakdown[]

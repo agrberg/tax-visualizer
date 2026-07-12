@@ -283,6 +283,19 @@ describe('marginal cost of the next dollar', () => {
     expect(rate(m, 'wages').totalRate).toBeCloseTo(0.3465, 5)
   })
 
+  it('reports a 0% marginal rate when a net loss is income-limited (next dollar is absorbed)', () => {
+    // Single 2026: 17000 wages, 3000 LT loss, 16100 standard deduction. Only preLossTaxable
+    // (900) of the loss is usable this year; 2100 carries forward. The next dollar of income
+    // raises the usable loss dollar-for-dollar, so it's absorbed — a true 0% marginal rate,
+    // not the 10% bracket rate the standard-deduction leftover alone would report.
+    const r = calculateTax(input({ wages: 17000, longTermGains: -3000 }))
+    expect(r.federal.taxableIncome).toBe(0)
+    expect(r.capitalGains.lossDeduction).toBe(900)
+    expect(r.capitalGains.carryover).toEqual({ shortTerm: 0, longTerm: 2100 })
+    expect(r.federal.marginalOrdinaryRate).toBe(0)
+    expect(r.federal.marginalGainsBump).toBeNull()
+  })
+
   it('adds no income-tax surtaxes below the thresholds, but wages still carry FICA', () => {
     const r = calculateTax(input({ wages: 100000 })) // single, no investment income
     const m = marginalNextDollar(r)
@@ -460,5 +473,140 @@ describe('edge cases', () => {
     expect(r.ordinaryIncome).toBe(50000)
     expect(Number.isNaN(r.totalTax)).toBe(false)
     expect(r.totalTax).toBeGreaterThan(0)
+  })
+})
+
+describe('capital-gains netting and net-loss deduction', () => {
+  it('nets a short-term loss into the long-term gain (survives as long-term)', () => {
+    const r = calculateTax(input({ wages: 50000, shortTermGains: -100, longTermGains: 20000 }))
+    expect(r.capitalGains.taxableShortTerm).toBe(0)
+    expect(r.capitalGains.taxableLongTerm).toBe(19900) // 20000 − 100 ST loss
+    expect(r.capitalGains.lossDeduction).toBe(0)
+    expect(r.preferentialIncome).toBe(19900)
+    // ordinary income is untouched: the ST loss offset the LT gain, not wages.
+    expect(r.ordinaryIncome).toBe(50000)
+  })
+
+  it('reduces ordinary tax by exactly the net-loss deduction × marginal rate', () => {
+    const base = calculateTax(input({ wages: 100000 })) // ordinaryTaxable 83900 in the 22% band
+    const withLoss = calculateTax(input({ wages: 100000, shortTermGains: 100, longTermGains: -1000 }))
+    // Net loss = 900 → $900 deducted from ordinary income (all inside the 22% band).
+    expect(withLoss.capitalGains.taxableShortTerm).toBe(0)
+    expect(withLoss.capitalGains.taxableLongTerm).toBe(0)
+    expect(withLoss.capitalGains.lossDeduction).toBe(900)
+    // 100000 wages − 900 net loss − 16100 single standard deduction
+    expect(withLoss.federal.ordinaryTaxable).toBe(83000)
+    expect(base.federal.ordinaryTax - withLoss.federal.ordinaryTax).toBeCloseTo(900 * 0.22, 2)
+    // FICA on wages is unchanged, so total tax drops by the same amount.
+    expect(base.totalTax - withLoss.totalTax).toBeCloseTo(900 * 0.22, 2)
+  })
+
+  it('caps the deduction at $3,000 and reports the long-term carryover', () => {
+    const r = calculateTax(input({ wages: 100000, longTermGains: -20000 }))
+    expect(r.capitalGains.lossDeduction).toBe(3000)
+    expect(r.capitalGains.carryover).toEqual({ shortTerm: 0, longTerm: 17000 })
+    expect(r.federal.ordinaryTaxable).toBe(80900) // 100000 − 3000 loss − 16100 deduction
+  })
+
+  it('applies the $1,500 cap for married-filing-separately', () => {
+    const r = calculateTax(input({ filingStatus: 'mfs', wages: 100000, longTermGains: -5000 }))
+    expect(r.capitalGains.lossDeduction).toBe(1500)
+    expect(r.capitalGains.carryover).toEqual({ shortTerm: 0, longTerm: 3500 })
+  })
+
+  it('never offsets qualified dividends with a capital loss', () => {
+    const r = calculateTax(input({ wages: 50000, qualifiedDividends: 5000, longTermGains: -1000 }))
+    expect(r.preferentialIncome).toBe(5000) // dividends survive; only the LT gain is zeroed
+    expect(r.capitalGains.taxableLongTerm).toBe(0)
+    expect(r.capitalGains.lossDeduction).toBe(1000)
+    expect(sourceTax(r, 'qualifiedDividends')).toBeGreaterThanOrEqual(0)
+    expect(sourceTax(r, 'longTermGains')).toBe(0)
+  })
+
+  it('passes two capital gains through unchanged', () => {
+    const r = calculateTax(input({ wages: 50000, shortTermGains: 100, longTermGains: 1000 }))
+    expect(r.capitalGains.taxableShortTerm).toBe(100)
+    expect(r.capitalGains.taxableLongTerm).toBe(1000)
+    expect(r.capitalGains.lossDeduction).toBe(0)
+  })
+
+  it('keeps NIIT non-negative and unassessed under a capital loss', () => {
+    const r = calculateTax(input({ wages: 100000, interest: 500, longTermGains: -5000 }))
+    const niit = niitOf(r)
+    expect(niit.amount).toBe(0)
+    expect(niit.taxedAmount).toBeGreaterThanOrEqual(0)
+  })
+
+  it('assesses NIIT on the netted gain, not the gross long-term gain', () => {
+    // High wages keep MAGI far over the $200k threshold, so NIIT is bound by net
+    // investment income rather than the MAGI overage. A −$30,000 short-term loss nets
+    // the $50,000 long-term gain down to $20,000, and NIIT is assessed on that netted
+    // $20,000 — not the $50,000 gross gain (which would tax $760 more).
+    const r = calculateTax(input({ wages: 400000, shortTermGains: -30000, longTermGains: 50000 }))
+    expect(r.capitalGains.taxableLongTerm).toBe(20000)
+    expect(niitOf(r).applies).toBe(true)
+    expect(niitOf(r).taxedAmount).toBeCloseTo(20000, 2)
+    expect(niitOf(r).amount).toBeCloseTo(760, 2) // 20000 × 3.8%
+  })
+
+  it('drops NIIT when a net capital loss pulls MAGI back under the threshold', () => {
+    // $199k wages + $2k interest = $201k MAGI, just over the single $200k threshold, so
+    // NIIT applies (on the $1,000 overage).
+    const base = calculateTax(input({ wages: 199000, interest: 2000 }))
+    expect(niitOf(base).applies).toBe(true)
+    // A net capital loss deducts $3,000 from income, dropping MAGI to $198,000 — under
+    // the threshold — so NIIT is no longer assessed at all.
+    const withLoss = calculateTax(input({ wages: 199000, interest: 2000, longTermGains: -5000 }))
+    expect(withLoss.capitalGains.lossDeduction).toBe(3000)
+    expect(niitOf(withLoss).applies).toBe(false)
+    expect(niitOf(withLoss).amount).toBe(0)
+  })
+
+  it('uses short-term losses first against the deduction, carrying long-term forward', () => {
+    // −2000 ST, −2000 LT: allowed capped at $3,000; ST $2,000 used first, then $1,000 LT,
+    // leaving $1,000 of long-term loss to carry forward.
+    const r = calculateTax(input({ wages: 100000, shortTermGains: -2000, longTermGains: -2000 }))
+    expect(r.capitalGains.lossDeduction).toBe(3000)
+    expect(r.capitalGains.carryover).toEqual({ shortTerm: 0, longTerm: 1000 })
+  })
+
+  it('carries the whole loss forward when income is below the standard deduction', () => {
+    // $2,000 of wages is fully covered by the $16,100 standard deduction, so there is no
+    // taxable income for the loss to offset — the entire $3,000 carries forward.
+    const r = calculateTax(input({ wages: 2000, longTermGains: -3000 }))
+    expect(r.capitalGains.lossDeduction).toBe(0)
+    expect(r.capitalGains.carryover).toEqual({ shortTerm: 0, longTerm: 3000 })
+    expect(r.federal.ordinaryTaxable).toBe(0)
+  })
+
+  it('limits the deduction to the taxable income available to absorb it', () => {
+    // $17,000 wages − $16,100 standard deduction = $900 of taxable income, so only $900 of
+    // the loss is used this year and $2,100 carries forward.
+    const r = calculateTax(input({ wages: 17000, longTermGains: -3000 }))
+    expect(r.capitalGains.lossDeduction).toBe(900)
+    expect(r.capitalGains.carryover).toEqual({ shortTerm: 0, longTerm: 2100 })
+    expect(r.federal.ordinaryTaxable).toBe(0)
+  })
+
+  it('lets a loss offset preferential taxable income when ordinary income is tiny', () => {
+    // Only $2,000 ordinary income but $50,000 qualified dividends: taxable income is ample,
+    // so the full $3,000 loss is used (spilling past ordinary onto the preferential base)
+    // and nothing carries forward.
+    const r = calculateTax(input({ wages: 2000, qualifiedDividends: 50000, longTermGains: -3000 }))
+    expect(r.capitalGains.lossDeduction).toBe(3000)
+    expect(r.capitalGains.carryover).toEqual({ shortTerm: 0, longTerm: 0 })
+  })
+
+  it('keeps per-source attribution reconciled when a loss spills onto preferential income', () => {
+    // Same spill case ($2k wages / $50k QD / $3k LT loss): $1,000 of the loss deduction lands
+    // on the preferential base. The per-source slices must still sum to the totals — the
+    // preferential layers to preferentialTaxable, and every source's tax to totalTax. (Before
+    // the fix, attribution shrank the gross $50k by only the standard-deduction shield, missing
+    // the loss spill, so qualified dividends over-summed.)
+    const r = calculateTax(input({ wages: 2000, qualifiedDividends: 50000, longTermGains: -3000 }))
+    const prefTaxableSum = r.federal.layers.preferential.reduce((s, l) => s + l.taxableAmount, 0)
+    expect(prefTaxableSum).toBeCloseTo(r.federal.preferentialTaxable, 2)
+    const sourceTaxSum = r.sourceBreakdown.reduce((acc, b) => acc + b.tax, 0)
+    expect(sourceTaxSum).toBeCloseTo(r.totalTax, 2)
   })
 })
