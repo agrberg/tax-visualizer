@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { FileUp, Upload } from 'lucide-react'
+import { FileUp, Upload, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -37,11 +37,13 @@ export function ImportReturn({ current, onApply }: ImportReturnProps) {
   const [dragging, setDragging] = useState(false)
   const [parsing, setParsing] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
   const [review, setReview] = useState<Review | null>(null)
 
   async function handleFile(file: File) {
     if (parsing) return
     setError(null)
+    setNotice(null)
     if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
       setError('Please choose a PDF file.')
       return
@@ -53,12 +55,28 @@ export function ImportReturn({ current, onApply }: ImportReturnProps) {
     setParsing(true)
     try {
       const result = await parse1040(file)
+      const detected = new Set(Object.keys(result.fields) as (keyof TaxInput)[])
+      // The PDF read fine but no income figures came out (scanned image / odd layout).
+      // Skip the editing modal — it would be a wall of empty fields that reads as success.
+      // Point the user at the by-hand fallback below instead.
+      if (!ALL_SOURCES.some((s) => detected.has(s))) {
+        setNotice(
+          "We couldn't read income figures from this PDF — it may be a scanned image or an unusual layout. You can enter your values by hand below.",
+        )
+        return
+      }
+      // Seed the draft from a zeroed income base (keeping filing status / tax year)
+      // so undetected sources start at 0 — matching the "Not found on your return"
+      // hint — rather than silently carrying the current/default amounts into the
+      // imported scenario. Detected fields overlay on top.
+      const zeroedBase: TaxInput = { ...current }
+      for (const source of ALL_SOURCES) zeroedBase[source] = 0
       setReview({
         // Keep negatives (e.g. a capital loss) visible in the review; Apply merges
         // again with the clamp on before anything reaches the engine.
-        draft: mergeParsedInput(current, result.fields, { clampNegatives: false }),
+        draft: mergeParsedInput(zeroedBase, result.fields, { clampNegatives: false }),
         provenance: result.provenance,
-        detected: new Set(Object.keys(result.fields) as (keyof TaxInput)[]),
+        detected,
         warnings: result.warnings,
       })
     } catch (err) {
@@ -120,20 +138,64 @@ export function ImportReturn({ current, onApply }: ImportReturnProps) {
           }}
         />
         <p className="text-xs text-destructive" aria-live="polite">{error}</p>
+        {notice && (
+          <p className="rounded-md bg-amber-50 p-2 text-xs text-amber-900" aria-live="polite">
+            {notice}
+          </p>
+        )}
         <p className="text-xs text-muted-foreground">
           Reads income figures only, in your browser — nothing is uploaded. You'll confirm the values
           before they're applied.
         </p>
       </div>
 
-      <Modal open={!!review} onClose={() => setReview(null)} labelledBy="import-review-title">
+      <Modal
+        open={!!review}
+        onClose={() => setReview(null)}
+        labelledBy="import-review-title"
+        header={
+          review && (
+            <div className="flex items-start justify-between gap-2">
+              <div className="space-y-1">
+                <div
+                  id="import-review-title"
+                  className="flex items-center gap-2 text-base font-medium"
+                >
+                  <FileUp className="size-4" />
+                  Review imported values
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Found {ALL_SOURCES.filter((s) => review.detected.has(s)).length} of{' '}
+                  {ALL_SOURCES.length} income figures from your {review.draft.taxYear} return. Edit
+                  anything below, then apply.
+                </p>
+              </div>
+              <button
+                type="button"
+                aria-label="Close"
+                onClick={() => setReview(null)}
+                className="-mr-1 -mt-1 rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+          )
+        }
+        footer={
+          review && (
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" className="flex-1" onClick={() => setReview(null)}>
+                Cancel
+              </Button>
+              <Button size="sm" className="flex-1" onClick={apply}>
+                Import
+              </Button>
+            </div>
+          )
+        }
+      >
         {review && (
           <div className="space-y-4">
-            <div id="import-review-title" className="flex items-center gap-2 text-base font-medium">
-              <FileUp className="size-4" />
-              Review imported values
-            </div>
-
             {review.warnings.length > 0 && (
               <ul className="space-y-1 rounded-md bg-amber-50 p-2 text-xs text-amber-900">
                 {review.warnings.map((w, i) => (
@@ -159,8 +221,12 @@ export function ImportReturn({ current, onApply }: ImportReturnProps) {
                   ))}
                 </SelectContent>
               </Select>
-              {review.detected.has('filingStatus') && review.provenance.filingStatus && (
-                <p className="text-xs text-muted-foreground">from {review.provenance.filingStatus}</p>
+              {review.detected.has('filingStatus') ? (
+                review.provenance.filingStatus && (
+                  <p className="text-xs text-emerald-700">from {review.provenance.filingStatus}</p>
+                )
+              ) : (
+                <p className="text-xs text-muted-foreground/70">Couldn't detect — please choose</p>
               )}
             </div>
 
@@ -178,8 +244,12 @@ export function ImportReturn({ current, onApply }: ImportReturnProps) {
                   ))}
                 </SelectContent>
               </Select>
-              {review.detected.has('taxYear') && review.provenance.taxYear && (
-                <p className="text-xs text-muted-foreground">from {review.provenance.taxYear}</p>
+              {review.detected.has('taxYear') ? (
+                review.provenance.taxYear && (
+                  <p className="text-xs text-emerald-700">from {review.provenance.taxYear}</p>
+                )
+              ) : (
+                <p className="text-xs text-muted-foreground/70">Couldn't detect — please choose</p>
               )}
             </div>
 
@@ -188,19 +258,11 @@ export function ImportReturn({ current, onApply }: ImportReturnProps) {
                 key={source}
                 source={source}
                 value={review.draft[source]}
+                detected={review.detected.has(source)}
                 provenance={review.detected.has(source) ? review.provenance[source] : undefined}
                 onChange={(n) => setField({ [source]: n })}
               />
             ))}
-
-            <div className="flex gap-2 pt-2">
-              <Button variant="outline" size="sm" className="flex-1" onClick={() => setReview(null)}>
-                Cancel
-              </Button>
-              <Button size="sm" className="flex-1" onClick={apply}>
-                Import
-              </Button>
-            </div>
           </div>
         )}
       </Modal>
@@ -211,11 +273,13 @@ export function ImportReturn({ current, onApply }: ImportReturnProps) {
 function ReviewMoneyField({
   source,
   value,
+  detected,
   provenance,
   onChange,
 }: {
   source: IncomeSource
   value: number
+  detected: boolean
   provenance: string | undefined
   onChange: (n: number) => void
 }) {
@@ -244,7 +308,11 @@ function ReviewMoneyField({
           }}
         />
       </div>
-      {provenance && <p className="text-xs text-muted-foreground">from {provenance}</p>}
+      {detected ? (
+        provenance && <p className="text-xs text-emerald-700">from {provenance}</p>
+      ) : (
+        <p className="text-xs text-muted-foreground/70">Not found on your return — enter if it applies</p>
+      )}
     </div>
   )
 }
