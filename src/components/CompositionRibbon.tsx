@@ -51,6 +51,18 @@ export function CompositionRibbon({ result }: Props) {
   })
   const active = placed.find((p) => p.key === hovered)
 
+  // Region heights in px: a 28px income bar, a 40px ribbon, and a 28px tax bar. When
+  // there is no tax we render only the income bar. Each source's fill is drawn as
+  // three full-container layers clipped to these bands (see below), so H is the shared
+  // coordinate space every clip-path is measured against.
+  const INCOME_H = 28
+  const RIBBON_H = 40
+  const H = hasTax ? INCOME_H + RIBBON_H + INCOME_H : INCOME_H
+  // Band boundaries as a percentage of H. Without tax the only band is the income
+  // bar, so both collapse to 100% — keeping every clip-path coordinate within 0–100.
+  const y1 = hasTax ? (INCOME_H / H) * 100 : 100
+  const y2 = hasTax ? ((INCOME_H + RIBBON_H) / H) * 100 : 100
+
   // The left px reserved by each axis label (left-2 inset + ~text width + gap), at
   // the fixed 11px semibold font. A segment hides its centered % when that label
   // would overlap the axis label; the exact share stays on hover and in the table.
@@ -66,92 +78,114 @@ export function CompositionRibbon({ result }: Props) {
   return (
     <div>
       <div
-        className="relative"
+        ref={barRef}
+        className="relative w-full overflow-hidden"
+        style={{ height: `${H}px`, borderRadius: 6 }}
         onMouseMove={tip.onMove}
         onMouseLeave={() => {
           tip.onLeave()
           setHovered(null)
         }}
       >
-        {/* income bar */}
-        <div
-          ref={barRef}
-          className={`relative flex h-7 w-full overflow-hidden text-white ${
-            hasTax ? 'rounded-t-md' : 'rounded-md'
-          }`}
-        >
-          <span className="pointer-events-none absolute left-2 top-1/2 z-10 -translate-y-1/2 text-[11px] font-semibold text-white drop-shadow-sm">
+        {/* Seamless striped fills. Each source's income rectangle, ribbon trapezoid,
+            and tax rectangle are drawn as sibling layers that share the identical
+            full-container box and the identical gradient, revealed by clip-path. Because
+            every layer paints the same gradient over the same box, the diagonal stripes
+            are pixel-continuous across all three regions — no per-element re-anchoring. */}
+        <div aria-hidden>
+          {placed.map((s) => {
+            const inL = s.inLeft * 100
+            const inR = (s.inLeft + s.incomeShare) * 100
+            const taxL = s.taxLeft * 100
+            const taxR = (s.taxLeft + s.taxShare) * 100
+            const dim = hovered !== null && hovered !== s.key
+            const fill = blendBackground(s.colors)
+            return (
+              <div key={s.key} onMouseEnter={() => setHovered(s.key)}>
+                <div
+                  className="absolute inset-0 transition-opacity"
+                  style={{
+                    clipPath: `polygon(${inL}% 0, ${inR}% 0, ${inR}% ${y1}%, ${inL}% ${y1}%)`,
+                    opacity: dim ? 0.4 : 0.95,
+                    ...fill,
+                  }}
+                />
+                {hasTax && (
+                  <>
+                    <div
+                      className="absolute inset-0 transition-opacity"
+                      style={{
+                        clipPath: `polygon(${inL}% ${y1}%, ${inR}% ${y1}%, ${taxR}% ${y2}%, ${taxL}% ${y2}%)`,
+                        opacity: dim ? 0.12 : 0.35,
+                        ...fill,
+                      }}
+                    />
+                    <div
+                      className="absolute inset-0 transition-opacity"
+                      style={{
+                        clipPath: `polygon(${taxL}% ${y2}%, ${taxR}% ${y2}%, ${taxR}% 100%, ${taxL}% 100%)`,
+                        opacity: dim ? 0.4 : 0.95,
+                        ...fill,
+                      }}
+                    />
+                  </>
+                )}
+              </div>
+            )
+          })}
+        </div>
+
+        {/* Labels overlaid on the fills; the fills below own hover hit-testing. */}
+        <div className="pointer-events-none absolute inset-0 text-white">
+          <span
+            className="absolute left-2 -translate-y-1/2 text-[11px] font-semibold drop-shadow-sm"
+            style={{ top: INCOME_H / 2 }}
+          >
             Income
           </span>
-          {placed.map((s) => (
-            <div
-              key={`in-${s.key}`}
-              className={`flex items-center justify-center ${
-                hovered && hovered !== s.key ? 'opacity-40' : 'opacity-95'
-              } transition-opacity`}
-              style={{ width: `${s.incomeShare * 100}%`, ...blendBackground(s.colors) }}
-              onMouseEnter={() => setHovered(s.key)}
-            >
-              {showPct(s.inLeft, s.incomeShare, INCOME_LABEL_PX) && (
-                <span className="text-[10px] font-semibold">{formatPercent(s.incomeShare, 0)}</span>
-              )}
-            </div>
-          ))}
-        </div>
-
-        {hasTax && (
-          <>
-            {/* ribbons connecting each source's income share to its tax share.
-                Rendered as clip-path trapezoids so the fill matches the bars — solid
-                for a single-color source, striped for a merged two-color bucket. */}
-            <div className="relative block h-10 w-full" aria-hidden>
-              {placed.map((s) => {
-                const inL = s.inLeft * 100
-                const inR = (s.inLeft + s.incomeShare) * 100
-                const taxL = s.taxLeft * 100
-                const taxR = (s.taxLeft + s.taxShare) * 100
-                return (
-                  <div
-                    key={`ribbon-${s.key}`}
-                    className="absolute inset-0"
-                    style={{
-                      clipPath: `polygon(${inL}% 0, ${inR}% 0, ${taxR}% 100%, ${taxL}% 100%)`,
-                      opacity: hovered && hovered !== s.key ? 0.12 : 0.35,
-                      ...blendBackground(s.colors),
-                    }}
-                    onMouseEnter={() => setHovered(s.key)}
-                  />
-                )
-              })}
-            </div>
-
-            {/* tax bar */}
-            <div className="relative flex h-7 w-full overflow-hidden rounded-b-md text-white">
-              <span className="pointer-events-none absolute left-2 top-1/2 z-10 -translate-y-1/2 text-[11px] font-semibold text-white drop-shadow-sm">
+          {placed.map(
+            (s) =>
+              showPct(s.inLeft, s.incomeShare, INCOME_LABEL_PX) && (
+                <span
+                  key={`in-lbl-${s.key}`}
+                  className="absolute -translate-x-1/2 -translate-y-1/2 text-[10px] font-semibold"
+                  style={{ left: `${(s.inLeft + s.incomeShare / 2) * 100}%`, top: INCOME_H / 2 }}
+                >
+                  {formatPercent(s.incomeShare, 0)}
+                </span>
+              ),
+          )}
+          {hasTax && (
+            <>
+              <span
+                className="absolute left-2 -translate-y-1/2 text-[11px] font-semibold drop-shadow-sm"
+                style={{ top: H - INCOME_H / 2 }}
+              >
                 Tax
               </span>
-              {placed.map((s) => (
-                <div
-                  key={`tax-${s.key}`}
-                  className={`flex items-center justify-center ${
-                    hovered && hovered !== s.key ? 'opacity-40' : 'opacity-95'
-                  } transition-opacity`}
-                  style={{ width: `${s.taxShare * 100}%`, ...blendBackground(s.colors) }}
-                  onMouseEnter={() => setHovered(s.key)}
-                >
-                  {showPct(s.taxLeft, s.taxShare, TAX_LABEL_PX) && (
-                    <span className="text-[10px] font-semibold">{formatPercent(s.taxShare, 0)}</span>
-                  )}
-                </div>
-              ))}
-            </div>
-          </>
-        )}
-
-        <div className="mt-1 flex justify-between text-[10px] text-muted-foreground">
-          <span>Income {formatCurrency(totalIncome)}</span>
-          <span>{hasTax ? `Tax ${formatCurrency(totalTax)}` : 'No tax'}</span>
+              {placed.map(
+                (s) =>
+                  showPct(s.taxLeft, s.taxShare, TAX_LABEL_PX) && (
+                    <span
+                      key={`tax-lbl-${s.key}`}
+                      className="absolute -translate-x-1/2 -translate-y-1/2 text-[10px] font-semibold"
+                      style={{
+                        left: `${(s.taxLeft + s.taxShare / 2) * 100}%`,
+                        top: H - INCOME_H / 2,
+                      }}
+                    >
+                      {formatPercent(s.taxShare, 0)}
+                    </span>
+                  ),
+              )}
+            </>
+          )}
         </div>
+      </div>
+
+      <div className="mt-1 flex justify-between text-[10px] text-muted-foreground">
+        <span>Income {formatCurrency(totalIncome)}</span>
+        <span>{hasTax ? `Tax ${formatCurrency(totalTax)}` : 'No tax'}</span>
       </div>
 
       {hasTax && (
