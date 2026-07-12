@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { IncomeForm } from '@/components/IncomeForm'
 import { ImportReturn } from '@/components/ImportReturn'
-import { SavedScenarios } from '@/components/SavedScenarios'
+import { ScenarioManager } from '@/components/ScenarioManager'
 import { ShareLinkButton } from '@/components/ShareLinkButton'
 import { OrdinaryTower } from '@/components/OrdinaryTower'
 import { CapitalGainsTower } from '@/components/CapitalGainsTower'
@@ -13,14 +13,7 @@ import { TooltipProvider } from '@/components/ui/tooltip'
 import { calculateTax } from '@/tax/calculate'
 import { DEFAULT_TAX_YEAR, taxTablesFor } from '@/tax/years'
 import { axisMaxFor } from '@/components/tower'
-import { loadInput, saveInput, loadScenarios, saveScenarios } from '@/storage'
-import {
-  normalizeName,
-  saveScenario,
-  removeScenario,
-  renameScenario,
-  type Scenarios,
-} from '@/scenarios'
+import { loadInput, saveInput } from '@/storage'
 import { parseShareHash } from '@/shareLink'
 import type { TaxInput } from '@/tax/types'
 
@@ -49,7 +42,7 @@ function App() {
   const [input, setInput] = useState<TaxInput>(
     () => parseShareHash(window.location.hash) ?? loadInput() ?? DEFAULT_INPUT,
   )
-  const [scenarios, setScenarios] = useState<Scenarios>(() => loadScenarios())
+  // The loaded scenario's name — set by ScenarioManager on load/save, cleared here on import.
   const [selectedName, setSelectedName] = useState<string | null>(null)
 
   // Consume the shared-link hash once applied, so a reload/edit reverts to normal
@@ -63,52 +56,6 @@ function App() {
   useEffect(() => {
     saveInput(input)
   }, [input])
-
-  useEffect(() => {
-    saveScenarios(scenarios)
-  }, [scenarios])
-
-  const handleSave = (rawName: string) => {
-    const name = normalizeName(rawName)
-    if (!name) return
-    if (scenarios[name] && !confirm(`A scenario named "${name}" already exists. Overwrite it?`)) {
-      return
-    }
-    setScenarios((s) => saveScenario(s, name, input))
-    setSelectedName(name)
-  }
-
-  const handleLoad = (name: string) => {
-    const scenario = scenarios[name]
-    if (!scenario) return
-    setInput({ ...scenario })
-    setSelectedName(name)
-  }
-
-  const handleUpdate = (name: string) => {
-    if (!scenarios[name]) return
-    if (!confirm(`Update "${name}" to the current inputs?`)) return
-    setScenarios((s) => saveScenario(s, name, input))
-    setSelectedName(name)
-  }
-
-  const handleRename = (oldName: string) => {
-    const raw = prompt(`New name for "${oldName}"`, oldName)
-    if (raw === null) return
-    const newName = normalizeName(raw)
-    if (!newName || newName === oldName) return
-    if (scenarios[newName] && !confirm(`A scenario named "${newName}" already exists. Overwrite it?`)) {
-      return
-    }
-    setScenarios((s) => renameScenario(s, oldName, newName))
-    setSelectedName((prev) => (prev === oldName ? newName : prev))
-  }
-
-  const handleDelete = (name: string) => {
-    if (!confirm(`Delete scenario "${name}"?`)) return
-    setScenarios((s) => removeScenario(s, name))
-    setSelectedName((prev) => (prev === name ? null : prev))
-  }
 
   const result = useMemo(() => calculateTax(input), [input])
   const axisMax = useMemo(() => axisMaxFor(result), [result])
@@ -147,14 +94,11 @@ function App() {
                 <ShareLinkButton input={input} />
               </div>
               <div className="mt-6 border-t pt-4">
-                <SavedScenarios
-                  scenarios={scenarios}
+                <ScenarioManager
+                  input={input}
                   selectedName={selectedName}
-                  onSave={handleSave}
-                  onLoad={handleLoad}
-                  onDelete={handleDelete}
-                  onRename={handleRename}
-                  onUpdate={handleUpdate}
+                  onSelectedNameChange={setSelectedName}
+                  onLoad={setInput}
                 />
               </div>
             </CardContent>
