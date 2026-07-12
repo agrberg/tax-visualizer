@@ -112,9 +112,14 @@ function App() {
               </CardHeader>
               <CardContent className="px-4 sm:px-6">
                 <div className="grid gap-8 xl:grid-cols-[1fr_18rem]">
-                  <div className="flex flex-col items-center gap-8 sm:flex-row sm:items-start sm:gap-6">
-                    <OrdinaryTower result={result} />
-                    <CapitalGainsTower result={result} axisMax={axisMax} />
+                  <div>
+                    <div className="flex flex-col items-center gap-8 sm:flex-row sm:items-start sm:gap-6">
+                      <OrdinaryTower result={result} />
+                      <CapitalGainsTower result={result} axisMax={axisMax} />
+                    </div>
+                    <p className="mt-4 text-center text-xs text-muted-foreground">
+                      Hover or tap any slice for its per-bracket breakdown.
+                    </p>
                   </div>
                   <div className="space-y-2">
                     <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
