@@ -2,20 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { calculateTax, marginalNextDollar } from './calculate'
 import type { TaxInput, IncomeSource, MarginalScenario } from './types'
 
-function input(overrides: Partial<TaxInput>): TaxInput {
-  return {
-    filingStatus: 'single',
-    taxYear: 2026,
-    wages: 0,
-    retirementIncome: 0,
-    interest: 0,
-    nonQualifiedDividends: 0,
-    shortTermGains: 0,
-    qualifiedDividends: 0,
-    longTermGains: 0,
-    ...overrides,
-  }
-}
+import { makeInput as input } from './testUtils'
 
 const sourceTax = (r: ReturnType<typeof calculateTax>, s: IncomeSource) =>
   r.sourceBreakdown.find((b) => b.source === s)?.tax ?? 0

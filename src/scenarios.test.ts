@@ -7,22 +7,7 @@ import {
   scenarioNames,
   type Scenarios,
 } from './scenarios'
-import type { TaxInput } from './tax/types'
-
-function input(overrides: Partial<TaxInput> = {}): TaxInput {
-  return {
-    filingStatus: 'single',
-    taxYear: 2026,
-    wages: 0,
-    retirementIncome: 0,
-    interest: 0,
-    nonQualifiedDividends: 0,
-    shortTermGains: 0,
-    qualifiedDividends: 0,
-    longTermGains: 0,
-    ...overrides,
-  }
-}
+import { makeInput as input } from './tax/testUtils'
 
 describe('normalizeName', () => {
   it('trims surrounding whitespace', () => {
