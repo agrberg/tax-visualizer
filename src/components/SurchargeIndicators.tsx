@@ -7,8 +7,8 @@ import { cn } from '@/lib/utils'
 function Row({ label, value, strong = false }: { label: string; value: string; strong?: boolean }) {
   return (
     <div className="flex justify-between gap-2">
-      <dt className="text-muted-foreground">{label}</dt>
-      <dd className={cn('tabular-nums', strong ? 'font-semibold text-amber-700 dark:text-amber-400' : 'font-medium')}>
+      <dt className="min-w-0 text-muted-foreground">{label}</dt>
+      <dd className={cn('shrink-0 tabular-nums', strong ? 'font-semibold text-amber-700 dark:text-amber-400' : 'font-medium')}>
         {value}
       </dd>
     </div>

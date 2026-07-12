@@ -276,13 +276,13 @@ export function extract1040Fields(items: TextItem[]): ParsedReturn {
   }
 
   setImportStep('detect')
+  // "Couldn't detect" for filing status / tax year is surfaced inline under those
+  // controls in the review UI (from the absence of a provenance entry), so no warning here.
   const filingStatus = detectFilingStatus(faceRows)
   if (filingStatus) {
     fields.filingStatus = filingStatus
     provenance.filingStatus = '1040 filing-status checkbox'
     ilog(`matched filingStatus = ${filingStatus}`)
-  } else {
-    warnings.push("Couldn't detect your filing status — please choose it below.")
   }
 
   const taxYear = detectTaxYear(faceRows)
@@ -292,8 +292,6 @@ export function extract1040Fields(items: TextItem[]): ParsedReturn {
     ilog(`matched taxYear = ${taxYear}`)
   } else if (taxYear !== null) {
     warnings.push(`Detected tax year ${taxYear} isn't supported yet — please choose it below.`)
-  } else {
-    warnings.push("Couldn't detect the tax year — please choose it below.")
   }
 
   const foundIncome = ALL_SOURCES.some((source) => fields[source] !== undefined)

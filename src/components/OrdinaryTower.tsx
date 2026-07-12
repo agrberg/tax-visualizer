@@ -61,6 +61,7 @@ export function OrdinaryTower({ result }: Props) {
             {formatCurrency(fed.ordinaryTax)}
           </>
         }
+        ariaLabel={`Ordinary income tower: ${formatCurrency(fed.ordinaryTaxable)} taxable ordinary income, ${formatCurrency(fed.ordinaryTax)} income tax, marginal rate ${formatPercent(fed.marginalOrdinaryRate, 0)}. Per-source figures are in the overall breakdown table below.`}
         onMouseMove={tip.onMove}
         onMouseLeave={() => {
           tip.onLeave()

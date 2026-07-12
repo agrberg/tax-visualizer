@@ -56,6 +56,7 @@ export function CapitalGainsTower({ result, axisMax }: Props) {
       <TowerColumn
         title="Capital gains & qualified dividends"
         subtitle={<>Stacked on ordinary income · tax {formatCurrency(fed.capitalGainsTax)}</>}
+        ariaLabel={`Capital gains tower: ${formatCurrency(fed.preferentialTaxable)} of preferential long-term gains and qualified dividends stacked on ordinary income, ${formatCurrency(fed.capitalGainsTax)} tax, ${formatCurrency(fed.roomAt0)} of room remaining at the 0% rate. Per-source figures are in the overall breakdown table below.`}
         onMouseMove={tip.onMove}
         onMouseLeave={() => {
           tip.onLeave()

@@ -29,7 +29,7 @@ export function HoverTooltip({
   return createPortal(
     <div
       className="pointer-events-none fixed z-50 w-60 rounded-md border bg-popover p-3 text-popover-foreground shadow-md"
-      style={{ left: Math.min(pos.x + 16, window.innerWidth - 260), top: pos.y + 16 }}
+      style={{ left: Math.max(0, Math.min(pos.x + 16, window.innerWidth - 260)), top: pos.y + 16 }}
     >
       {children}
     </div>,
@@ -256,12 +256,16 @@ export function LayerLabel({ topPct, children }: { topPct: number; children: Rea
 export function TowerColumn({
   title,
   subtitle,
+  ariaLabel,
   onMouseMove,
   onMouseLeave,
   children,
 }: {
   title: string
   subtitle: ReactNode
+  /** Text alternative for the column's visual: the hover detail is mouse/touch-only,
+      so screen readers get this summary and the per-source figures in the breakdown table. */
+  ariaLabel?: string
   onMouseMove: MouseEventHandler<HTMLDivElement>
   onMouseLeave: () => void
   children: ReactNode
@@ -275,6 +279,8 @@ export function TowerColumn({
       <div
         className="relative w-full max-w-xs rounded-md border bg-muted/40 sm:max-w-[280px]"
         style={{ height: TOWER_HEIGHT }}
+        role={ariaLabel ? 'img' : undefined}
+        aria-label={ariaLabel}
         onMouseMove={onMouseMove}
         onMouseLeave={onMouseLeave}
       >

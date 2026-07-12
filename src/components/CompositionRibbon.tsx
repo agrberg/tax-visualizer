@@ -154,6 +154,13 @@ export function CompositionRibbon({ result }: Props) {
         </div>
       </div>
 
+      {hasTax && (
+        <p className="mt-2 text-[10px] text-muted-foreground">
+          A ribbon that narrows from Income to Tax pays a below-average rate; one that widens pays
+          above.
+        </p>
+      )}
+
       <HoverTooltip visible={tip.visible} pos={tip.pos}>
         {active && (
           <CompositionTooltip

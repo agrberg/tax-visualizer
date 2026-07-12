@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { IncomeForm } from '@/components/IncomeForm'
 import { ImportReturn } from '@/components/ImportReturn'
-import { SavedScenarios } from '@/components/SavedScenarios'
+import { ScenarioManager } from '@/components/ScenarioManager'
 import { ShareLinkButton } from '@/components/ShareLinkButton'
 import { OrdinaryTower } from '@/components/OrdinaryTower'
 import { CapitalGainsTower } from '@/components/CapitalGainsTower'
@@ -13,27 +13,28 @@ import { TooltipProvider } from '@/components/ui/tooltip'
 import { calculateTax } from '@/tax/calculate'
 import { DEFAULT_TAX_YEAR, taxTablesFor } from '@/tax/years'
 import { axisMaxFor } from '@/components/tower'
-import { loadInput, saveInput, loadScenarios, saveScenarios } from '@/storage'
-import {
-  normalizeName,
-  saveScenario,
-  removeScenario,
-  renameScenario,
-  type Scenarios,
-} from '@/scenarios'
+import { loadInput, saveInput } from '@/storage'
 import { parseShareHash } from '@/shareLink'
 import type { TaxInput } from '@/tax/types'
 
+// A deliberately-tuned example so a first-time visitor lands on the tool's most
+// instructive state. With the 2026 single-filer tables, ordinary taxable income
+// ($53k − $16.1k standard deduction = $36.9k) sits below
+// the $49,450 top of the 0% capital-gains rate, while the gains stack on top of it spills
+// past that ceiling — so gains are split across the 0% and 15% zones and the next ordinary
+// dollar bumps a gain from 0% to 15% (a ~27% marginal cost on a 12% bracket). All seven
+// sources are populated to contrast ordinary-rate short-term gains / non-qualified
+// dividends against the preferential long-term gains / qualified dividends.
 const DEFAULT_INPUT: TaxInput = {
   filingStatus: 'single',
   taxYear: DEFAULT_TAX_YEAR,
-  wages: 120000,
-  retirementIncome: 0,
+  wages: 40000,
+  retirementIncome: 8000,
   interest: 2000,
-  nonQualifiedDividends: 0,
-  shortTermGains: 0,
-  qualifiedDividends: 8000,
-  longTermGains: 15000,
+  nonQualifiedDividends: 1000,
+  shortTermGains: 2000,
+  qualifiedDividends: 3000,
+  longTermGains: 18000,
 }
 
 function App() {
@@ -41,7 +42,7 @@ function App() {
   const [input, setInput] = useState<TaxInput>(
     () => parseShareHash(window.location.hash) ?? loadInput() ?? DEFAULT_INPUT,
   )
-  const [scenarios, setScenarios] = useState<Scenarios>(() => loadScenarios())
+  // The loaded scenario's name — set by ScenarioManager on load/save, cleared here on import.
   const [selectedName, setSelectedName] = useState<string | null>(null)
 
   // Consume the shared-link hash once applied, so a reload/edit reverts to normal
@@ -56,58 +57,12 @@ function App() {
     saveInput(input)
   }, [input])
 
-  useEffect(() => {
-    saveScenarios(scenarios)
-  }, [scenarios])
-
-  const handleSave = (rawName: string) => {
-    const name = normalizeName(rawName)
-    if (!name) return
-    if (scenarios[name] && !confirm(`A scenario named "${name}" already exists. Overwrite it?`)) {
-      return
-    }
-    setScenarios((s) => saveScenario(s, name, input))
-    setSelectedName(name)
-  }
-
-  const handleLoad = (name: string) => {
-    const scenario = scenarios[name]
-    if (!scenario) return
-    setInput({ ...scenario })
-    setSelectedName(name)
-  }
-
-  const handleUpdate = (name: string) => {
-    if (!scenarios[name]) return
-    if (!confirm(`Update "${name}" to the current inputs?`)) return
-    setScenarios((s) => saveScenario(s, name, input))
-    setSelectedName(name)
-  }
-
-  const handleRename = (oldName: string) => {
-    const raw = prompt(`New name for "${oldName}"`, oldName)
-    if (raw === null) return
-    const newName = normalizeName(raw)
-    if (!newName || newName === oldName) return
-    if (scenarios[newName] && !confirm(`A scenario named "${newName}" already exists. Overwrite it?`)) {
-      return
-    }
-    setScenarios((s) => renameScenario(s, oldName, newName))
-    setSelectedName((prev) => (prev === oldName ? newName : prev))
-  }
-
-  const handleDelete = (name: string) => {
-    if (!confirm(`Delete scenario "${name}"?`)) return
-    setScenarios((s) => removeScenario(s, name))
-    setSelectedName((prev) => (prev === name ? null : prev))
-  }
-
   const result = useMemo(() => calculateTax(input), [input])
   const axisMax = useMemo(() => axisMaxFor(result), [result])
 
   return (
     <TooltipProvider delayDuration={200}>
-      <div className="mx-auto max-w-7xl px-4 py-6 sm:py-8">
+      <div className="mx-auto max-w-7xl overflow-x-clip px-4 py-6 sm:py-8">
         <header className="mb-6">
           <h1 className="text-2xl font-bold tracking-tight">
             {result.taxYear} Federal Tax Bracket Visualizer
@@ -139,14 +94,11 @@ function App() {
                 <ShareLinkButton input={input} />
               </div>
               <div className="mt-6 border-t pt-4">
-                <SavedScenarios
-                  scenarios={scenarios}
+                <ScenarioManager
+                  input={input}
                   selectedName={selectedName}
-                  onSave={handleSave}
-                  onLoad={handleLoad}
-                  onDelete={handleDelete}
-                  onRename={handleRename}
-                  onUpdate={handleUpdate}
+                  onSelectedNameChange={setSelectedName}
+                  onLoad={setInput}
                 />
               </div>
             </CardContent>
@@ -160,9 +112,14 @@ function App() {
               </CardHeader>
               <CardContent className="px-4 sm:px-6">
                 <div className="grid gap-8 xl:grid-cols-[1fr_18rem]">
-                  <div className="flex flex-col items-center gap-8 sm:flex-row sm:items-start sm:gap-6">
-                    <OrdinaryTower result={result} />
-                    <CapitalGainsTower result={result} axisMax={axisMax} />
+                  <div>
+                    <div className="flex flex-col items-center gap-8 sm:flex-row sm:items-start sm:gap-6">
+                      <OrdinaryTower result={result} />
+                      <CapitalGainsTower result={result} axisMax={axisMax} />
+                    </div>
+                    <p className="mt-4 text-center text-xs text-muted-foreground">
+                      Hover or tap any slice for its per-bracket breakdown.
+                    </p>
                   </div>
                   <div className="space-y-2">
                     <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">

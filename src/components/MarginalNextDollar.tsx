@@ -1,5 +1,5 @@
 import { Info } from 'lucide-react'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { marginalNextDollar } from '@/tax/calculate'
 import type { MarginalScenario, TaxResult } from '@/tax/types'
 
@@ -72,8 +72,8 @@ export function MarginalNextDollar({ result }: { result: TaxResult }) {
             <div className="mb-1.5 flex items-start justify-between gap-2">
               <span className="flex items-center gap-1 text-sm font-medium">
                 {meta.label}
-                <Tooltip>
-                  <TooltipTrigger asChild>
+                <Popover>
+                  <PopoverTrigger asChild>
                     <button
                       type="button"
                       className="shrink-0 text-muted-foreground"
@@ -81,9 +81,9 @@ export function MarginalNextDollar({ result }: { result: TaxResult }) {
                     >
                       <Info className="size-3.5" />
                     </button>
-                  </TooltipTrigger>
-                  <TooltipContent className="max-w-60">{meta.hint}</TooltipContent>
-                </Tooltip>
+                  </PopoverTrigger>
+                  <PopoverContent className="max-w-60 text-xs">{meta.hint}</PopoverContent>
+                </Popover>
               </span>
               <span className="whitespace-nowrap text-sm font-semibold">{cents(s.totalRate)} tax</span>
             </div>
