@@ -24,16 +24,24 @@ import {
 import { parseShareHash } from '@/shareLink'
 import type { TaxInput } from '@/tax/types'
 
+// A deliberately-tuned example so a first-time visitor lands on the tool's most
+// instructive state. With the 2026 single-filer tables, ordinary taxable income
+// ($53k − $16.1k standard deduction = $36.9k) sits below
+// the $49,450 top of the 0% capital-gains rate, while the gains stack on top of it spills
+// past that ceiling — so gains are split across the 0% and 15% zones and the next ordinary
+// dollar bumps a gain from 0% to 15% (a ~27% marginal cost on a 12% bracket). All seven
+// sources are populated to contrast ordinary-rate short-term gains / non-qualified
+// dividends against the preferential long-term gains / qualified dividends.
 const DEFAULT_INPUT: TaxInput = {
   filingStatus: 'single',
   taxYear: DEFAULT_TAX_YEAR,
-  wages: 120000,
-  retirementIncome: 0,
+  wages: 40000,
+  retirementIncome: 8000,
   interest: 2000,
-  nonQualifiedDividends: 0,
-  shortTermGains: 0,
-  qualifiedDividends: 8000,
-  longTermGains: 15000,
+  nonQualifiedDividends: 1000,
+  shortTermGains: 2000,
+  qualifiedDividends: 3000,
+  longTermGains: 18000,
 }
 
 function App() {
