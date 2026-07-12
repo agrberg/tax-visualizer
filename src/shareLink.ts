@@ -1,4 +1,4 @@
-import type { TaxInput } from './tax/types'
+import { allowsNegativeAmount, type TaxInput } from './tax/types'
 import { isFilingStatus } from './tax/filingStatus'
 import { DEFAULT_TAX_YEAR, isTaxYear } from './tax/years'
 
@@ -25,7 +25,12 @@ export function encodeInput(input: TaxInput): string {
   params.set('filing', input.filingStatus)
   params.set('y', String(input.taxYear))
   for (const field of Object.keys(FIELD_ALIAS) as NumericField[]) {
-    if (input[field] > 0) params.set(FIELD_ALIAS[field], String(input[field]))
+    const value = input[field]
+    // Only emit finite values (a non-finite one would serialize to `NaN`/`Infinity` and decode
+    // back to 0, silently dropping it): any non-zero signed field (so a capital loss survives),
+    // other fields only when > 0.
+    const keep = Number.isFinite(value) && (allowsNegativeAmount(field) ? value !== 0 : value > 0)
+    if (keep) params.set(FIELD_ALIAS[field], String(value))
   }
   return params.toString()
 }
@@ -34,7 +39,8 @@ export function encodeInput(input: TaxInput): string {
  * Decode inputs from the share params. Requires the version marker to match the
  * current SHARE_VERSION (a missing or different version → null, so a link written by
  * a future format isn't silently mis-parsed under the old rules); unknown filing
- * status → null; negative / missing / non-numeric amounts → 0 — so a hand-edited or
+ * status → null. For the capital-gains fields a finite negative is kept (a shared loss);
+ * every other field takes negative / missing / non-numeric → 0 — so a hand-edited or
  * stale link can never inject a bad TaxInput. A missing or unsupported year falls back
  * to the default (older links have no `y`). Null if unusable.
  */
@@ -47,7 +53,8 @@ export function decodeInput(encoded: string): TaxInput | null {
   const input = { filingStatus, taxYear: isTaxYear(year) ? year : DEFAULT_TAX_YEAR } as TaxInput
   for (const field of Object.keys(FIELD_ALIAS) as NumericField[]) {
     const n = Number(params.get(FIELD_ALIAS[field]))
-    input[field] = Number.isFinite(n) && n > 0 ? n : 0
+    const valid = allowsNegativeAmount(field) ? Number.isFinite(n) : Number.isFinite(n) && n > 0
+    input[field] = valid ? n : 0
   }
   return input
 }

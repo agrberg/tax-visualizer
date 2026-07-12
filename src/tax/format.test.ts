@@ -1,22 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { compositionSegments, blendBackground, formatRatePercent, taxComponents, SOURCE_META, SOURCE_COLOR } from './format'
 import { calculateTax } from './calculate'
-import type { TaxInput } from './types'
-
-function input(overrides: Partial<TaxInput>): TaxInput {
-  return {
-    filingStatus: 'single',
-    taxYear: 2026,
-    wages: 0,
-    retirementIncome: 0,
-    interest: 0,
-    nonQualifiedDividends: 0,
-    shortTermGains: 0,
-    qualifiedDividends: 0,
-    longTermGains: 0,
-    ...overrides,
-  }
-}
+import { makeInput as input } from './testUtils'
 
 describe('compositionSegments', () => {
   it('merges qualified dividends and long-term gains into one capitalGains bucket', () => {

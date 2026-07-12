@@ -3,20 +3,10 @@ import { calculateTax, marginalNextDollar } from './calculate'
 import { taxTablesFor, isTaxYear, DEFAULT_TAX_YEAR } from './years'
 import type { TaxInput } from './types'
 
-function input(overrides: Partial<TaxInput>): TaxInput {
-  return {
-    filingStatus: 'single',
-    taxYear: 2025,
-    wages: 0,
-    retirementIncome: 0,
-    interest: 0,
-    nonQualifiedDividends: 0,
-    shortTermGains: 0,
-    qualifiedDividends: 0,
-    longTermGains: 0,
-    ...overrides,
-  }
-}
+import { makeInput } from './testUtils'
+
+// This spec exercises year-specific tables, so it defaults to 2025 rather than the shared default.
+const input = (overrides: Partial<TaxInput> = {}): TaxInput => makeInput({ taxYear: 2025, ...overrides })
 
 describe('taxTablesFor', () => {
   it('returns the requested year', () => {

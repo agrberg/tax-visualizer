@@ -33,6 +33,29 @@ describe('normalizeInput', () => {
     expect(normalized.longTermGains).toBe(15000)
   })
 
+  it('preserves negative capital-gains amounts (losses round-trip through storage)', () => {
+    // Signs are enforced at the input boundaries, not here — a stored capital loss must
+    // survive normalization unchanged so it reaches the engine to be netted.
+    const withLosses = {
+      filingStatus: 'single',
+      shortTermGains: -500,
+      longTermGains: -1200,
+    } as unknown as TaxInput
+    const normalized = normalizeInput(withLosses)
+    expect(normalized.shortTermGains).toBe(-500)
+    expect(normalized.longTermGains).toBe(-1200)
+  })
+
+  it('clamps a negative non-capital amount to 0 (only capital-gains fields may be signed)', () => {
+    // Corrupted or hand-edited localStorage could carry a negative wage; the form would render
+    // it back as negative. normalizeInput enforces the same sign rule as the other input
+    // boundaries — only the capital-gains fields keep a sign.
+    const dirty = { filingStatus: 'single', wages: -500, interest: -20 } as unknown as TaxInput
+    const normalized = normalizeInput(dirty)
+    expect(normalized.wages).toBe(0)
+    expect(normalized.interest).toBe(0)
+  })
+
   it('coerces an unknown filing status back to single (a bad one would crash the engine)', () => {
     const dirty = { filingStatus: 'xyz', wages: 100000 } as unknown as TaxInput
     const normalized = normalizeInput(dirty)

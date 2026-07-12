@@ -6,8 +6,6 @@ export interface DeductionResult {
   preferentialTaxable: number
   /** Leftover deduction that actually lands on preferential income. */
   preferentialDeduction: number
-  /** Fraction of preferential income shielded — applied equally to each preferential source. */
-  shieldFraction: number
 }
 
 /**
@@ -25,13 +23,11 @@ export function applyDeduction(
   const ordinaryTaxable = ordinaryIncome - deductionOnOrdinary
   const preferentialTaxable = Math.max(0, preferentialIncome - leftoverDeduction)
   const preferentialDeduction = Math.min(leftoverDeduction, preferentialIncome)
-  const shieldFraction = preferentialIncome > 0 ? preferentialDeduction / preferentialIncome : 0
   return {
     deductionOnOrdinary,
     leftoverDeduction,
     ordinaryTaxable,
     preferentialTaxable,
     preferentialDeduction,
-    shieldFraction,
   }
 }

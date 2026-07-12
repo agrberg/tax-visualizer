@@ -21,12 +21,24 @@ export function calculateTax(inputRaw: TaxInput): TaxResult {
     netInvestmentIncome: income.netInvestmentIncome,
   })
 
+  // The net short-/long-term figures as entered (finite-coerced), for the netting summary.
+  const netShortTerm = Number.isFinite(inputRaw.shortTermGains) ? inputRaw.shortTermGains : 0
+  const netLongTerm = Number.isFinite(inputRaw.longTermGains) ? inputRaw.longTermGains : 0
+
   return {
     filingStatus: inputRaw.filingStatus,
     taxYear: tables.year,
     totalIncome: income.totalIncome,
     ordinaryIncome: income.ordinaryIncome,
     preferentialIncome: income.preferentialIncome,
+    capitalGains: {
+      netShortTerm,
+      netLongTerm,
+      taxableShortTerm: income.amounts.shortTermGains,
+      taxableLongTerm: income.amounts.longTermGains,
+      lossDeduction: fed.capitalLoss.deduction,
+      carryover: fed.capitalLoss.carryover,
+    },
     federal: fed,
     sourceBreakdown,
     totalTax: fed.tax,

@@ -13,20 +13,10 @@ import { taxTablesFor } from '@/tax/years'
 
 const { standardDeduction: STANDARD_DEDUCTION, ordinaryBrackets: ORDINARY_BRACKETS } = taxTablesFor(2026)
 
-function input(overrides: Partial<TaxInput> = {}): TaxInput {
-  return {
-    filingStatus: 'mfj',
-    taxYear: 2026,
-    wages: 0,
-    retirementIncome: 0,
-    interest: 0,
-    nonQualifiedDividends: 0,
-    shortTermGains: 0,
-    qualifiedDividends: 0,
-    longTermGains: 0,
-    ...overrides,
-  }
-}
+import { makeInput } from '@/tax/testUtils'
+
+// The tower specs default to an MFJ filer (wider brackets) rather than the shared default.
+const input = (overrides: Partial<TaxInput> = {}): TaxInput => makeInput({ filingStatus: 'mfj', ...overrides })
 
 describe('ordinaryAxisMaxFor', () => {
   it('leaves a gap above the income but does not extend proportionally to the next bracket', () => {

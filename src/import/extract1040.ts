@@ -241,13 +241,13 @@ export function extract1040Fields(items: TextItem[]): ParsedReturn {
   }
 
   // Capital gains: prefer Schedule D for a real short/long-term split; fall back to
-  // 1040 line 7a (assumed long-term) when it isn't attached. Losses are reported with
-  // their real sign so the review shows them; the app doesn't model losses or net
-  // short against long yet, so a negative applies as $0 unless the user reconciles it.
+  // 1040 line 7a (assumed long-term) when it isn't attached. Losses keep their real sign;
+  // the engine nets short- against long-term and applies up to $3,000 of a net loss
+  // against other income (see nettedCapitalGains), so a loss is meaningful, not zeroed.
   const setCapitalGain = (field: 'shortTermGains' | 'longTermGains', value: number, source: string, label: string) => {
     if (value < 0) {
       warnings.push(
-        `Schedule D shows a net ${label} capital loss of $${Math.abs(value).toLocaleString()}. It's shown below as a negative; the app doesn't model losses yet, so it applies as $0 unless you adjust the values.`,
+        `Schedule D shows a net ${label} capital loss of $${Math.abs(value).toLocaleString()}. It's shown below as a negative and netted against your gains; up to $3,000 of a net loss ($1,500 if married filing separately) offsets other income.`,
       )
     }
     setMoney(field, value, source)
@@ -265,7 +265,7 @@ export function extract1040Fields(items: TextItem[]): ParsedReturn {
     if (capitalGain !== null && capitalGain < 0) {
       setMoney('longTermGains', capitalGain, '1040 line 7a')
       warnings.push(
-        `1040 line 7a is a capital loss of $${Math.abs(capitalGain).toLocaleString()}. It's shown below as a negative; the app doesn't model losses yet, so it applies as $0 unless you adjust the values.`,
+        `1040 line 7a is a capital loss of $${Math.abs(capitalGain).toLocaleString()}. It's shown below as a negative and netted against your gains; up to $3,000 of a net loss ($1,500 if married filing separately) offsets other income.`,
       )
     } else if (capitalGain !== null) {
       setMoney('longTermGains', capitalGain, '1040 line 7a (assumed long-term)')
