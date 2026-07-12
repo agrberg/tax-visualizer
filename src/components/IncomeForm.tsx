@@ -1,3 +1,4 @@
+import { type ReactNode } from 'react'
 import { Info } from 'lucide-react'
 import {
   Select,
@@ -98,34 +99,39 @@ function CapitalNettingNote({ capitalGains }: { capitalGains: TaxResult['capital
   if (!changed) return null
 
   const carryoverTotal = carryover.shortTerm + carryover.longTerm
-  const netLoss = lossDeduction > 0 || carryoverTotal > 0
+
+  let body: ReactNode
+  if (lossDeduction <= 0 && carryoverTotal <= 0) {
+    // A loss was present on a leg but only offset a gain — nothing left to deduct or carry.
+    body = (
+      <p>
+        A capital loss offset part of your gains. Taxed after netting:{' '}
+        {formatCurrency(taxableShortTerm)} short-term, {formatCurrency(taxableLongTerm)} long-term.
+      </p>
+    )
+  } else if (lossDeduction > 0) {
+    body = (
+      <p>
+        Your capital results net to a loss. {formatCurrency(lossDeduction)} offsets ordinary income
+        this year (max $3,000; $1,500 if filing separately)
+        {carryoverTotal > 0 && <> and {formatCurrency(carryoverTotal)} would carry to future years</>}.{' '}
+        Loss carryovers aren&apos;t applied yet, so any carryover is informational.
+      </p>
+    )
+  } else {
+    body = (
+      <p>
+        Your capital results net to a loss. None offsets income this year (taxable income is already
+        $0), so the full {formatCurrency(carryoverTotal)} would carry to future years. Loss carryovers
+        aren&apos;t applied yet, so any carryover is informational.
+      </p>
+    )
+  }
 
   return (
     <div role="note" className="space-y-1 rounded-md bg-muted/60 p-2.5 text-xs text-muted-foreground">
       <p className="font-medium text-foreground">Capital gains netted</p>
-      {netLoss ? (
-        <p>
-          Your capital results net to a loss.{' '}
-          {lossDeduction > 0 ? (
-            <>
-              {formatCurrency(lossDeduction)} offsets ordinary income this year (max $3,000; $1,500 if
-              filing separately)
-              {carryoverTotal > 0 && <> and {formatCurrency(carryoverTotal)} would carry to future years</>}.
-            </>
-          ) : (
-            <>
-              None offsets income this year (taxable income is already $0), so the full{' '}
-              {formatCurrency(carryoverTotal)} would carry to future years.
-            </>
-          )}{' '}
-          Loss carryovers aren&apos;t applied yet, so any carryover is informational.
-        </p>
-      ) : (
-        <p>
-          A capital loss offset part of your gains. Taxed after netting:{' '}
-          {formatCurrency(taxableShortTerm)} short-term, {formatCurrency(taxableLongTerm)} long-term.
-        </p>
-      )}
+      {body}
     </div>
   )
 }
