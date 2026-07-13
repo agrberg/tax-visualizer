@@ -144,6 +144,12 @@ describe('extract1040Fields', () => {
     expect(fields.taxYear).toBe(2025)
   })
 
+  it('detects a year from a parenthesized token as used in IRS form headers', () => {
+    const items = line(1, 720, [['Form', 60], ['1040', 90], ['(2025)', 300]])
+    const { fields } = extract1040Fields(items)
+    expect(fields.taxYear).toBe(2025)
+  })
+
   it('detects the other filing statuses from the checked box', () => {
     const cases: [string, string][] = [
       ['Married filing jointly', 'mfj'],
