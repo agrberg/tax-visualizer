@@ -144,9 +144,31 @@ const CHECK_TOKENS = new Set(['x', '☒', '✗', '✓', '■'])
  * unreliable across layouts, so the caller always asks the user to confirm.
  */
 function detectFilingStatus(rows: Row[]): FilingStatus | null {
+  ilog(`detectFilingStatus: scanning ${rows.length} rows`)
   for (const row of rows) {
     const idx = row.items.findIndex((i) => CHECK_TOKENS.has(i.text.trim().toLowerCase()))
-    if (idx === -1) continue
+    if (idx === -1) {
+      // Surface items that look like they could be unrecognized checkbox glyphs so we
+      // can identify what character the PDF is using (logged as Unicode code points).
+      const candidates = row.items.filter(
+        (i) => i.text.trim().length <= 2 && !/^[a-z0-9\s]+$/i.test(i.text.trim()) && i.text.trim() !== '',
+      )
+      if (candidates.length > 0) {
+        ilog(
+          `detectFilingStatus: row "${row.text}" — no known CHECK_TOKEN but suspicious items: ${JSON.stringify(
+            candidates.map((c) => ({
+              text: c.text,
+              codePoints: [...c.text].map((ch) => 'U+' + (ch.codePointAt(0) ?? 0).toString(16).padStart(4, '0')),
+            })),
+          )}`,
+        )
+      }
+      continue
+    }
+    const tok = row.items[idx]
+    ilog(
+      `detectFilingStatus: check token "${tok.text}" (${[...tok.text].map((ch) => 'U+' + (ch.codePointAt(0) ?? 0).toString(16).padStart(4, '0')).join(' ')}) in row "${row.text}"`,
+    )
     const after = row.items
       .slice(idx + 1)
       .map((i) => i.text)
@@ -154,10 +176,16 @@ function detectFilingStatus(rows: Row[]): FilingStatus | null {
       .toLowerCase()
       .replace(/\s+/g, ' ')
       .trim()
+    ilog(`detectFilingStatus: text after check token: "${after}"`)
     for (const { status, labels } of STATUS_KEYWORDS) {
-      if (labels.some((label) => after.startsWith(label))) return status
+      if (labels.some((label) => after.startsWith(label))) {
+        ilog(`detectFilingStatus: matched status "${status}"`)
+        return status
+      }
     }
+    ilog(`detectFilingStatus: check token found but no status label matched`)
   }
+  ilog('detectFilingStatus: no filing status found')
   return null
 }
 
@@ -165,14 +193,26 @@ function detectFilingStatus(rows: Row[]): FilingStatus | null {
  * A plausible 4-digit tax year (a 20xx token) on the 1040 face. Whether it's one the
  * app actually supports is left to `isTaxYear` at the call site, so a newly filed year
  * still reaches the "unsupported year" warning rather than looking undetected.
+ *
+ * IRS PDFs often render the year as "(2025)" with surrounding parentheses, so the
+ * regex strips those before matching.
  */
 function detectTaxYear(faceRows: Row[]): number | null {
+  ilog(`detectTaxYear: scanning ${faceRows.length} rows`)
   for (const row of faceRows) {
     for (const item of row.items) {
-      const m = item.text.trim().match(/^(20\d{2})$/)
-      if (m) return Number(m[1])
+      const t = item.text.trim()
+      if (/20\d{2}/.test(t)) {
+        ilog(`detectTaxYear: year-like token "${t}" full-match=${/^\(?(20\d{2})\)?$/.test(t)}`)
+      }
+      const m = t.match(/^\(?(20\d{2})\)?$/)
+      if (m) {
+        ilog(`detectTaxYear: matched year ${m[1]} from "${t}"`)
+        return Number(m[1])
+      }
     }
   }
+  ilog('detectTaxYear: no year token found on face page')
   return null
 }
 
