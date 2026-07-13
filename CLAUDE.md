@@ -66,7 +66,7 @@ Adding a new tax year: see `src/tax/years/README.md` for the step-by-step guide 
 
 ### PDF 1040 import (`src/import/`)
 
-Dynamically loads pdf.js (CDN), extracts text layer from a dropped PDF, and maps fields to `TaxInput`. Pure client-side; no upload. Entry point: `parse1040.ts`.
+Uses the bundled `pdfjs-dist` package (worker asset bundled too — no CDN or network fetch), lazily code-split via a dynamic `import()` so the ~1 MB parser only loads when a PDF is dropped. Extracts the text layer and maps fields to `TaxInput`. Pure client-side; no upload. Entry point: `parse1040.ts`.
 
 ## Testing conventions
 
