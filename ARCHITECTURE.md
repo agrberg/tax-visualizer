@@ -115,7 +115,8 @@ flowchart LR
    net investment income (NII) for the surcharges.
 
 2. **`federalJurisdiction`** (`federal.ts`) — assembles a `Jurisdiction`: a plain
-   data object with an ordinary bracket ladder, a standard deduction, a
+   data object with an ordinary bracket ladder, a deduction (the standard amount
+   for the filing status, or a custom override), a
    preferential (0/15/20%) capital-gains ladder, and a list of surcharge rules —
    all pulled from the selected year's tables (`src/tax/years/`, resolved by
    `taxTablesFor(input.taxYear)`) for the given filing status.
@@ -123,7 +124,7 @@ flowchart LR
 3. **`computeJurisdiction`** (`jurisdiction.ts`) — the core. Runs the classified
    income through one jurisdiction's rules:
    - the **net-capital-loss deduction** — a residual net loss reduces income
-     (ordinary first, then preferential) before the standard deduction, capped and
+     (ordinary first, then preferential) before the income deduction, capped and
      carried forward per [Capital-gains netting](#capital-gains-netting--the-net-loss-deduction).
      This is finalized here, not in `classifyIncome`, because only the jurisdiction
      knows the filing-status cap and the taxable income that limits the loss.
@@ -178,22 +179,22 @@ each one can know:
   filing-status cap and taxable income are known:
 
   1. **`netCapitalLoss`** = short-term + long-term residual loss (both ≥0 from step above).
-  2. **`preLossTaxable`** = `max(0, grossOrdinary + grossPreferential − standardDeduction)`
+  2. **`preLossTaxable`** = `max(0, grossOrdinary + grossPreferential − deduction)`
      — the taxable income there would be with no loss at all.
   3. **`lossDeduction`** = `min(netCapitalLoss, capitalLossLimit, preLossTaxable)`. The
      loss is limited by *both* the annual filing-status cap (`capitalLossLimit`, $3,000 /
      $1,500 MFS) *and* available taxable income — it can't drive taxable income below zero.
      Matching the IRS *Capital Loss Carryover Worksheet*, the limit is taxable income
-     **after** the standard deduction (Form 1040 line 15), so a loss against income already
-     covered by the standard deduction is fully *carried forward*, not spent.
+     **after** the deduction (Form 1040 line 15), so a loss against income already
+     covered by the deduction is fully *carried forward*, not spent.
   4. **Apply it, ordinary side first.** `lossAbsorbedOnOrdinary` comes off the ordinary
      pool; only the part that exceeds all ordinary income (rare — under ~$3k of ordinary
-     income) spills onto the preferential pool. The standard deduction then applies on top
-     of the loss-reduced income, so total taxable income = `gross − lossDeduction − standardDeduction`.
+     income) spills onto the preferential pool. The income deduction then applies on top
+     of the loss-reduced income, so total taxable income = `gross − lossDeduction − deduction`.
   5. **Carryover** (§1212(b)) = the residual loss minus what the deduction consumed,
      **short-term used first**.
   6. **MAGI** (the NIIT threshold basis) is reduced by the full `lossDeduction` — the loss
-     reduces AGI, so a net loss can pull income under the NIIT threshold. (The standard
+     reduces AGI, so a net loss can pull income under the NIIT threshold. (The income
      deduction does *not* reduce AGI, so it isn't subtracted here.)
 
   Per-source attribution then divides the loss the same way for the towers: the ordinary
