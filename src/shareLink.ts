@@ -1,4 +1,4 @@
-import { allowsNegativeAmount, type TaxInput } from './tax/types'
+import { allowsNegativeAmount, coerceDeduction, type TaxInput } from './tax/types'
 import { isFilingStatus } from './tax/filingStatus'
 import { DEFAULT_TAX_YEAR, isTaxYear } from './tax/years'
 
@@ -32,6 +32,11 @@ export function encodeInput(input: TaxInput): string {
     const keep = Number.isFinite(value) && (allowsNegativeAmount(field) ? value !== 0 : value > 0)
     if (keep) params.set(FIELD_ALIAS[field], String(value))
   }
+  // Omit `ded` for the standard deduction (the default) so old links without the param still
+  // decode correctly; emit it only for a valid custom amount (coerceDeduction rejects the
+  // negatives/non-finite the decoder would drop anyway, keeping the round-trip invertible).
+  const ded = coerceDeduction(input.deduction)
+  if (ded !== null) params.set('ded', String(ded))
   return params.toString()
 }
 
@@ -56,6 +61,8 @@ export function decodeInput(encoded: string): TaxInput | null {
     const valid = allowsNegativeAmount(field) ? Number.isFinite(n) : Number.isFinite(n) && n > 0
     input[field] = valid ? n : 0
   }
+  const dedParam = params.get('ded')
+  input.deduction = dedParam === null ? null : coerceDeduction(Number(dedParam))
   return input
 }
 

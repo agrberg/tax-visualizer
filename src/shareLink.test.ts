@@ -1,18 +1,16 @@
 import { describe, it, expect } from 'vitest'
 import { encodeInput, decodeInput, shareHash, parseShareHash } from './shareLink'
-import type { TaxInput } from './tax/types'
+import { makeInput } from './tax/testUtils'
 
-const sample: TaxInput = {
+const sample = makeInput({
   filingStatus: 'mfj',
   taxYear: 2025,
   wages: 245000,
   retirementIncome: 30000,
   interest: 4000,
   nonQualifiedDividends: 5000,
-  shortTermGains: 0,
   qualifiedDividends: 70000,
-  longTermGains: 0,
-}
+})
 
 describe('encodeInput / decodeInput', () => {
   it('round-trips a full input', () => {
@@ -64,6 +62,7 @@ describe('encodeInput / decodeInput', () => {
       shortTermGains: 0,
       qualifiedDividends: 0,
       longTermGains: 0,
+      deduction: null,
     })
   })
 
@@ -114,5 +113,35 @@ describe('shareHash / parseShareHash', () => {
   it('returns null when the hash has no share payload', () => {
     expect(parseShareHash('')).toBeNull()
     expect(parseShareHash('#other=1')).toBeNull()
+  })
+})
+
+describe('deduction encoding', () => {
+  it('omits the ded param when deduction is null (standard mode)', () => {
+    expect(encodeInput({ ...sample, deduction: null })).not.toContain('ded=')
+  })
+
+  it('includes ded param when deduction is a custom number', () => {
+    expect(encodeInput({ ...sample, deduction: 25000 })).toContain('ded=25000')
+  })
+
+  it('round-trips a custom deduction', () => {
+    const withCustom = { ...sample, deduction: 25000 }
+    expect(decodeInput(encodeInput(withCustom))).toEqual(withCustom)
+  })
+
+  it('decodes to null when ded param is absent (backward-compatible with old links)', () => {
+    const decoded = decodeInput(encodeInput({ ...sample, deduction: null }))
+    expect(decoded?.deduction).toBeNull()
+  })
+
+  it('decodes an invalid ded param to null', () => {
+    const decoded = decodeInput(`v=1&filing=single&ded=abc`)
+    expect(decoded?.deduction).toBeNull()
+  })
+
+  it('decodes a negative ded param to null', () => {
+    const decoded = decodeInput(`v=1&filing=single&ded=-500`)
+    expect(decoded?.deduction).toBeNull()
   })
 })
