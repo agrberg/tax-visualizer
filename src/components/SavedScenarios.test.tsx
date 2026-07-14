@@ -3,22 +3,7 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { SavedScenarios } from './SavedScenarios'
 import type { Scenarios } from '@/scenarios'
-import type { TaxInput } from '@/tax/types'
-
-function input(overrides: Partial<TaxInput> = {}): TaxInput {
-  return {
-    filingStatus: 'single',
-    taxYear: 2026,
-    wages: 0,
-    retirementIncome: 0,
-    interest: 0,
-    nonQualifiedDividends: 0,
-    shortTermGains: 0,
-    qualifiedDividends: 0,
-    longTermGains: 0,
-    ...overrides,
-  }
-}
+import { makeInput } from '@/tax/testUtils'
 
 function handlers() {
   return {
@@ -74,7 +59,7 @@ describe('SavedScenarios', () => {
   })
 
   it('lists scenario names sorted, with per-row actions', () => {
-    const scenarios: Scenarios = { Zeta: input(), Alpha: input() }
+    const scenarios: Scenarios = { Zeta: makeInput(), Alpha: makeInput() }
     render(<SavedScenarios scenarios={scenarios} selectedName={null} {...handlers()} />)
 
     const loaders = screen.getAllByRole('button', { name: /^(Alpha|Zeta)$/ })
@@ -86,7 +71,7 @@ describe('SavedScenarios', () => {
   it('fires the row callbacks and marks the selected row', async () => {
     const user = userEvent.setup()
     const h = handlers()
-    const scenarios: Scenarios = { Alpha: input(), Beta: input() }
+    const scenarios: Scenarios = { Alpha: makeInput(), Beta: makeInput() }
     render(<SavedScenarios scenarios={scenarios} selectedName="Beta" {...h} />)
 
     await user.click(screen.getByRole('button', { name: 'Alpha' }))

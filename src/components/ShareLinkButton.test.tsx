@@ -2,22 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, act } from '@testing-library/react'
 import { ShareLinkButton } from './ShareLinkButton'
 import { shareHash } from '@/shareLink'
-import type { TaxInput } from '@/tax/types'
-
-function input(overrides: Partial<TaxInput> = {}): TaxInput {
-  return {
-    filingStatus: 'single',
-    taxYear: 2026,
-    wages: 0,
-    retirementIncome: 0,
-    interest: 0,
-    nonQualifiedDividends: 0,
-    shortTermGains: 0,
-    qualifiedDividends: 0,
-    longTermGains: 0,
-    ...overrides,
-  }
-}
+import { makeInput } from '@/tax/testUtils'
 
 let writeText: ReturnType<typeof vi.fn>
 let originalClipboard: PropertyDescriptor | undefined
@@ -48,7 +33,7 @@ function clickCopy() {
 
 describe('ShareLinkButton', () => {
   it('copies a link encoding the current input and confirms', async () => {
-    const taxInput = input({ wages: 50000 })
+    const taxInput = makeInput({ wages: 50000 })
     render(<ShareLinkButton input={taxInput} />)
 
     clickCopy()
@@ -59,7 +44,7 @@ describe('ShareLinkButton', () => {
 
   it('reverts the confirmation after the timeout', async () => {
     vi.useFakeTimers()
-    render(<ShareLinkButton input={input()} />)
+    render(<ShareLinkButton input={makeInput()} />)
 
     clickCopy()
     await act(async () => {}) // flush the awaited writeText → setCopied(true)
@@ -73,7 +58,7 @@ describe('ShareLinkButton', () => {
 
   it('stays unconfirmed when the clipboard is unavailable', async () => {
     writeText.mockRejectedValueOnce(new Error('insecure context'))
-    render(<ShareLinkButton input={input()} />)
+    render(<ShareLinkButton input={makeInput()} />)
 
     clickCopy()
     await act(async () => {}) // flush the rejected writeText → catch, no state change
