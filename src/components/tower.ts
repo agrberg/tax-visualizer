@@ -61,7 +61,7 @@ export function nextOrdinaryBracket(result: TaxResult): OrdinaryBracket | null {
  * scale — so a distant next bracket never creates a huge proportional void.
  */
 export function ordinaryAxisMaxFor(result: TaxResult): number {
-  const deduction = result.federal.standardDeduction
+  const deduction = result.federal.deduction
   // When income is fully shielded, keep the deduction visible; otherwise track income.
   const fillTop = Math.max(result.ordinaryIncome, deduction)
   return fillTop * AXIS_HEADROOM

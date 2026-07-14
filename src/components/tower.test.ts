@@ -91,7 +91,7 @@ describe('axisMaxFor', () => {
       input({ wages: 245000, interest: 4000, nonQualifiedDividends: 5000, qualifiedDividends: 70000 }),
     )
     const fed = r.federal
-    const ordFill = Math.max(r.ordinaryIncome, fed.standardDeduction) / ordinaryAxisMaxFor(r)
+    const ordFill = Math.max(r.ordinaryIncome, fed.deduction) / ordinaryAxisMaxFor(r)
     const capFill =
       (fed.preferentialDeduction + fed.capitalGainsBaseline + fed.preferentialTaxable) / axisMaxFor(r)
     expect(ordFill).toBeCloseTo(capFill, 5)
