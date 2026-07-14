@@ -17,6 +17,7 @@ import { AVAILABLE_YEARS } from '@/tax/years'
 import { ALL_SOURCES, allowsNegativeAmount, type IncomeSource, type TaxInput } from '@/tax/types'
 import { parse1040 } from '@/import/parse1040'
 import { mergeParsedInput, type ParsedReturn } from '@/import/parsedReturn'
+import { DeductionControl } from '@/components/DeductionControl'
 
 const MAX_BYTES = 10 * 1024 * 1024
 
@@ -28,7 +29,10 @@ interface ImportReturnProps {
 interface Review {
   draft: TaxInput
   provenance: ParsedReturn['provenance']
-  detected: Set<keyof TaxInput>
+  // Field names present in the parsed return. A plain string set: it's only ever queried by
+  // `.has(...)` with known TaxInput keys, so widening avoids an unsound `keyof TaxInput` cast
+  // over `Object.keys` (which is typed `string[]`).
+  detected: Set<string>
   warnings: string[]
 }
 
@@ -55,7 +59,7 @@ export function ImportReturn({ current, onApply }: ImportReturnProps) {
     setParsing(true)
     try {
       const result = await parse1040(file)
-      const detected = new Set(Object.keys(result.fields) as (keyof TaxInput)[])
+      const detected = new Set(Object.keys(result.fields))
       // The PDF read fine but no income figures came out (scanned image / odd layout).
       // Skip the editing modal — it would be a wall of empty fields that reads as success.
       // Point the user at the by-hand fallback below instead.
@@ -71,6 +75,9 @@ export function ImportReturn({ current, onApply }: ImportReturnProps) {
       // imported scenario. Detected fields overlay on top.
       const zeroedBase: TaxInput = { ...current }
       for (const source of ALL_SOURCES) zeroedBase[source] = 0
+      // Reset the deduction to standard too, so an undetected line 12 matches the review's
+      // "defaulting to standard deduction" hint rather than silently carrying the current value.
+      zeroedBase.deduction = null
       setReview({
         // A capital loss keeps its sign through the review and Apply; the engine nets it.
         draft: mergeParsedInput(zeroedBase, result.fields),
@@ -220,13 +227,11 @@ export function ImportReturn({ current, onApply }: ImportReturnProps) {
                   ))}
                 </SelectContent>
               </Select>
-              {review.detected.has('filingStatus') ? (
-                review.provenance.filingStatus && (
-                  <p className="text-xs text-emerald-700">from {review.provenance.filingStatus}</p>
-                )
-              ) : (
-                <p className="text-xs text-muted-foreground/70">Couldn't detect — please choose</p>
-              )}
+              <DetectedNote
+                detected={review.detected.has('filingStatus')}
+                provenance={review.provenance.filingStatus}
+                fallback="Couldn't detect — please choose"
+              />
             </div>
 
             <div className="space-y-1.5">
@@ -243,25 +248,48 @@ export function ImportReturn({ current, onApply }: ImportReturnProps) {
                   ))}
                 </SelectContent>
               </Select>
-              {review.detected.has('taxYear') ? (
-                review.provenance.taxYear && (
-                  <p className="text-xs text-emerald-700">from {review.provenance.taxYear}</p>
-                )
-              ) : (
-                <p className="text-xs text-muted-foreground/70">Couldn't detect — please choose</p>
-              )}
+              <DetectedNote
+                detected={review.detected.has('taxYear')}
+                provenance={review.provenance.taxYear}
+                fallback="Couldn't detect — please choose"
+              />
             </div>
 
-            {ALL_SOURCES.map((source) => (
-              <ReviewMoneyField
-                key={source}
-                source={source}
-                value={review.draft[source]}
-                detected={review.detected.has(source)}
-                provenance={review.detected.has(source) ? review.provenance[source] : undefined}
-                onChange={(n) => setField({ [source]: n })}
+            <div className="space-y-1.5">
+              <p className="text-sm font-medium">Deduction</p>
+              <DeductionControl
+                value={review.draft.deduction}
+                onChange={(d) => setField({ deduction: d })}
+                filingStatus={review.draft.filingStatus}
+                taxYear={review.draft.taxYear}
               />
-            ))}
+              <DetectedNote
+                detected={review.detected.has('deduction')}
+                provenance={
+                  // Derive live from the current draft so editing the control in the modal
+                  // never leaves a stale "standard" note. Guard the interpolation so a detected
+                  // field with no provenance string doesn't render "undefined — ...".
+                  review.provenance.deduction && review.draft.deduction === null
+                    ? `${review.provenance.deduction} — using the standard deduction`
+                    : review.provenance.deduction
+                }
+                fallback="Couldn't detect — defaulting to standard deduction"
+              />
+            </div>
+
+            {ALL_SOURCES.map((source) => {
+              const detected = review.detected.has(source)
+              return (
+                <ReviewMoneyField
+                  key={source}
+                  source={source}
+                  value={review.draft[source]}
+                  detected={detected}
+                  provenance={detected ? review.provenance[source] : undefined}
+                  onChange={(n) => setField({ [source]: n })}
+                />
+              )
+            })}
           </div>
         )}
       </Modal>
@@ -296,11 +324,30 @@ function ReviewMoneyField({
         allowNegative={allowsNegativeAmount(source)}
         onChange={onChange}
       />
-      {detected ? (
-        provenance && <p className="text-xs text-emerald-700">from {provenance}</p>
-      ) : (
-        <p className="text-xs text-muted-foreground/70">Not found on your return — enter if it applies</p>
-      )}
+      <DetectedNote
+        detected={detected}
+        provenance={provenance}
+        fallback="Not found on your return — enter if it applies"
+      />
     </div>
   )
+}
+
+/**
+ * The provenance line under a reviewed field: a green "from <source>" when the value was
+ * detected (nothing if detected but the source is unknown), or a muted fallback when it wasn't.
+ */
+function DetectedNote({
+  detected,
+  provenance,
+  fallback,
+}: {
+  detected: boolean
+  provenance: string | undefined
+  fallback: string
+}) {
+  if (detected) {
+    return provenance ? <p className="text-xs text-emerald-700">from {provenance}</p> : null
+  }
+  return <p className="text-xs text-muted-foreground/70">{fallback}</p>
 }

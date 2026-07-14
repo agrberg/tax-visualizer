@@ -1,5 +1,5 @@
-import { ALL_SOURCES, type FilingStatus, type IncomeSource, type TaxInput } from '../tax/types'
-import { isTaxYear } from '../tax/years'
+import { ALL_SOURCES, coerceDeduction, type FilingStatus, type IncomeSource, type TaxInput } from '../tax/types'
+import { isTaxYear, taxTablesFor } from '../tax/years'
 import type { ParsedReturn } from './parsedReturn'
 import { ilog, setImportStep } from './importLog'
 
@@ -92,39 +92,57 @@ function logMatchedLine(id: string, row: Row, start: number, end: number): void 
   ilog(`  pieces: ${JSON.stringify(pieces)}`)
 }
 
+/** Normalize a token for line-id / boundary comparison: trimmed and lower-cased. */
+const normalizeToken = (text: string): string => text.trim().toLowerCase()
+
 /**
- * The dollar amount belonging to a line identifier (e.g. "3a", "7").
- *
- * A single printed line renders as `<id> <label…> <amount>`, but two sibling lines
- * often share a baseline — e.g. 3a and 3b print side by side, so our row grouping
- * yields one row "3a Qualified dividends … 3a 58,986 b Ordinary dividends … 3b 84,388".
- * Reading the rightmost amount there would hand 3a its neighbour's value. So we take
- * the rightmost amount within the id's *segment*: from the id up to the next sibling
- * id in `boundaryIds`. Tokens equal to the id are skipped (the id is often reprinted
- * beside its own amount, and "7" must not be read as $7).
+ * The half-open index range `[start, end)` of a line id's *segment* within a row — from the
+ * token matching `want` up to the next boundary id (or the row's end); null if the row has no
+ * such token. Sibling lines often share a baseline (e.g. 3a and 3b print side by side, grouping
+ * into one row `"3a … 3a 58,986 b … 3b 84,388"`), so the segment stops one line's amount from
+ * bleeding into its neighbour's.
+ */
+function lineSegment(
+  items: TextItem[],
+  want: string,
+  bounds: Set<string>,
+): { start: number; end: number } | null {
+  const start = items.findIndex((item) => normalizeToken(item.text) === want)
+  if (start === -1) return null
+  let end = start + 1
+  while (end < items.length && !bounds.has(normalizeToken(items[end].text))) end++
+  return { start, end }
+}
+
+/**
+ * The rightmost parseable dollar amount in `items[start+1, end)`, or null. Skips any token equal
+ * to `want`: a line number is often reprinted beside its own amount, and e.g. "7" must not be
+ * read as $7.
+ */
+function rightmostAmount(items: TextItem[], start: number, end: number, want: string): number | null {
+  for (let i = end - 1; i > start; i--) {
+    if (normalizeToken(items[i].text) === want) continue
+    const value = parseAmount(items[i].text)
+    if (value !== null) return value
+  }
+  return null
+}
+
+/**
+ * The dollar amount belonging to a line identifier (e.g. "3a", "7"): the rightmost amount within
+ * the id's segment, scanning rows until one yields a value. `boundaryIds` are the sibling line
+ * ids that delimit a segment (see `lineSegment` for why a segment is needed).
  */
 function amountForLine(rows: Row[], id: string, boundaryIds: string[]): number | null {
-  const want = id.toLowerCase()
-  const bounds = new Set(boundaryIds.map((b) => b.toLowerCase()).filter((b) => b !== want))
+  const want = normalizeToken(id)
+  const bounds = new Set(boundaryIds.map(normalizeToken).filter((b) => b !== want))
   for (const row of rows) {
-    const items = row.items
-    const start = items.findIndex((item) => item.text.trim().toLowerCase() === want)
-    if (start === -1) continue
-    let end = items.length
-    for (let i = start + 1; i < items.length; i++) {
-      if (bounds.has(items[i].text.trim().toLowerCase())) {
-        end = i
-        break
-      }
-    }
-    logMatchedLine(id, row, start, end)
-    for (let i = end - 1; i > start; i--) {
-      const token = items[i].text.trim()
-      if (token.toLowerCase() === want) continue
-      const value = parseAmount(token)
-      if (value !== null) return value
-    }
-    // Matched the line but found no value in its segment; keep looking on other rows.
+    const segment = lineSegment(row.items, want, bounds)
+    if (!segment) continue
+    logMatchedLine(id, row, segment.start, segment.end)
+    const value = rightmostAmount(row.items, segment.start, segment.end, want)
+    if (value !== null) return value
+    // Matched the id but found no amount in its segment; keep scanning later rows.
   }
   return null
 }
@@ -332,6 +350,50 @@ export function extract1040Fields(items: TextItem[]): ParsedReturn {
     ilog(`matched taxYear = ${taxYear}`)
   } else if (taxYear !== null) {
     warnings.push(`Detected tax year ${taxYear} isn't supported yet — please choose it below.`)
+  }
+
+  // Deduction line: "Standard deduction or itemized deductions (from Schedule A)". Its id and
+  // page moved across form redesigns — line 12 on page 1 (2022–2024), and line 12e on page 2 of
+  // the 2025+ form, where the expanded income section (1a–1z) pushed AGI to line 11a and the
+  // deduction onto page 2. Search both 1040 pages, trying 12e before 12 so a 2025 return reads
+  // the deduction rather than the page-2 "12a" dependent-claim checkbox line.
+  const deductionRows = rows.filter((r) => r.page === facePage || r.page === facePage + 1)
+  const DEDUCTION_IDS = ['12e', '12']
+  const DEDUCTION_BOUNDS = [...DEDUCTION_IDS, '11', '11a', '11b', '13', '13a', '13b', '14']
+  let deductionAmount: number | null = null
+  let deductionLineId = ''
+  for (const id of DEDUCTION_IDS) {
+    const value = amountForLine(deductionRows, id, DEDUCTION_BOUNDS)
+    if (value !== null) {
+      deductionAmount = value
+      deductionLineId = id
+      break
+    }
+  }
+
+  // Validate the parsed amount through the same predicate as every other input boundary
+  // (a finite number ≥ 0, else null). If it matches the standard deduction for the detected
+  // year/status we stay in standard mode (null); otherwise the user itemized, so we import
+  // the number as custom.
+  const coercedDeduction = coerceDeduction(deductionAmount)
+  if (coercedDeduction !== null) {
+    const detectedYear = fields.taxYear
+    const detectedStatus = fields.filingStatus
+    const tableStandard =
+      detectedYear && isTaxYear(detectedYear) && detectedStatus
+        ? taxTablesFor(detectedYear).standardDeduction[detectedStatus]
+        : null
+    if (tableStandard !== null && coercedDeduction === tableStandard) {
+      fields.deduction = null
+      provenance.deduction = `1040 line ${deductionLineId}`
+    } else {
+      fields.deduction = coercedDeduction
+      // A deduction above the standard means the filer itemized (Schedule A); note that when we
+      // could actually compare. When year/status are unknown we can't tell, so stay generic.
+      const itemized = tableStandard !== null && coercedDeduction > tableStandard
+      provenance.deduction = `1040 line ${deductionLineId}${itemized ? ' (itemized)' : ''}`
+    }
+    ilog(`line ${deductionLineId} deduction: ${coercedDeduction} -> ${String(fields.deduction)}`)
   }
 
   const foundIncome = ALL_SOURCES.some((source) => fields[source] !== undefined)

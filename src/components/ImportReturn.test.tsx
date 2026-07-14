@@ -3,27 +3,12 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ImportReturn } from './ImportReturn'
 import type { ParsedReturn } from '@/import/parsedReturn'
-import type { TaxInput } from '@/tax/types'
+import { makeInput } from '@/tax/testUtils'
 
 vi.mock('@/import/parse1040', () => ({ parse1040: vi.fn() }))
 import { parse1040 } from '@/import/parse1040'
 
 const mockParse = vi.mocked(parse1040)
-
-function input(overrides: Partial<TaxInput> = {}): TaxInput {
-  return {
-    filingStatus: 'single',
-    taxYear: 2026,
-    wages: 0,
-    retirementIncome: 0,
-    interest: 0,
-    nonQualifiedDividends: 0,
-    shortTermGains: 0,
-    qualifiedDividends: 0,
-    longTermGains: 0,
-    ...overrides,
-  }
-}
 
 function parsed(overrides: Partial<ParsedReturn> = {}): ParsedReturn {
   return { fields: {}, provenance: {}, warnings: [], ...overrides }
@@ -51,14 +36,14 @@ beforeEach(() => mockParse.mockReset())
 
 describe('ImportReturn file validation', () => {
   it('rejects a non-PDF without parsing', () => {
-    render(<ImportReturn current={input()} onApply={vi.fn()} />)
+    render(<ImportReturn current={makeInput()} onApply={vi.fn()} />)
     upload(new File(['x'], 'notes.txt', { type: 'text/plain' }))
     expect(screen.getByText('Please choose a PDF file.')).toBeInTheDocument()
     expect(mockParse).not.toHaveBeenCalled()
   })
 
   it('rejects a PDF larger than 10 MB without parsing', () => {
-    render(<ImportReturn current={input()} onApply={vi.fn()} />)
+    render(<ImportReturn current={makeInput()} onApply={vi.fn()} />)
     upload(pdf('big.pdf', 11 * 1024 * 1024))
     expect(screen.getByText(/larger than 10 MB/i)).toBeInTheDocument()
     expect(mockParse).not.toHaveBeenCalled()
@@ -74,7 +59,7 @@ describe('ImportReturn review flow', () => {
         warnings: ['Couldn’t detect the tax year — please choose it below.'],
       }),
     )
-    render(<ImportReturn current={input()} onApply={vi.fn()} />)
+    render(<ImportReturn current={makeInput()} onApply={vi.fn()} />)
     upload(pdf())
 
     expect(await screen.findByText('Review imported values')).toBeInTheDocument()
@@ -92,7 +77,7 @@ describe('ImportReturn review flow', () => {
         warnings: [],
       }),
     )
-    render(<ImportReturn current={input()} onApply={onApply} />)
+    render(<ImportReturn current={makeInput()} onApply={onApply} />)
     upload(pdf())
 
     await screen.findByText('Review imported values')
@@ -109,7 +94,7 @@ describe('ImportReturn review flow', () => {
     const user = userEvent.setup()
     const onApply = vi.fn()
     mockParse.mockResolvedValueOnce(parsed({ fields: { wages: 100000 } }))
-    render(<ImportReturn current={input()} onApply={onApply} />)
+    render(<ImportReturn current={makeInput()} onApply={onApply} />)
     upload(pdf())
 
     await screen.findByText('Review imported values')
@@ -124,7 +109,7 @@ describe('ImportReturn review flow', () => {
     const user = userEvent.setup()
     const onApply = vi.fn()
     mockParse.mockResolvedValueOnce(parsed({ fields: { wages: 42 } }))
-    render(<ImportReturn current={input()} onApply={onApply} />)
+    render(<ImportReturn current={makeInput()} onApply={onApply} />)
     upload(pdf())
 
     await screen.findByText('Review imported values')
@@ -138,12 +123,64 @@ describe('ImportReturn review flow', () => {
     // error doesn't leak to the test runner's stderr, and assert it was logged.
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
     mockParse.mockRejectedValueOnce(new Error('boom'))
-    render(<ImportReturn current={input()} onApply={vi.fn()} />)
+    render(<ImportReturn current={makeInput()} onApply={vi.fn()} />)
     upload(pdf())
 
     expect(await screen.findByText(/Couldn.t read that PDF/)).toBeInTheDocument()
     expect(screen.queryByText('Review imported values')).not.toBeInTheDocument()
     expect(errorSpy).toHaveBeenCalledWith('[1040 import] parse failed:', expect.any(Error))
     errorSpy.mockRestore()
+  })
+})
+
+describe('ImportReturn deduction review', () => {
+  it('marks a detected standard deduction as "using the standard deduction"', async () => {
+    mockParse.mockResolvedValueOnce(
+      parsed({
+        fields: { wages: 100000, deduction: null },
+        provenance: { deduction: '1040 line 12e' },
+      }),
+    )
+    render(<ImportReturn current={makeInput()} onApply={vi.fn()} />)
+    upload(pdf())
+
+    await screen.findByText('Review imported values')
+    expect(screen.getByText(/using the standard deduction/)).toBeInTheDocument()
+  })
+
+  it('shows a detected custom deduction with its line-12 provenance and value', async () => {
+    mockParse.mockResolvedValueOnce(
+      parsed({
+        fields: { wages: 100000, deduction: 25000 },
+        provenance: { deduction: '1040 line 12' },
+      }),
+    )
+    render(<ImportReturn current={makeInput()} onApply={vi.fn()} />)
+    upload(pdf())
+
+    await screen.findByText('Review imported values')
+    expect(screen.getByText('from 1040 line 12')).toBeInTheDocument()
+    expect(screen.getByLabelText('Itemized deduction amount')).toHaveValue('25000')
+  })
+
+  it('falls back to a "defaulting to standard" note when no deduction was detected', async () => {
+    mockParse.mockResolvedValueOnce(parsed({ fields: { wages: 100000 } }))
+    render(<ImportReturn current={makeInput()} onApply={vi.fn()} />)
+    upload(pdf())
+
+    await screen.findByText('Review imported values')
+    expect(screen.getByText(/defaulting to standard deduction/)).toBeInTheDocument()
+  })
+
+  it('renders no deduction note (never "undefined —") when detected without a provenance string', async () => {
+    // fields includes `deduction` (so it's "detected") but provenance omits it — the note must
+    // render nothing rather than interpolate "undefined — using the standard deduction".
+    mockParse.mockResolvedValueOnce(parsed({ fields: { wages: 100000, deduction: null }, provenance: {} }))
+    render(<ImportReturn current={makeInput()} onApply={vi.fn()} />)
+    upload(pdf())
+
+    await screen.findByText('Review imported values')
+    expect(screen.queryByText(/using the standard deduction/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/undefined/)).not.toBeInTheDocument()
   })
 })
