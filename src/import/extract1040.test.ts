@@ -233,3 +233,85 @@ describe('extract1040Fields', () => {
     expect(warnings[0]).toContain("Couldn't read any income values")
   })
 })
+
+describe('extract1040Fields — line 12 deduction', () => {
+  // sample1040() detects Single + 2025. The 2025 single standard deduction is $15,750.
+  const STANDARD_2025_SINGLE = 15750
+
+  function with12(amount: string): TextItem[] {
+    return [
+      ...sample1040(),
+      ...line(1, 300, [['12', 40], ['Standard deduction or itemized deductions', 70], [amount, 520]]),
+    ]
+  }
+
+  it('treats a line 12 that matches the standard deduction as standard mode (null)', () => {
+    const { fields, provenance } = extract1040Fields(with12(STANDARD_2025_SINGLE.toLocaleString()))
+    expect(fields.deduction).toBeNull()
+    expect(provenance.deduction).toBe('1040 line 12')
+  })
+
+  it('imports a line 12 above the standard as a custom deduction', () => {
+    const { fields, provenance } = extract1040Fields(with12('28,500'))
+    expect(fields.deduction).toBe(28500)
+    expect(provenance.deduction).toBe('1040 line 12')
+  })
+
+  it('imports a line 12 below the standard as custom too', () => {
+    // 10,000 < the 2025 single standard (15,750): still a custom amount — only an exact match
+    // stays in standard mode. Doesn't occur on a rational return, but the branch exists.
+    const { fields, provenance } = extract1040Fields(with12('10,000'))
+    expect(fields.deduction).toBe(10000)
+    expect(provenance.deduction).toBe('1040 line 12')
+  })
+
+  it('leaves the deduction undetected when line 12 is absent', () => {
+    const { fields } = extract1040Fields(sample1040())
+    expect(fields.deduction).toBeUndefined()
+  })
+
+  it('still reads line 7a when line 12 is present (segment-boundary regression)', () => {
+    // The deduction is read separately from the income lines (7a stays the last FACE_ID), so a
+    // line 12 present on the same page must not narrow or steal the line-7a read.
+    const { fields } = extract1040Fields(with12('28,500'))
+    expect(fields.longTermGains).toBe(15000) // 1040 line 7a, assumed long-term
+    expect(fields.deduction).toBe(28500)
+  })
+
+  // On the 2025 redesign the deduction moved to page 2 as line 12e (page 1 ends at AGI on 11a).
+  function with12eOnPage2(amount: string): TextItem[] {
+    return [
+      ...sample1040(), // page 1: 2025 header, single filer, income lines
+      ...line(2, 700, [
+        ['12e', 40],
+        ['Standard deduction or itemized deductions (from Schedule A)', 70],
+        ['12e', 500],
+        [amount, 560],
+      ]),
+    ]
+  }
+
+  it('reads the deduction from line 12e on page 2 (2025+ layout)', () => {
+    const { fields, provenance } = extract1040Fields(with12eOnPage2(STANDARD_2025_SINGLE.toLocaleString()))
+    expect(fields.deduction).toBeNull() // 15,750 == 2025 single standard → standard mode
+    expect(provenance.deduction).toBe('1040 line 12e')
+  })
+
+  it('imports a custom deduction from line 12e (2025+ layout)', () => {
+    const { fields, provenance } = extract1040Fields(with12eOnPage2('30,000'))
+    expect(fields.deduction).toBe(30000)
+    expect(provenance.deduction).toBe('1040 line 12e')
+  })
+
+  it('imports line 12 as custom when the year/filing status are unknown (can\'t compare)', () => {
+    // No header (year + filing status), just an income line and line 12: without a known
+    // year/status there's no standard to compare against, so the value is imported as custom.
+    const items = [
+      ...line(1, 600, [['1z', 40], ['Add lines 1a through 1h', 70], ['80,000', 520]]),
+      ...line(1, 300, [['12', 40], ['Standard deduction', 70], ['15,750', 520]]),
+    ]
+    const { fields, provenance } = extract1040Fields(items)
+    expect(fields.deduction).toBe(15750)
+    expect(provenance.deduction).toBe('1040 line 12')
+  })
+})

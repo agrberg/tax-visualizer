@@ -8,6 +8,10 @@ import { normalizeInput } from '../storage'
  * carries anything the user should know (a value we couldn't split, a field we
  * couldn't find). Every field is optional — the reader fills what it can, and the
  * merge below leaves the rest untouched.
+ *
+ * The deduction lands in `fields.deduction` as `null` (matched the standard deduction) or a
+ * number (custom/itemized); the review UI derives its note from the current draft, not a frozen
+ * flag, so editing the value in the modal never leaves a stale "standard" label.
  */
 export interface ParsedReturn {
   fields: Partial<TaxInput>

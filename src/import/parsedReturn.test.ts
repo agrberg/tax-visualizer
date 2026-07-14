@@ -1,18 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import { mergeParsedInput } from './parsedReturn'
 import type { TaxInput } from '../tax/types'
+import { makeInput } from '@/tax/testUtils'
 
-const CURRENT: TaxInput = {
-  filingStatus: 'single',
-  taxYear: 2026,
-  wages: 120000,
-  retirementIncome: 0,
-  interest: 2000,
-  nonQualifiedDividends: 0,
-  shortTermGains: 0,
-  qualifiedDividends: 8000,
-  longTermGains: 15000,
-}
+const CURRENT = makeInput({ wages: 120000, interest: 2000, qualifiedDividends: 8000, longTermGains: 15000 })
 
 describe('mergeParsedInput', () => {
   it('overrides only the detected fields and leaves the rest untouched', () => {
