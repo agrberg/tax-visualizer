@@ -13,7 +13,7 @@ import type { JurisdictionResult } from './types'
 export interface Jurisdiction {
   key: string
   ordinaryBands: Band[]
-  standardDeduction: number
+  deduction: number
   /** IRC §1211(b) annual net-capital-loss deduction limit for this filing status ($3,000/$1,500 MFS federally). */
   capitalLossLimit: number
   preferentialLadder?: Band[]
@@ -26,7 +26,7 @@ export interface Jurisdiction {
  * (`capitalLossLimit`) and the taxable income available to absorb it (`preLossTaxable`, which
  * keeps the deduction from driving taxable income below zero). The deduction is the net loss
  * clamped by both; the unused remainder carries forward, short-term used first. The loss reduces
- * income *before* the standard deduction, ordinary side first; only a loss exceeding all ordinary
+ * income *before* the deduction, ordinary side first; only a loss exceeding all ordinary
  * income (rare: under ~$3k of ordinary income) reaches the preferential base. `incomeLimited` is
  * true when taxable income (not the cap or the loss itself) was the binding limit — meaning the
  * next dollar of income would grow the deduction and be absorbed (a genuine 0% marginal rate).
@@ -35,11 +35,11 @@ function applyCapitalLoss(
   capitalNetLoss: ClassifiedIncome['capitalNetLoss'],
   grossOrdinary: number,
   grossPreferential: number,
-  standardDeduction: number,
+  deductionAmount: number,
   capitalLossLimit: number,
 ) {
   const netCapitalLoss = capitalNetLoss.shortTerm + capitalNetLoss.longTerm
-  const preLossTaxable = Math.max(0, grossOrdinary + grossPreferential - standardDeduction)
+  const preLossTaxable = Math.max(0, grossOrdinary + grossPreferential - deductionAmount)
   const deduction = Math.min(netCapitalLoss, capitalLossLimit, preLossTaxable)
   const ordinaryIncome = Math.max(0, grossOrdinary - deduction)
   const absorbedOnOrdinary = grossOrdinary - ordinaryIncome
@@ -73,7 +73,7 @@ export function computeJurisdiction(j: Jurisdiction, income: ClassifiedIncome): 
   const grossPreferential = hasLadder ? income.preferentialIncome : 0
 
   // Size the §1211(b) deduction and §1212(b) carryover (see applyCapitalLoss). The loss reduces
-  // income before the standard deduction, ordinary side first; `lossAbsorbsNextDollar` is true
+  // income before the deduction, ordinary side first; `lossAbsorbsNextDollar` is true
   // when the binding limit was taxable income (so the next dollar of income would be absorbed).
   const {
     deduction: lossDeduction,
@@ -86,15 +86,15 @@ export function computeJurisdiction(j: Jurisdiction, income: ClassifiedIncome): 
     income.capitalNetLoss,
     grossOrdinary,
     grossPreferential,
-    j.standardDeduction,
+    j.deduction,
     j.capitalLossLimit,
   )
 
   const { deductionOnOrdinary, leftoverDeduction, ordinaryTaxable, preferentialTaxable, preferentialDeduction } =
-    applyDeduction(j.standardDeduction, ordinaryIncome, preferentialIncome)
+    applyDeduction(j.deduction, ordinaryIncome, preferentialIncome)
 
   // Fraction of *gross* preferential income that ends up taxable, for per-source attribution.
-  // Two things reduce the preferential base — the standard-deduction leftover and any spill of
+  // Two things reduce the preferential base — the leftover deduction and any spill of
   // the capital-loss deduction past ordinary income — and neither has holding-period character,
   // so they shrink each source proportionally. Deriving the fraction from grossPreferential
   // (not the loss-reduced base applyDeduction saw) keeps the per-source slices summing to
@@ -118,7 +118,7 @@ export function computeJurisdiction(j: Jurisdiction, income: ClassifiedIncome): 
 
   // When the loss is income-limited (`lossAbsorbsNextDollar`, from applyCapitalLoss), the next
   // dollar of income grows the deduction and is absorbed — a genuine 0% marginal rate the
-  // standard-deduction leftover alone doesn't capture.
+  // leftover deduction alone doesn't capture.
   const nextOrdinaryDollarShielded = leftoverDeduction > 0 || lossAbsorbsNextDollar
   const nextPreferentialDollarShielded = leftoverDeduction > preferentialIncome || lossAbsorbsNextDollar
 
@@ -147,7 +147,7 @@ export function computeJurisdiction(j: Jurisdiction, income: ClassifiedIncome): 
 
   return {
     key: j.key,
-    standardDeduction: j.standardDeduction,
+    deduction: j.deduction,
     deductionOnOrdinary,
     leftoverDeduction,
     preferentialDeduction,
@@ -168,7 +168,7 @@ export function computeJurisdiction(j: Jurisdiction, income: ClassifiedIncome): 
     marginalCapitalGainsRate,
     marginalGainsBump,
     layers: {
-      // The loss deduction shields the lowest ordinary layers alongside the standard
+      // The loss deduction shields the lowest ordinary layers alongside the income
       // deduction, so per-source taxable slices still sum to ordinaryTaxable. Which
       // source is shielded is a visualizer approximation; total tax is exact.
       ordinary: ordinaryLayers(income.amounts, deductionOnOrdinary + lossAbsorbedOnOrdinary, j.ordinaryBands),

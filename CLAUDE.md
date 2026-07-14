@@ -47,7 +47,7 @@ User input → IncomeForm → App.tsx (TaxInput state)
 | `federal.ts` | Assembles federal `Jurisdiction` from a year's tables |
 | `jurisdiction.ts` | Core computation: deductions, bracket fills, per-source attribution, surcharges |
 | `engine.ts` | Band math: `fillBands`, `taxOverRange`, `marginalRateAt` |
-| `deduction.ts` | Splits standard deduction across income pools |
+| `deduction.ts` | Splits the deduction across income pools |
 | `surcharges.ts` | NIIT (3.8%) and Additional Medicare Tax (0.9%) rules |
 | `attribution.ts` | Per-source layers (tower data) + combined breakdown table |
 | `marginal.ts` | Next-dollar marginal cost by income type |
@@ -80,13 +80,14 @@ Test files live alongside source files, not in a separate `__tests__/` directory
 
 **`TaxInput` shape:**
 ```ts
-{ filingStatus, taxYear, wages, retirementIncome, interest, nonQualifiedDividends,
+{ filingStatus, taxYear, deduction, wages, retirementIncome, interest, nonQualifiedDividends,
   shortTermGains, qualifiedDividends, longTermGains }
 ```
 `shortTermGains` and `longTermGains` may be negative (losses); all other income fields are ≥ 0.
+`deduction` is `null` for the standard deduction or a number for a custom (itemized) amount.
 
 - **Filing status**: single, MFJ, MFS, HoH (drives standard deduction, bracket widths, and surcharge thresholds)
-- **Standard deduction**: varies by filing status and tax year
+- **Deduction**: take the standard deduction (varies by filing status and tax year) or enter a custom (itemized) amount
 - **Capital-gains netting**: ST/LT net against each other first; residual net loss capped at $3k/year ($1.5k MFS) per §1211(b)
 - **Preferential rates**: 0/15/20% LTCG/qualified-dividend ladder stacks on top of ordinary income
 - **Capital-gains bump**: an extra ordinary dollar can push capital gains into a higher preferential bracket, raising the effective marginal rate; computed and displayed separately
