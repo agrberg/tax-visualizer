@@ -24,6 +24,7 @@ import {
   type TaxInput,
   type TaxResult,
 } from '@/tax/types'
+import { DeductionControl } from '@/components/DeductionControl'
 
 const ORDINARY_FIELDS: IncomeSource[] = [
   'wages',
@@ -202,6 +203,18 @@ export function IncomeForm({ value, onChange, capitalGains }: IncomeFormProps) {
       </fieldset>
 
       <CapitalNettingNote capitalGains={capitalGains} />
+
+      <fieldset className="space-y-4">
+        <legend className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Deductions
+        </legend>
+        <DeductionControl
+          value={value.deduction}
+          onChange={(d) => set({ deduction: d })}
+          filingStatus={value.filingStatus}
+          taxYear={value.taxYear}
+        />
+      </fieldset>
     </div>
   )
 }

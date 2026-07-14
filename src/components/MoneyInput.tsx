@@ -21,6 +21,7 @@ export function MoneyInput({
   onChange,
   className,
   describedBy,
+  ariaLabel,
 }: {
   id: string
   value: number
@@ -28,6 +29,8 @@ export function MoneyInput({
   onChange: (n: number) => void
   className?: string
   describedBy?: string
+  /** Accessible name for callers without a visible <label htmlFor> (e.g. the deduction inputs). */
+  ariaLabel?: string
 }) {
   const [text, setText] = useState(() => (value === 0 ? '' : String(value)))
   const [lastValue, setLastValue] = useState(value)
@@ -49,6 +52,7 @@ export function MoneyInput({
       <Input
         id={id}
         aria-describedby={describedBy}
+        aria-label={ariaLabel}
         type="text"
         // Signed fields use the full-text keyboard so mobile shows a minus key; positive-only
         // fields keep the numeric pad. `type="text"` already; we sanitize input ourselves below.
