@@ -8,7 +8,9 @@ import { taxTablesFor } from './years'
 export function calculateTax(inputRaw: TaxInput): TaxResult {
   const income = classifyIncome(inputRaw)
   const tables = taxTablesFor(inputRaw.taxYear)
-  const jurisdiction = federalJurisdiction(inputRaw.filingStatus, tables)
+  // Pass the deduction straight through (null = standard); federalJurisdiction's `?? ` resolves
+  // the effective amount against the tables, so the fallback lives in one place.
+  const jurisdiction = federalJurisdiction(inputRaw.filingStatus, tables, inputRaw.deduction)
   const fed = computeJurisdiction(jurisdiction, income)
 
   const surcharges = jurisdiction.surcharges.map((rule, i) => ({ rule, result: fed.surcharges[i] }))
@@ -28,6 +30,7 @@ export function calculateTax(inputRaw: TaxInput): TaxResult {
   return {
     filingStatus: inputRaw.filingStatus,
     taxYear: tables.year,
+    deductionIsCustom: inputRaw.deduction !== null,
     totalIncome: income.totalIncome,
     ordinaryIncome: income.ordinaryIncome,
     preferentialIncome: income.preferentialIncome,

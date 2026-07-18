@@ -15,11 +15,15 @@ function preferentialLadder(filingStatus: FilingStatus, tables: TaxYearTables): 
 }
 
 /** Assemble the federal jurisdiction (data) from the given tax year's tables. */
-export function federalJurisdiction(filingStatus: FilingStatus, tables: TaxYearTables): Jurisdiction {
+export function federalJurisdiction(
+  filingStatus: FilingStatus,
+  tables: TaxYearTables,
+  deduction: number | null = null,
+): Jurisdiction {
   return {
     key: 'federal',
     ordinaryBands: bracketsToBands(tables.ordinaryBrackets[filingStatus]),
-    standardDeduction: tables.standardDeduction[filingStatus],
+    deduction: deduction ?? tables.standardDeduction[filingStatus],
     // IRC §1211(b) annual net-capital-loss deduction limit, resolved per filing status like
     // the standard deduction. Hardcoded rather than kept in the per-year tables because —
     // unlike brackets and the standard deduction — it has not changed since the Revenue Act

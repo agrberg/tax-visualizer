@@ -23,8 +23,12 @@ interface Props {
 
 export function OrdinaryTower({ result }: Props) {
   const fed = result.federal
-  const brackets = taxTablesFor(result.taxYear).ordinaryBrackets[result.filingStatus]
-  const deduction = fed.standardDeduction
+  const tables = taxTablesFor(result.taxYear)
+  const brackets = tables.ordinaryBrackets[result.filingStatus]
+  const deduction = fed.deduction
+  // Label by the actual mode, not by comparing amounts — a custom deduction that happens to
+  // equal the standard is still "Deduction", not "Std. deduction".
+  const deductionLabel = result.deductionIsCustom ? 'Deduction' : 'Std. deduction'
   const axisMax = ordinaryAxisMaxFor(result)
   // The marginal bracket holds the last taxable dollar; the one above it is pinned
   // to the top edge as the "next rate" (rather than drawn to scale far above).
@@ -117,7 +121,7 @@ export function OrdinaryTower({ result }: Props) {
         >
           {tall(usedOnOrdinary, axisMax) && (
             <span className="rounded bg-white/85 px-1.5 py-0.5 text-center text-[10px] font-medium leading-tight text-neutral-700 shadow-sm">
-              Std. deduction · 0%
+              {deductionLabel} · 0%
               <br />
               {formatCurrency(usedOnOrdinary)}
             </span>
@@ -226,7 +230,7 @@ export function OrdinaryTower({ result }: Props) {
             className="size-2.5 rounded-sm border border-dashed border-neutral-400 bg-neutral-200"
             aria-hidden
           />
-          <span>Std. deduction</span>
+          <span>{deductionLabel}</span>
           <span className="ml-auto text-muted-foreground">{formatCurrency(deduction)}</span>
         </div>
         {spilledToGains > 0 && (

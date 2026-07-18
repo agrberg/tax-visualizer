@@ -597,3 +597,43 @@ describe('capital-gains netting and net-loss deduction', () => {
     expect(sourceTaxSum).toBeCloseTo(r.totalTax, 2)
   })
 })
+
+describe('custom deduction', () => {
+  it('uses a custom deduction instead of the standard when deduction is a number', () => {
+    // Standard deduction for single 2026 is $16,100. Use $20,000 custom.
+    const standard = calculateTax(input({ wages: 100000 }))
+    const custom = calculateTax(input({ wages: 100000, deduction: 20000 }))
+    // Custom deduction is $3,900 more than standard, so taxable income is $3,900 lower.
+    expect(custom.federal.ordinaryTaxable).toBe(standard.federal.ordinaryTaxable - 3900)
+    expect(custom.federal.ordinaryTax).toBeLessThan(standard.federal.ordinaryTax)
+    // The engine's reported deduction reflects the effective (custom) value.
+    expect(custom.federal.deduction).toBe(20000)
+    expect(custom.deductionIsCustom).toBe(true)
+  })
+
+  it('uses the standard deduction when deduction is null', () => {
+    const r = calculateTax(input({ wages: 100000, deduction: null }))
+    expect(r.federal.deduction).toBe(16100) // 2026 single standard deduction
+    expect(r.federal.ordinaryTaxable).toBe(83900)
+    expect(r.deductionIsCustom).toBe(false)
+  })
+
+  it('a deduction of 0 zeroes the shield (fully custom, not treated as standard)', () => {
+    const r = calculateTax(input({ wages: 50000, deduction: 0 }))
+    expect(r.federal.deduction).toBe(0)
+    expect(r.federal.ordinaryTaxable).toBe(50000)
+    expect(r.deductionIsCustom).toBe(true) // 0 is a custom entry, not the standard
+  })
+
+  it('applies a custom deduction alongside a net capital loss', () => {
+    // The custom deduction ($25k) exceeds ordinary income ($20k), so preLossTaxable is 0 and
+    // there's nothing for the $5k long-term loss to offset this year — it all carries forward.
+    // Exercises the custom deductionAmount flowing into applyCapitalLoss, not just the standard.
+    const r = calculateTax(input({ wages: 20000, longTermGains: -5000, deduction: 25000 }))
+    expect(r.federal.deduction).toBe(25000)
+    expect(r.deductionIsCustom).toBe(true)
+    expect(r.federal.ordinaryTaxable).toBe(0)
+    expect(r.capitalGains.lossDeduction).toBe(0)
+    expect(r.capitalGains.carryover.longTerm).toBe(5000)
+  })
+})

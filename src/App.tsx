@@ -35,6 +35,7 @@ const DEFAULT_INPUT: TaxInput = {
   shortTermGains: 2000,
   qualifiedDividends: 3000,
   longTermGains: 18000,
+  deduction: null,
 }
 
 function App() {

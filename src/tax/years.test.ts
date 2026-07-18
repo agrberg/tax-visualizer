@@ -33,7 +33,7 @@ describe('2025 tables drive the calculation', () => {
   it('uses the 2025 standard deduction ($15,750 single, per OBBBA)', () => {
     // Wages exactly at the 2025 single standard deduction → no taxable income.
     const r = calculateTax(input({ wages: 15750 }))
-    expect(r.federal.standardDeduction).toBe(15750)
+    expect(r.federal.deduction).toBe(15750)
     expect(r.federal.taxableIncome).toBe(0)
     expect(r.federal.ordinaryTax).toBe(0)
   })

@@ -7,21 +7,7 @@ import { TooltipProvider } from '@/components/ui/tooltip'
 import { AVAILABLE_YEARS } from '@/tax/years'
 import { FILING_STATUS_LABELS } from '@/tax/filingStatus'
 import type { TaxInput } from '@/tax/types'
-
-function input(overrides: Partial<TaxInput> = {}): TaxInput {
-  return {
-    filingStatus: 'single',
-    taxYear: 2026,
-    wages: 0,
-    retirementIncome: 0,
-    interest: 0,
-    nonQualifiedDividends: 0,
-    shortTermGains: 0,
-    qualifiedDividends: 0,
-    longTermGains: 0,
-    ...overrides,
-  }
-}
+import { makeInput } from '@/tax/testUtils'
 
 // A no-netting capital-gains summary for the CapitalNettingNote — net equals taxable, so
 // the note stays inactive. These IncomeForm tests exercise the money fields and selects,
@@ -47,7 +33,7 @@ function Harness({
   initial?: TaxInput
   capitalGains?: CapitalGains
 }) {
-  const [value, setValue] = useState<TaxInput>(initial ?? input())
+  const [value, setValue] = useState<TaxInput>(initial ?? makeInput())
   return (
     <TooltipProvider>
       <IncomeForm
@@ -90,7 +76,7 @@ describe('IncomeForm money fields', () => {
   })
 
   it('renders a 0 value as an empty field (placeholder 0)', () => {
-    render(<Harness onChange={vi.fn()} initial={input({ wages: 0 })} />)
+    render(<Harness onChange={vi.fn()} initial={makeInput({ wages: 0 })} />)
     expect(field('wages')).toHaveValue('')
     expect(field('wages')).toHaveAttribute('placeholder', '0')
   })
@@ -118,7 +104,7 @@ describe('IncomeForm money fields', () => {
   it('clears back to 0 when emptied', async () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
-    render(<Harness onChange={onChange} initial={input({ wages: 500 })} />)
+    render(<Harness onChange={onChange} initial={makeInput({ wages: 500 })} />)
 
     await user.clear(field('wages'))
     expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ wages: 0 }))
@@ -128,7 +114,7 @@ describe('IncomeForm money fields', () => {
 
 describe('IncomeForm selects', () => {
   it('shows the current tax year and filing status in the triggers', () => {
-    render(<Harness onChange={vi.fn()} initial={input({ taxYear: 2026, filingStatus: 'mfj' })} />)
+    render(<Harness onChange={vi.fn()} initial={makeInput({ taxYear: 2026, filingStatus: 'mfj' })} />)
     expect(screen.getByText('2026')).toBeInTheDocument()
     expect(screen.getByText(FILING_STATUS_LABELS.mfj)).toBeInTheDocument()
   })
@@ -137,7 +123,7 @@ describe('IncomeForm selects', () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
     const other = AVAILABLE_YEARS.find((y) => y !== 2026) ?? AVAILABLE_YEARS[0]
-    render(<Harness onChange={onChange} initial={input({ taxYear: 2026 })} />)
+    render(<Harness onChange={onChange} initial={makeInput({ taxYear: 2026 })} />)
 
     await user.click(screen.getByRole('combobox', { name: /tax year/i }))
     await user.click(await screen.findByRole('option', { name: String(other) }))
@@ -147,7 +133,7 @@ describe('IncomeForm selects', () => {
   it('changes the filing status through the Select', async () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
-    render(<Harness onChange={onChange} initial={input({ filingStatus: 'single' })} />)
+    render(<Harness onChange={onChange} initial={makeInput({ filingStatus: 'single' })} />)
 
     await user.click(screen.getByRole('combobox', { name: /filing status/i }))
     await user.click(await screen.findByRole('option', { name: FILING_STATUS_LABELS.mfj }))

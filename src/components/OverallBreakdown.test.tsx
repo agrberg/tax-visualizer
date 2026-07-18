@@ -5,21 +5,7 @@ import { OverallBreakdown } from './OverallBreakdown'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { calculateTax } from '@/tax/calculate'
 import type { TaxInput } from '@/tax/types'
-
-function input(overrides: Partial<TaxInput> = {}): TaxInput {
-  return {
-    filingStatus: 'single',
-    taxYear: 2026,
-    wages: 0,
-    retirementIncome: 0,
-    interest: 0,
-    nonQualifiedDividends: 0,
-    shortTermGains: 0,
-    qualifiedDividends: 0,
-    longTermGains: 0,
-    ...overrides,
-  }
-}
+import { makeInput } from '@/tax/testUtils'
 
 // OverallBreakdown renders the engine's output, so drive it with a real TaxResult.
 function renderBreakdown(taxInput: TaxInput) {
@@ -35,7 +21,7 @@ const MARIMEKKO_ONLY = 'Share of income vs. share of tax'
 
 describe('OverallBreakdown', () => {
   it('shows the headline stats', () => {
-    renderBreakdown(input({ wages: 100000 }))
+    renderBreakdown(makeInput({ wages: 100000 }))
     // Some labels ("Total tax", "Take-home") also appear in the breakout tooltip / source
     // table, so assert each renders at least once rather than uniquely.
     for (const label of ['Total income', 'Total tax', 'Take-home', 'Weighted rate']) {
@@ -45,7 +31,7 @@ describe('OverallBreakdown', () => {
 
   it('toggles composition views when there is tax', async () => {
     const user = userEvent.setup()
-    renderBreakdown(input({ wages: 100000 }))
+    renderBreakdown(makeInput({ wages: 100000 }))
 
     // Paired bars is the default; the Marimekko chart is not shown yet.
     expect(screen.queryByText(MARIMEKKO_ONLY)).not.toBeInTheDocument()
@@ -62,13 +48,13 @@ describe('OverallBreakdown', () => {
   })
 
   it('hides the view toggle when there is no tax', () => {
-    renderBreakdown(input({ wages: 0 }))
+    renderBreakdown(makeInput({ wages: 0 }))
     expect(screen.queryByRole('button', { name: 'Marimekko' })).not.toBeInTheDocument()
     expect(screen.getByText('Enter income to see the breakdown.')).toBeInTheDocument()
   })
 
   it('explains a net capital loss', () => {
-    renderBreakdown(input({ wages: 100000, shortTermGains: -10000 }))
+    renderBreakdown(makeInput({ wages: 100000, shortTermGains: -10000 }))
     expect(screen.getByText(/offsets ordinary income this year/i)).toBeInTheDocument()
   })
 })

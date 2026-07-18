@@ -16,6 +16,7 @@ export function makeInput(overrides: Partial<TaxInput> = {}): TaxInput {
     shortTermGains: 0,
     qualifiedDividends: 0,
     longTermGains: 0,
+    deduction: null,
     ...overrides,
   }
 }

@@ -63,6 +63,14 @@ export const INVESTMENT_SOURCES: IncomeSource[] = [
   'longTermGains',
 ]
 
+/**
+ * Coerce a raw value to a valid custom deduction: a finite number ≥ 0, else `null` (meaning
+ * "use the standard deduction"). The single predicate behind every input boundary — storage
+ * normalization, the share-link codec, and 1040 import — so the rule lives in one place.
+ */
+export const coerceDeduction = (value: number | null | undefined): number | null =>
+  typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null
+
 export interface TaxInput {
   filingStatus: FilingStatus
   /** Tax year whose tables drive the calculation. See TaxYearTables / the years registry. */
@@ -74,6 +82,8 @@ export interface TaxInput {
   shortTermGains: number
   qualifiedDividends: number
   longTermGains: number
+  /** Deduction applied before computing tax. null = use the standard deduction from tables. */
+  deduction: number | null
 }
 
 /** A single ordinary-income bracket: [min, max) of taxable income at `rate`. */
@@ -193,7 +203,7 @@ export interface IncomeLayer {
  */
 export interface JurisdictionResult {
   key: string
-  standardDeduction: number
+  deduction: number
   deductionOnOrdinary: number
   leftoverDeduction: number
   preferentialDeduction: number
@@ -224,6 +234,8 @@ export interface JurisdictionResult {
 export interface TaxResult {
   filingStatus: FilingStatus
   taxYear: number
+  /** Whether the deduction was a user-supplied custom amount (vs. the standard deduction). */
+  deductionIsCustom: boolean
 
   // Shared inputs across jurisdictions.
   totalIncome: number

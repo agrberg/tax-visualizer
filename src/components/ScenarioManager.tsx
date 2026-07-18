@@ -102,12 +102,13 @@ export function ScenarioManager({
 
   // The typed rename, normalized; whether it's a submittable change; and whether it
   // would clobber another scenario. `renameValid` gates both the button's disabled
-  // state and the Enter key so they can't diverge. `?? ''` sidesteps indexing with a
-  // possible null (renameValid already guarantees non-null at runtime).
+  // state and the Enter key so they can't diverge.
   const renameNormalized = normalizeName(renameValue)
   const renameValid =
     dialog?.kind === 'rename' && renameNormalized !== null && renameNormalized !== dialog.oldName
-  const renameCollision = renameValid && scenarios[renameNormalized ?? ''] !== undefined
+  // Re-assert `!== null` so the compiler narrows the index access instead of a `?? ''` fallback.
+  const renameCollision =
+    renameValid && renameNormalized !== null && scenarios[renameNormalized] !== undefined
 
   const closeDialog = () => setDialog(null)
 

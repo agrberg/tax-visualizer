@@ -4,6 +4,8 @@ A frontend-only app that shows how income flows through US federal tax brackets:
 
 - Pick the **tax year** (2025 or 2026) — brackets, deductions, thresholds, and
   rates all switch to that year's figures.
+- Take the **standard deduction** for your filing status, or switch to
+  **itemized** and enter your own amount.
 - **Ordinary income** (wages, interest, non-qualified dividends, short-term gains)
   filling the 10–37% marginal brackets.
 - **Qualified dividends & long-term capital gains** stacked on top of ordinary

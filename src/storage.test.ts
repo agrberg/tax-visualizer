@@ -115,3 +115,37 @@ describe('clearStoredData', () => {
     vi.unstubAllGlobals()
   })
 })
+
+describe('normalizeInput — deduction field', () => {
+  it('passes null through unchanged (standard deduction mode)', () => {
+    const r = normalizeInput({ filingStatus: 'single', taxYear: 2026, deduction: null } as unknown as TaxInput)
+    expect(r.deduction).toBeNull()
+  })
+
+  it('normalizes a missing deduction field (old saved data) to null', () => {
+    const legacy = { filingStatus: 'single', taxYear: 2026 } as unknown as TaxInput
+    expect(normalizeInput(legacy).deduction).toBeNull()
+  })
+
+  it('passes a valid positive custom deduction through unchanged', () => {
+    const r = normalizeInput({ filingStatus: 'single', taxYear: 2026, deduction: 25000 } as unknown as TaxInput)
+    expect(r.deduction).toBe(25000)
+  })
+
+  it('treats a negative deduction as null (falls back to standard)', () => {
+    const r = normalizeInput({ filingStatus: 'single', taxYear: 2026, deduction: -500 } as unknown as TaxInput)
+    expect(r.deduction).toBeNull()
+  })
+
+  it('treats a non-finite deduction as null', () => {
+    const nan = normalizeInput({ filingStatus: 'single', taxYear: 2026, deduction: NaN } as unknown as TaxInput)
+    const inf = normalizeInput({ filingStatus: 'single', taxYear: 2026, deduction: Infinity } as unknown as TaxInput)
+    expect(nan.deduction).toBeNull()
+    expect(inf.deduction).toBeNull()
+  })
+
+  it('treats deduction of 0 as a valid custom value (explicit zero deduction)', () => {
+    const r = normalizeInput({ filingStatus: 'single', taxYear: 2026, deduction: 0 } as unknown as TaxInput)
+    expect(r.deduction).toBe(0)
+  })
+})
