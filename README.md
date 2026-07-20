@@ -17,6 +17,9 @@ A frontend-only app that shows how income flows through US federal tax brackets:
   weighted rate.
 - Save, reload, rename, and delete named **scenarios** of your inputs, persisted
   in the browser.
+- **Drag-and-drop import** of a filed Form 1040 PDF (2019–2025) to prefill income,
+  filing status, tax year, and deduction — entirely client-side, with a review step
+  before anything is applied.
 
 Estimates for education, not tax advice. Federal only. Figures depend on the
 selected year — 2026 per IRS Rev. Proc. 2025-32; 2025 per IRS Rev. Proc. 2024-40
@@ -83,6 +86,8 @@ Change it to `/` if you deploy to a custom domain or a `user.github.io` root.
   the overall breakdown, and the saved-scenarios panel.
 - `src/scenarios.ts` + `src/storage.ts` — named input **scenarios** and their
   `localStorage` persistence.
+- `src/import/` — the Form 1040 PDF import pipeline (`parse1040.ts` entry point)
+  and `src/components/ImportReturn.tsx`, the drop-zone + review-modal UI.
 
 See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the data flow and module map, with
 diagrams.
