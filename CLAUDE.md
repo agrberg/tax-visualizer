@@ -5,11 +5,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ```bash
-npm run dev          # Dev server (Vite, hot reload)
-npm run build        # Type-check (tsc -b) + production build
-npm run lint         # oxlint
-npm test             # Vitest, run once
-npm run test:watch   # Vitest, watch mode
+npm run dev            # Dev server (Vite, hot reload)
+npm run build          # Type-check (tsc -b) + production build
+npm run lint           # oxlint
+npm run format         # Prettier, write formatting fixes
+npm run format:check   # Prettier, check only (used in CI)
+npm test               # Vitest, run once
+npm run test:watch     # Vitest, watch mode
 ```
 
 Run a single test file: `npx vitest run src/tax/engine.test.ts`
