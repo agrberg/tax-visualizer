@@ -12,11 +12,16 @@ import { normalizeInput } from '../storage'
  * The deduction lands in `fields.deduction` as `null` (matched the standard deduction) or a
  * number (custom/itemized); the review UI derives its note from the current draft, not a frozen
  * flag, so editing the value in the modal never leaves a stale "standard" label.
+ *
+ * `assumed` flags a detected field whose value came from a lower-confidence path — an older-form
+ * label fallback (wages) or the 1040 capital-gain line read as long-term (no Schedule D split).
+ * The review UI renders those with a "verify" cue instead of the confident "from …" note.
  */
 export interface ParsedReturn {
   fields: Partial<TaxInput>
   provenance: Partial<Record<keyof TaxInput, string>>
   warnings: string[]
+  assumed: Partial<Record<keyof TaxInput, true>>
 }
 
 /**

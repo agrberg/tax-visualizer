@@ -169,6 +169,33 @@ describe('extract1040Fields', () => {
     expect(extract1040Fields(pensionsOnly).fields.retirementIncome).toBe(3000)
   })
 
+  it('reads IRA (4b) from its own segment when it shares a baseline with pensions (4c/4d) — 2019 layout', () => {
+    // On the 2019 form, "b Taxable amount 4b" and "d Taxable amount 4d" can land on the same
+    // physical row. 4c/4d aren't in FACE_IDS, so without them as segment boundaries too, 4b's
+    // segment used to bleed past its own amount into the pensions columns and read 4d's amount
+    // instead of 4b's — retirementIncome would then double-count pensions and drop IRA entirely.
+    const items = line(1, 460, [
+      ['4a', 40], ['IRA distributions', 70], ['4a', 200], ['5,500.', 230],
+      ['b', 260], ['Taxable amount', 280], ['4b', 400], ['5,000.', 430],
+      ['4c', 460], ['Pensions and annuities', 480], ['4c', 600], ['4,500.', 630],
+      ['d', 660], ['Taxable amount', 680], ['4d', 800], ['4,000.', 830],
+    ])
+    const { fields } = extract1040Fields(items)
+    expect(fields.retirementIncome).toBe(9000) // IRA 5,000 + pensions 4,000
+  })
+
+  it('reads the taxable pension amount, not the gross amount, when the gross/taxable sub-lines land on separate rows', () => {
+    // "c Pensions and annuities" (gross) and "d Taxable amount" (taxable) usually merge into one
+    // row, but a layout could split them — amountForLabel must follow to the taxable sub-line's
+    // own row rather than reading the gross line's rightmost amount.
+    const items = [
+      ...line(1, 420, [['4c', 40], ['Pensions and annuities', 70], ['4c', 460], ['9,000.', 500]]),
+      ...line(1, 410, [['d', 40], ['Taxable amount', 70], ['4d', 460], ['4,000.', 500]]),
+    ]
+    const { fields } = extract1040Fields(items)
+    expect(fields.retirementIncome).toBe(4000) // taxable 4,000, not gross 9,000
+  })
+
   it('warns instead of setting an unsupported detected tax year', () => {
     const items = line(1, 720, [['Form', 60], ['1040', 90], ['2024', 300]])
     const { fields, warnings } = extract1040Fields(items)
@@ -213,6 +240,31 @@ describe('extract1040Fields', () => {
     const items = line(1, 360, [['7a', 40], ['Capital gain or (loss)', 70]])
     const { fields } = extract1040Fields(items)
     expect(fields.longTermGains).toBeUndefined()
+  })
+
+  it('reads a label-anchored amount that is itself 1-2 digits, without mistaking the reprinted id for it', () => {
+    // The real form reprints the line id immediately before the amount box (see the page-12e/2025
+    // deduction fixture below). A 1-2 digit dollar amount is shaped just like a line id, so
+    // amountForLabel used to skip it as the reprint and return null instead of the real value.
+    const items = line(1, 360, [['6', 40], ['Capital gain or (loss)', 70], ['6', 460], ['7', 500]])
+    const { fields } = extract1040Fields(items)
+    expect(fields.longTermGains).toBe(7)
+  })
+
+  it('still returns no value for a blank label-anchored line whose reprinted id has no letter suffix', () => {
+    // '6' (2019's capital-gain id) is fully digit-shaped, just like a small dollar amount — make
+    // sure reading small amounts correctly (above) doesn't turn a blank line's reprint into one.
+    const items = line(1, 360, [['6', 40], ['Capital gain or (loss)', 70], ['6', 460]])
+    const { fields } = extract1040Fields(items)
+    expect(fields.longTermGains).toBeUndefined()
+  })
+
+  it('reads a 1-2 digit label-anchored amount even when the id is not reprinted before it', () => {
+    // Only the leading id, no reprint next to the amount box — the small value's only neighbor
+    // is the label text, not another id-shaped token.
+    const items = line(1, 360, [['6', 40], ['Capital gain or (loss)', 70], ['7', 500]])
+    const { fields } = extract1040Fields(items)
+    expect(fields.longTermGains).toBe(7)
   })
 
   it('warns and detects nothing on an empty/unreadable dump', () => {
@@ -308,10 +360,99 @@ describe('extract1040Fields — line 12 deduction', () => {
     // year/status there's no standard to compare against, so the value is imported as custom.
     const items = [
       ...line(1, 600, [['1z', 40], ['Add lines 1a through 1h', 70], ['80,000', 520]]),
-      ...line(1, 300, [['12', 40], ['Standard deduction', 70], ['15,750', 520]]),
+      ...line(1, 300, [['12', 40], ['Standard deduction or itemized deductions', 70], ['15,750', 520]]),
     ]
     const { fields, provenance } = extract1040Fields(items)
     expect(fields.deduction).toBe(15750)
     expect(provenance.deduction).toBe('1040 line 12')
+  })
+
+  it('leaves the deduction undetected on a blank line whose id is preceded by a merged heading', () => {
+    // The left-margin "Standard Deduction for—" heading can merge onto the same row as the
+    // deduction line, landing left of its id — so the id isn't the row's leading token. On a
+    // blank line, the reprinted id ('9', 2019's fully-digit-shaped deduction id) must still be
+    // skipped rather than read as a bogus $9 deduction.
+    const items = line(1, 300, [
+      ['Standard Deduction for—', 20], ['9', 40],
+      ['Standard deduction or itemized deductions', 70], ['9', 460],
+    ])
+    const { fields } = extract1040Fields(items)
+    expect(fields.deduction).toBeUndefined()
+  })
+})
+
+describe('extract1040Fields — multi-year layouts (label-anchored)', () => {
+  // Faithful-enough page-1 (+ page-2 for 2025) layouts capturing the real line-id/page drift
+  // across the supported window. No Schedule D attached, so capital gain comes from the 1040
+  // line via label (assumed long-term). Each row carries its era's real line id AND the stable
+  // printed label the parser anchors on.
+  interface YearLayout {
+    year: number
+    wagesId: string // '1' (2019–2021) or '1z' (2022+)
+    pensionsId: string // '4d' (2019) or '5b' (2020+)
+    ssId: string // '5b' (2019) or '6b' (2020+) — must NOT be read as pensions
+    capGainId: string // '6' (2019), '7' (2020–2024), '7a' (2025)
+    deductionId: string // '9' (2019), '12' (2020/2022–2024), '12a' (2021), '12e' (2025)
+    deductionPage: number // 1, or 2 for the 2025 redesign
+  }
+
+  const YEARS: YearLayout[] = [
+    { year: 2019, wagesId: '1', pensionsId: '4d', ssId: '5b', capGainId: '6', deductionId: '9', deductionPage: 1 },
+    { year: 2020, wagesId: '1', pensionsId: '5b', ssId: '6b', capGainId: '7', deductionId: '12', deductionPage: 1 },
+    { year: 2021, wagesId: '1', pensionsId: '5b', ssId: '6b', capGainId: '7', deductionId: '12a', deductionPage: 1 },
+    { year: 2022, wagesId: '1z', pensionsId: '5b', ssId: '6b', capGainId: '7', deductionId: '12', deductionPage: 1 },
+    // 2023 is identical to 2022, so no separate test case.
+    { year: 2024, wagesId: '1z', pensionsId: '5b', ssId: '6b', capGainId: '7', deductionId: '12', deductionPage: 1 },
+    { year: 2025, wagesId: '1z', pensionsId: '5b', ssId: '6b', capGainId: '7a', deductionId: '12e', deductionPage: 2 },
+  ]
+
+  function buildForm(l: YearLayout): TextItem[] {
+    const dedAmount = l.year === 2025 ? '15,750' : '13,850' // 2025 single standard = matches
+    const wagesLabel = l.wagesId === '1z' ? 'Add lines 1a through 1h' : 'Wages, salaries, tips, etc.'
+    return [
+      ...line(1, 760, [['Form', 40], ['1040', 70], ['U.S. Individual Income Tax Return', 120], [String(l.year), 400]]),
+      ...line(1, 700, [['Filing Status', 20], ['X', 60], ['Single', 90]]),
+      ...line(1, 600, [[l.wagesId, 40], [wagesLabel, 70], ['70,000', 520]]),
+      ...line(1, 560, [['2b', 40], ['Taxable interest', 70], ['1,000', 520]]),
+      ...line(1, 520, [['3a', 40], ['Qualified dividends', 70], ['2,000', 520]]),
+      ...line(1, 500, [['3b', 40], ['Ordinary dividends', 70], ['3,000', 520]]),
+      ...line(1, 460, [['4b', 40], ['IRA distributions', 70], ['5,000', 520]]),
+      ...line(1, 420, [[l.pensionsId, 40], ['Pensions and annuities', 70], ['4,000', 520]]),
+      // Social Security taxable — its cell must not be misread as pensions (the 2019 5b trap).
+      ...line(1, 400, [[l.ssId, 40], ['Social security benefits', 70], ['9,999', 520]]),
+      ...line(1, 360, [[l.capGainId, 40], ['Capital gain or (loss)', 70], ['8,000', 520]]),
+      ...line(l.deductionPage, l.deductionPage === 2 ? 700 : 300, [
+        [l.deductionId, 40],
+        ['Standard deduction or itemized deductions (from Schedule A)', 70],
+        [dedAmount, 520],
+      ]),
+    ]
+  }
+
+  for (const l of YEARS) {
+    it(`reads the ${l.year} layout (wages ${l.wagesId}, pensions ${l.pensionsId}, cap-gain ${l.capGainId}, deduction ${l.deductionId})`, () => {
+      const { fields, assumed } = extract1040Fields(buildForm(l))
+      expect(fields.wages).toBe(70000)
+      expect(fields.interest).toBe(1000)
+      expect(fields.qualifiedDividends).toBe(2000)
+      expect(fields.nonQualifiedDividends).toBe(1000) // 3b 3,000 − 3a 2,000
+      // IRA 5,000 + pensions 4,000 — NOT the 9,999 Social Security line (2019 read 5b as pensions)
+      expect(fields.retirementIncome).toBe(9000)
+      // 1040 capital-gain line, assumed long-term (no Schedule D to split)
+      expect(fields.longTermGains).toBe(8000)
+      expect(fields.shortTermGains).toBeUndefined()
+      expect(assumed?.longTermGains).toBe(true)
+      // Wages via the older single-line-1 label is a lower-confidence read; 1z is confident.
+      expect(assumed?.wages).toBe(l.wagesId === '1z' ? undefined : true)
+      // 2025's 15,750 matches the single standard (tables exist) → standard mode (null);
+      // pre-2025 years have no tables here, so the value imports as a custom deduction.
+      expect(fields.deduction).toBe(l.year === 2025 ? null : 13850)
+    })
+  }
+
+  it('flags a form older than the supported window for full verification', () => {
+    const l: YearLayout = { year: 2017, wagesId: '1', pensionsId: '4d', ssId: '5b', capGainId: '6', deductionId: '9', deductionPage: 1 }
+    const { warnings } = extract1040Fields(buildForm(l))
+    expect(warnings.some((w) => w.includes('2017') && /older/i.test(w))).toBe(true)
   })
 })

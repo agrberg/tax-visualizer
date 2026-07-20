@@ -33,6 +33,7 @@ interface Review {
   // `.has(...)` with known TaxInput keys, so widening avoids an unsound `keyof TaxInput` cast
   // over `Object.keys` (which is typed `string[]`).
   detected: Set<string>
+  assumed: ParsedReturn['assumed']
   warnings: string[]
 }
 
@@ -83,6 +84,7 @@ export function ImportReturn({ current, onApply }: ImportReturnProps) {
         draft: mergeParsedInput(zeroedBase, result.fields),
         provenance: result.provenance,
         detected,
+        assumed: result.assumed,
         warnings: result.warnings,
       })
     } catch (err) {
@@ -300,6 +302,7 @@ export function ImportReturn({ current, onApply }: ImportReturnProps) {
                   value={review.draft[source]}
                   detected={detected}
                   provenance={detected ? review.provenance[source] : undefined}
+                  assumed={review.assumed[source]}
                   onChange={(n) => setField({ [source]: n })}
                 />
               )
@@ -316,12 +319,14 @@ function ReviewMoneyField({
   value,
   detected,
   provenance,
+  assumed,
   onChange,
 }: {
   source: IncomeSource
   value: number
   detected: boolean
   provenance: string | undefined
+  assumed?: boolean
   onChange: (n: number) => void
 }) {
   return (
@@ -341,6 +346,7 @@ function ReviewMoneyField({
       <DetectedNote
         detected={detected}
         provenance={provenance}
+        assumed={assumed}
         fallback="Not found on your return — enter if it applies"
       />
     </div>
@@ -348,20 +354,29 @@ function ReviewMoneyField({
 }
 
 /**
- * The provenance line under a reviewed field: a green "from <source>" when the value was
- * detected (nothing if detected but the source is unknown), or a muted fallback when it wasn't.
+ * The provenance line under a reviewed field: a green "from <source>" when confidently detected,
+ * an amber "assumed … — verify" when the value came from a lower-confidence path (older-form
+ * fallback, or 1040 capital gain read as long-term), nothing if detected but the source is
+ * unknown, or a muted fallback when it wasn't detected at all.
  */
 function DetectedNote({
   detected,
   provenance,
   fallback,
+  assumed,
 }: {
   detected: boolean
   provenance: string | undefined
   fallback: string
+  assumed?: boolean
 }) {
   if (detected) {
-    return provenance ? <p className="text-xs text-emerald-700">from {provenance}</p> : null
+    if (!provenance) return null
+    return assumed ? (
+      <p className="text-xs text-amber-700">assumed from {provenance} — verify</p>
+    ) : (
+      <p className="text-xs text-emerald-700">from {provenance}</p>
+    )
   }
   return <p className="text-xs text-muted-foreground/70">{fallback}</p>
 }

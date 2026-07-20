@@ -11,7 +11,7 @@ import { parse1040 } from '@/import/parse1040'
 const mockParse = vi.mocked(parse1040)
 
 function parsed(overrides: Partial<ParsedReturn> = {}): ParsedReturn {
-  return { fields: {}, provenance: {}, warnings: [], ...overrides }
+  return { fields: {}, provenance: {}, warnings: [], assumed: {}, ...overrides }
 }
 
 function fileInput(): HTMLInputElement {
@@ -220,5 +220,24 @@ describe('ImportReturn deduction review', () => {
 
     expect(screen.getByText('from 1040 line 12 — using the standard deduction')).toBeInTheDocument()
     expect(screen.queryByText(/\(itemized\)/)).not.toBeInTheDocument()
+  })
+})
+
+describe('ImportReturn confidence', () => {
+  it('shows an assumed field with a verify cue rather than the confident "from" note', async () => {
+    mockParse.mockResolvedValueOnce(
+      parsed({
+        fields: { longTermGains: 8000 },
+        provenance: { longTermGains: '1040 line 7a (assumed long-term)' },
+        assumed: { longTermGains: true },
+      }),
+    )
+    render(<ImportReturn current={makeInput()} onApply={vi.fn()} />)
+    upload(pdf())
+
+    await screen.findByText('Review imported values')
+    expect(screen.getByText(/assumed from 1040 line 7a.*verify/)).toBeInTheDocument()
+    // The confident green wording is not used for an assumed value.
+    expect(screen.queryByText('from 1040 line 7a (assumed long-term)')).not.toBeInTheDocument()
   })
 })
