@@ -99,6 +99,28 @@ accurately — and update them if not — when you: add a new file/module under 
 what an existing module is responsible for, or add/remove a user-facing feature. Routine logic
 changes, bug fixes, and refactors that don't change a module's shape don't need this check.
 
+## Readability conventions
+
+Naming and cleanup preferences applied across this codebase:
+
+- **Names carry the meaning** so a clarifying comment isn't needed. Non-trivial locals and every
+  function/constant get a descriptive, accurate name (`amountForId` not `amountForLine`,
+  `setFieldAndSource` not `setMoney`, `itemIndex`/`checkToken` not `idx`/`tok`). A name reused with
+  different meanings gets a distinct one each time.
+- **But don't over-rename.** Single-letter `i`/`c`/`t` are fine in short inline callbacks that just
+  grab `.text` (± trim); match the file's existing style. Keep diffs minimal — don't churn what
+  already reads fine.
+- **Regexes become named module constants** with a `https://regexper.com/#…` link where first
+  introduced; dedupe a pattern used more than once.
+- **Remove dead, duplicate, or needlessly-coupled code**: redundant operations, duplicate types
+  (alias instead), and back-compat re-export shims (import from the owner module — that's the point
+  of splitting a file).
+- **Efficiency with judgment**: compute once, order predicate checks cheapest-first, don't reassign
+  parameters (`const t = text.trim()`); but don't micro-optimize non-issues.
+- **Formatting is Prettier's job.** Run `npx prettier --write` on every touched file, Markdown
+  included (GFM tables and their `---` separators reflow to the widest cell, so a one-cell edit
+  ripples the whole column). `arrowParens: "always"` is enforced — keep `(i) =>`.
+
 ## Testing conventions
 
 Two Vitest environments (configured in `vite.config.ts`):
