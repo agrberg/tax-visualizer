@@ -1,6 +1,6 @@
-import type { ParsedReturn } from './parsedReturn'
-import { extract1040Fields } from './extract1040'
-import { ilog } from './importLog'
+import type { ParsedReturn } from './parsedReturn';
+import { extract1040Fields } from './extract1040';
+import { ilog } from './importLog';
 
 /**
  * Read income values out of a Form 1040 PDF, entirely in the browser.
@@ -12,8 +12,8 @@ import { ilog } from './importLog'
  * so we can tune the mapping against real returns.
  */
 export async function parse1040(file: File): Promise<ParsedReturn> {
-  ilog('parsing', file.name)
-  const { extractTextItems } = await import('./pdfText')
-  const items = await extractTextItems(file)
-  return extract1040Fields(items)
+  ilog('parsing', file.name);
+  const { extractTextItems } = await import('./pdfText');
+  const items = await extractTextItems(file);
+  return extract1040Fields(items);
 }

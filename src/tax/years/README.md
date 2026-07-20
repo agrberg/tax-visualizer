@@ -21,18 +21,19 @@ ships verified numbers only.
 
 ## Where each field comes from
 
-| Field | Source |
-|---|---|
-| `ordinaryBrackets` (min/max) | that year's IRS Revenue Procedure (rate schedule) |
-| `standardDeduction` | same Revenue Procedure — but watch for legislation: OBBBA (P.L. 119-21) overrode 2025's published amounts |
-| `capitalGains.breakpoints` | same Revenue Procedure (maximum-capital-gains-rate amounts) |
-| `socialSecurity.wageBase` | SSA Contribution and Benefit Base |
-| all `rate` fields, `niit.threshold`, `additionalMedicare.threshold` | **statutory** — carry forward unchanged, but re-confirm no new law moved them for this year |
+| Field                                                               | Source                                                                                                    |
+| ------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `ordinaryBrackets` (min/max)                                        | that year's IRS Revenue Procedure (rate schedule)                                                         |
+| `standardDeduction`                                                 | same Revenue Procedure — but watch for legislation: OBBBA (P.L. 119-21) overrode 2025's published amounts |
+| `capitalGains.breakpoints`                                          | same Revenue Procedure (maximum-capital-gains-rate amounts)                                               |
+| `socialSecurity.wageBase`                                           | SSA Contribution and Benefit Base                                                                         |
+| all `rate` fields, `niit.threshold`, `additionalMedicare.threshold` | **statutory** — carry forward unchanged, but re-confirm no new law moved them for this year               |
 
 Notes:
+
 - `mfs` ordinary brackets mirror `single` except the **top** bracket, which starts at half of
   the `mfj` threshold. `mfs` cap-gains breakpoints are the IRS's published `mfs` figures —
-  only *approximately* half of `mfj` (e.g. 2025's 15% ceiling is $300,000, not $600,050 / 2).
+  only _approximately_ half of `mfj` (e.g. 2025's 15% ceiling is $300,000, not $600,050 / 2).
 - The `rate` fields (ordinary 10–37%, cap-gains 0/15/20%, SS 6.2%, Medicare 1.45%, Additional
   Medicare 0.9%, NIIT 3.8%) and the statutory NIIT / Additional-Medicare thresholds
   ($200k single·hoh / $250k mfj / $125k mfs) haven't changed in years — the template below

@@ -1,7 +1,7 @@
-import { useState } from 'react'
-import { Input } from '@/components/ui/input'
-import { cn } from '@/lib/utils'
-import { parseAmountText, sanitizeAmountText } from './amountText'
+import { useState } from 'react';
+import { Input } from '@/components/ui/input';
+import { cn } from '@/lib/utils';
+import { parseAmountText, sanitizeAmountText } from './amountText';
 
 /**
  * A `$`-prefixed whole-dollar input shared by the income form and the import review.
@@ -23,25 +23,25 @@ export function MoneyInput({
   describedBy,
   ariaLabel,
 }: {
-  id: string
-  value: number
-  allowNegative: boolean
-  onChange: (n: number) => void
-  className?: string
-  describedBy?: string
+  id: string;
+  value: number;
+  allowNegative: boolean;
+  onChange: (n: number) => void;
+  className?: string;
+  describedBy?: string;
   /** Accessible name for callers without a visible <label htmlFor> (e.g. the deduction inputs). */
-  ariaLabel?: string
+  ariaLabel?: string;
 }) {
-  const [text, setText] = useState(() => (value === 0 ? '' : String(value)))
-  const [lastValue, setLastValue] = useState(value)
+  const [text, setText] = useState(() => (value === 0 ? '' : String(value)));
+  const [lastValue, setLastValue] = useState(value);
 
   // Fold an external `value` change into the buffer during render rather than in an Effect —
   // an Effect would commit one stale frame with the old text first. Resync only when the
   // external value diverges from what's typed, so a transient "-" (which parses to 0) isn't
   // wiped while the value legitimately stays 0.
   if (value !== lastValue) {
-    setLastValue(value)
-    if (parseAmountText(text) !== value) setText(value === 0 ? '' : String(value))
+    setLastValue(value);
+    if (parseAmountText(text) !== value) setText(value === 0 ? '' : String(value));
   }
 
   return (
@@ -61,16 +61,16 @@ export function MoneyInput({
         value={text}
         placeholder="0"
         onChange={(e) => {
-          const cleaned = sanitizeAmountText(e.target.value, allowNegative)
-          setText(cleaned)
-          onChange(parseAmountText(cleaned))
+          const cleaned = sanitizeAmountText(e.target.value, allowNegative);
+          setText(cleaned);
+          onChange(parseAmountText(cleaned));
         }}
         onBlur={() => {
           // A lone "-" parses to 0; clear it on blur so the field doesn't display a minus
           // that the stored value (and share links) don't reflect.
-          if (text === '-') setText('')
+          if (text === '-') setText('');
         }}
       />
     </div>
-  )
+  );
 }

@@ -1,5 +1,5 @@
-import type { TaxInput } from '../tax/types'
-import { normalizeInput } from '../storage'
+import type { TaxInput } from '../tax/types';
+import { normalizeInput } from '../storage';
 
 /**
  * The result of reading a filed return. `fields` holds whatever income values,
@@ -18,10 +18,10 @@ import { normalizeInput } from '../storage'
  * The review UI renders those with a "verify" cue instead of the confident "from …" note.
  */
 export interface ParsedReturn {
-  fields: Partial<TaxInput>
-  provenance: Partial<Record<keyof TaxInput, string>>
-  warnings: string[]
-  assumed: Partial<Record<keyof TaxInput, true>>
+  fields: Partial<TaxInput>;
+  provenance: Partial<Record<keyof TaxInput, string>>;
+  warnings: string[];
+  assumed: Partial<Record<keyof TaxInput, true>>;
 }
 
 /**
@@ -37,5 +37,5 @@ export interface ParsedReturn {
  * keep their current values.
  */
 export function mergeParsedInput(current: TaxInput, fields: Partial<TaxInput>): TaxInput {
-  return normalizeInput({ ...current, ...fields })
+  return normalizeInput({ ...current, ...fields });
 }

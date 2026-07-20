@@ -1,4 +1,4 @@
-import { createContext, useContext } from 'react'
+import { createContext, useContext } from 'react';
 
 /**
  * The dialog element to portal overlays (Select, Tooltip) into. `showModal()` puts the
@@ -9,8 +9,8 @@ import { createContext, useContext } from 'react'
  * Lives in its own module (not modal.tsx) so that file exports only the `Modal` component —
  * keeps React Fast Refresh's single-concern boundary intact (react/only-export-components).
  */
-export const ModalContainerContext = createContext<HTMLDialogElement | null>(null)
+export const ModalContainerContext = createContext<HTMLDialogElement | null>(null);
 
 export function useModalContainer() {
-  return useContext(ModalContainerContext)
+  return useContext(ModalContainerContext);
 }

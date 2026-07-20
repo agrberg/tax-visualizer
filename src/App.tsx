@@ -1,21 +1,21 @@
-import { useEffect, useMemo, useState } from 'react'
-import { IncomeForm } from '@/components/IncomeForm'
-import { ImportReturn } from '@/components/ImportReturn'
-import { ScenarioManager } from '@/components/ScenarioManager'
-import { ShareLinkButton } from '@/components/ShareLinkButton'
-import { OrdinaryTower } from '@/components/OrdinaryTower'
-import { CapitalGainsTower } from '@/components/CapitalGainsTower'
-import { OverallBreakdown } from '@/components/OverallBreakdown'
-import { MarginalNextDollar } from '@/components/MarginalNextDollar'
-import { SurchargeIndicators } from '@/components/SurchargeIndicators'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { TooltipProvider } from '@/components/ui/tooltip'
-import { calculateTax } from '@/tax/calculate'
-import { DEFAULT_TAX_YEAR, taxTablesFor } from '@/tax/years'
-import { axisMaxFor } from '@/components/tower'
-import { loadInput, saveInput } from '@/storage'
-import { parseShareHash } from '@/shareLink'
-import type { TaxInput } from '@/tax/types'
+import { useEffect, useMemo, useState } from 'react';
+import { IncomeForm } from '@/components/IncomeForm';
+import { ImportReturn } from '@/components/ImportReturn';
+import { ScenarioManager } from '@/components/ScenarioManager';
+import { ShareLinkButton } from '@/components/ShareLinkButton';
+import { OrdinaryTower } from '@/components/OrdinaryTower';
+import { CapitalGainsTower } from '@/components/CapitalGainsTower';
+import { OverallBreakdown } from '@/components/OverallBreakdown';
+import { MarginalNextDollar } from '@/components/MarginalNextDollar';
+import { SurchargeIndicators } from '@/components/SurchargeIndicators';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { TooltipProvider } from '@/components/ui/tooltip';
+import { calculateTax } from '@/tax/calculate';
+import { DEFAULT_TAX_YEAR, taxTablesFor } from '@/tax/years';
+import { axisMaxFor } from '@/components/tower';
+import { loadInput, saveInput } from '@/storage';
+import { parseShareHash } from '@/shareLink';
+import type { TaxInput } from '@/tax/types';
 
 // A deliberately-tuned example so a first-time visitor lands on the tool's most
 // instructive state. With the 2026 single-filer tables, ordinary taxable income
@@ -36,30 +36,30 @@ const DEFAULT_INPUT: TaxInput = {
   qualifiedDividends: 3000,
   longTermGains: 18000,
   deduction: null,
-}
+};
 
 function App() {
   // A shared link (#v=1&filing=…) wins over any locally-saved input on first load.
   const [input, setInput] = useState<TaxInput>(
     () => parseShareHash(window.location.hash) ?? loadInput() ?? DEFAULT_INPUT,
-  )
+  );
   // The loaded scenario's name — set by ScenarioManager on load/save, cleared here on import.
-  const [selectedName, setSelectedName] = useState<string | null>(null)
+  const [selectedName, setSelectedName] = useState<string | null>(null);
 
   // Consume the shared-link hash once applied, so a reload/edit reverts to normal
   // localStorage behavior and the address bar isn't stuck on the shared state.
   useEffect(() => {
     if (parseShareHash(window.location.hash)) {
-      history.replaceState(null, '', window.location.pathname + window.location.search)
+      history.replaceState(null, '', window.location.pathname + window.location.search);
     }
-  }, [])
+  }, []);
 
   useEffect(() => {
-    saveInput(input)
-  }, [input])
+    saveInput(input);
+  }, [input]);
 
-  const result = useMemo(() => calculateTax(input), [input])
-  const axisMax = useMemo(() => axisMaxFor(result), [result])
+  const result = useMemo(() => calculateTax(input), [input]);
+  const axisMax = useMemo(() => axisMaxFor(result), [result]);
 
   return (
     <TooltipProvider delayDuration={200}>
@@ -82,8 +82,8 @@ function App() {
               <ImportReturn
                 current={input}
                 onApply={(next) => {
-                  setInput(next)
-                  setSelectedName(null)
+                  setInput(next);
+                  setSelectedName(null);
                 }}
               />
               <div className="mt-6 border-t pt-4">
@@ -156,7 +156,7 @@ function App() {
         </footer>
       </div>
     </TooltipProvider>
-  )
+  );
 }
 
-export default App
+export default App;

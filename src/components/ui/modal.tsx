@@ -1,18 +1,18 @@
-import { useEffect, useState } from 'react'
-import { cn } from '@/lib/utils'
-import { ModalContainerContext } from '@/components/ui/modal-context'
+import { useEffect, useState } from 'react';
+import { cn } from '@/lib/utils';
+import { ModalContainerContext } from '@/components/ui/modal-context';
 
 interface ModalProps {
-  open: boolean
-  onClose: () => void
+  open: boolean;
+  onClose: () => void;
   /** id of the element labelling the dialog, for aria-labelledby. */
-  labelledBy?: string
-  className?: string
+  labelledBy?: string;
+  className?: string;
   /** Fixed (non-scrolling) region pinned to the top — e.g. a title + close button. */
-  header?: React.ReactNode
+  header?: React.ReactNode;
   /** Fixed (non-scrolling) region pinned to the bottom — e.g. an action row. */
-  footer?: React.ReactNode
-  children: React.ReactNode
+  footer?: React.ReactNode;
+  children: React.ReactNode;
 }
 
 /**
@@ -27,23 +27,23 @@ interface ModalProps {
 export function Modal({ open, onClose, labelledBy, className, header, footer, children }: ModalProps) {
   // A callback ref (state) rather than useRef so the container context updates once the
   // dialog mounts, giving portaled overlays a target to render into.
-  const [dialog, setDialog] = useState<HTMLDialogElement | null>(null)
+  const [dialog, setDialog] = useState<HTMLDialogElement | null>(null);
 
   useEffect(() => {
-    if (!dialog) return
-    if (open && !dialog.open) dialog.showModal()
-    else if (!open && dialog.open) dialog.close()
-  }, [open, dialog])
+    if (!dialog) return;
+    if (open && !dialog.open) dialog.showModal();
+    else if (!open && dialog.open) dialog.close();
+  }, [open, dialog]);
 
   // Lock background scroll while the modal is open.
   useEffect(() => {
-    if (!open) return
-    const previous = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
+    if (!open) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
     return () => {
-      document.body.style.overflow = previous
-    }
-  }, [open])
+      document.body.style.overflow = previous;
+    };
+  }, [open]);
 
   return (
     <dialog
@@ -64,17 +64,11 @@ export function Modal({ open, onClose, labelledBy, className, header, footer, ch
     >
       <ModalContainerContext.Provider value={dialog}>
         {header && <div className="shrink-0 border-b px-6 py-4">{header}</div>}
-        <div
-          className={cn(
-            'min-h-0 overflow-y-auto px-6',
-            header ? 'pt-4' : 'pt-6',
-            footer ? 'pb-4' : 'pb-6',
-          )}
-        >
+        <div className={cn('min-h-0 overflow-y-auto px-6', header ? 'pt-4' : 'pt-6', footer ? 'pb-4' : 'pb-6')}>
           {children}
         </div>
         {footer && <div className="shrink-0 border-t px-6 py-4">{footer}</div>}
       </ModalContainerContext.Provider>
     </dialog>
-  )
+  );
 }

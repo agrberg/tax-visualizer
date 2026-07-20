@@ -29,6 +29,7 @@ Node 24 required (pinned in `.tool-versions`).
 **`src/` + `src/components/`** — React UI. Holds input state in `App.tsx`, calls `calculateTax()`, renders visualizations.
 
 Data flow:
+
 ```
 User input → IncomeForm → App.tsx (TaxInput state)
                               ↓
@@ -41,22 +42,22 @@ User input → IncomeForm → App.tsx (TaxInput state)
 
 ### Tax engine modules (`src/tax/`)
 
-| File | Role |
-|---|---|
-| `types.ts` | `TaxInput`, `TaxResult`, `JurisdictionResult` — the public contract |
-| `calculate.ts` | Orchestrator entry point |
-| `income.ts` | Capital-gains netting (`nettedCapitalGains`); classify ordinary vs preferential pools |
-| `federal.ts` | Assembles federal `Jurisdiction` from a year's tables |
-| `jurisdiction.ts` | Core computation: deductions, bracket fills, per-source attribution, surcharges |
-| `engine.ts` | Band math: `fillBands`, `taxOverRange`, `marginalRateAt` |
-| `deduction.ts` | Splits the deduction across income pools |
-| `surcharges.ts` | NIIT (3.8%) and Additional Medicare Tax (0.9%) rules |
-| `attribution.ts` | Per-source layers (tower data) + combined breakdown table |
-| `marginal.ts` | Next-dollar marginal cost by income type |
-| `years/2025.ts`, `years/2026.ts` | Per-year tax tables (brackets, deductions, rates) |
-| `years/index.ts` | Year registry: `AVAILABLE_YEARS`, `DEFAULT_TAX_YEAR`, `taxTablesFor()` |
-| `filingStatus.ts` | Filing status labels and validity guard |
-| `format.ts` | Currency/percent formatting + composition segments |
+| File                             | Role                                                                                  |
+| -------------------------------- | ------------------------------------------------------------------------------------- |
+| `types.ts`                       | `TaxInput`, `TaxResult`, `JurisdictionResult` — the public contract                   |
+| `calculate.ts`                   | Orchestrator entry point                                                              |
+| `income.ts`                      | Capital-gains netting (`nettedCapitalGains`); classify ordinary vs preferential pools |
+| `federal.ts`                     | Assembles federal `Jurisdiction` from a year's tables                                 |
+| `jurisdiction.ts`                | Core computation: deductions, bracket fills, per-source attribution, surcharges       |
+| `engine.ts`                      | Band math: `fillBands`, `taxOverRange`, `marginalRateAt`                              |
+| `deduction.ts`                   | Splits the deduction across income pools                                              |
+| `surcharges.ts`                  | NIIT (3.8%) and Additional Medicare Tax (0.9%) rules                                  |
+| `attribution.ts`                 | Per-source layers (tower data) + combined breakdown table                             |
+| `marginal.ts`                    | Next-dollar marginal cost by income type                                              |
+| `years/2025.ts`, `years/2026.ts` | Per-year tax tables (brackets, deductions, rates)                                     |
+| `years/index.ts`                 | Year registry: `AVAILABLE_YEARS`, `DEFAULT_TAX_YEAR`, `taxTablesFor()`                |
+| `filingStatus.ts`                | Filing status labels and validity guard                                               |
+| `format.ts`                      | Currency/percent formatting + composition segments                                    |
 
 Adding a new tax year: see `src/tax/years/README.md` for the step-by-step guide and source citation conventions.
 
@@ -83,6 +84,7 @@ changes, bug fixes, and refactors that don't change a module's shape don't need 
 ## Testing conventions
 
 Two Vitest environments (configured in `vite.config.ts`):
+
 - **Node** (`*.test.ts`) — for pure tax-logic tests; fast, no DOM
 - **jsdom** (`*.test.tsx`) — for component tests; setup file at `src/test/setup.ts`
 
@@ -91,10 +93,12 @@ Test files live alongside source files, not in a separate `__tests__/` directory
 ## Implemented features
 
 **`TaxInput` shape:**
-```ts
+
+```
 { filingStatus, taxYear, deduction, wages, retirementIncome, interest, nonQualifiedDividends,
   shortTermGains, qualifiedDividends, longTermGains }
 ```
+
 `shortTermGains` and `longTermGains` may be negative (losses); all other income fields are ≥ 0.
 `deduction` is `null` for the standard deduction or a number for a custom (itemized) amount.
 

@@ -4,11 +4,11 @@
 // to on only for the local dev server and off in production builds; silence it
 // further (e.g. in tests) with setImportLogging(false).
 
-let enabled = import.meta.env.DEV
-let step = ''
+let enabled = import.meta.env.DEV;
+let step = '';
 
 export function setImportLogging(on: boolean): void {
-  enabled = on
+  enabled = on;
 }
 
 /**
@@ -17,9 +17,9 @@ export function setImportLogging(on: boolean): void {
  * stream. Pass '' to clear.
  */
 export function setImportStep(name: string): void {
-  step = name
+  step = name;
 }
 
 export function ilog(...args: unknown[]): void {
-  if (enabled) console.log(step ? `[1040 import:${step}]` : '[1040 import]', ...args)
+  if (enabled) console.log(step ? `[1040 import:${step}]` : '[1040 import]', ...args);
 }

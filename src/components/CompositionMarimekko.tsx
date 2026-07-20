@@ -1,11 +1,11 @@
-import { useState } from 'react'
-import { blendBackground, compositionSegments, formatPercent } from '@/tax/format'
-import type { TaxResult } from '@/tax/types'
-import { CompositionTooltip, HoverTooltip } from './TowerParts'
-import { useTooltip } from './use-tooltip'
+import { useState } from 'react';
+import { blendBackground, compositionSegments, formatPercent } from '@/tax/format';
+import type { TaxResult } from '@/tax/types';
+import { CompositionTooltip, HoverTooltip } from './TowerParts';
+import { useTooltip } from './use-tooltip';
 
 interface Props {
-  result: TaxResult
+  result: TaxResult;
 }
 
 /**
@@ -20,35 +20,35 @@ interface Props {
  * ratio clips at the top edge and shows its true value with an ↑.
  */
 export function CompositionMarimekko({ result }: Props) {
-  const tip = useTooltip()
-  const [hovered, setHovered] = useState<string | null>(null)
+  const tip = useTooltip();
+  const [hovered, setHovered] = useState<string | null>(null);
 
-  const totalIncome = result.totalIncome
-  const totalTax = result.totalTax
-  if (totalIncome <= 0 || totalTax <= 0) return null
+  const totalIncome = result.totalIncome;
+  const totalTax = result.totalTax;
+  if (totalIncome <= 0 || totalTax <= 0) return null;
 
   const placed = compositionSegments(result).map((s) => {
-    const incomeShare = s.amount / totalIncome
-    const taxShare = s.tax / totalTax
-    return { ...s, incomeShare, taxShare, ratio: incomeShare > 0 ? taxShare / incomeShare : 0 }
-  })
+    const incomeShare = s.amount / totalIncome;
+    const taxShare = s.tax / totalTax;
+    return { ...s, incomeShare, taxShare, ratio: incomeShare > 0 ? taxShare / incomeShare : 0 };
+  });
   // Height axis = the tax-to-income ratio, zoomed to a padded window around the taxed
   // sources (snapped to STEP) so fluctuations near 1× are visible instead of anchored
   // at 0×. The 1× "proportional" line is always kept inside the window; the floor never
   // goes below 0; the top is capped so one extreme source clips (with ↑) rather than
   // stretching the axis flat. Dashed gridlines every STEP keep it readable.
-  const STEP = 0.25
-  const SCALE_CAP = 2
-  const round2 = (n: number) => Math.round(n * 100) / 100
-  const taxedRatios = placed.filter((p) => p.tax > 0).map((p) => p.ratio)
-  const dataMin = taxedRatios.length ? Math.min(...taxedRatios) : 1
-  const dataMax = Math.max(1, ...taxedRatios)
-  let scaleMin = Math.min(Math.floor(dataMin / STEP) * STEP, 1 - STEP)
-  scaleMin = Math.max(0, dataMin <= scaleMin ? scaleMin - STEP : scaleMin)
-  const scaleMax = Math.max(1 + STEP, Math.min(SCALE_CAP, Math.ceil(dataMax / STEP) * STEP))
-  const gridlines: number[] = []
-  for (let r = scaleMin + STEP; r < scaleMax - 1e-9; r += STEP) gridlines.push(round2(r))
-  const active = placed.find((s) => s.key === hovered)
+  const STEP = 0.25;
+  const SCALE_CAP = 2;
+  const round2 = (n: number) => Math.round(n * 100) / 100;
+  const taxedRatios = placed.filter((p) => p.tax > 0).map((p) => p.ratio);
+  const dataMin = taxedRatios.length ? Math.min(...taxedRatios) : 1;
+  const dataMax = Math.max(1, ...taxedRatios);
+  let scaleMin = Math.min(Math.floor(dataMin / STEP) * STEP, 1 - STEP);
+  scaleMin = Math.max(0, dataMin <= scaleMin ? scaleMin - STEP : scaleMin);
+  const scaleMax = Math.max(1 + STEP, Math.min(SCALE_CAP, Math.ceil(dataMax / STEP) * STEP));
+  const gridlines: number[] = [];
+  for (let r = scaleMin + STEP; r < scaleMax - 1e-9; r += STEP) gridlines.push(round2(r));
+  const active = placed.find((s) => s.key === hovered);
 
   return (
     <div>
@@ -61,13 +61,13 @@ export function CompositionMarimekko({ result }: Props) {
         className="relative flex h-28 w-full overflow-hidden rounded-md border bg-muted/30"
         onMouseMove={tip.onMove}
         onMouseLeave={() => {
-          tip.onLeave()
-          setHovered(null)
+          tip.onLeave();
+          setHovered(null);
         }}
       >
         {/* ratio gridlines; 1× is the "proportional" line (tax share == income share) */}
         {gridlines.map((r) => {
-          const parity = r === 1
+          const parity = r === 1;
           return (
             <div
               key={r}
@@ -80,15 +80,12 @@ export function CompositionMarimekko({ result }: Props) {
                 {parity ? '1× · proportional' : `${r}×`}
               </span>
             </div>
-          )
+          );
         })}
 
         {placed.map((s) => {
-          const clipped = s.ratio > scaleMax
-          const fillPct = Math.max(
-            0,
-            Math.min(100, ((s.ratio - scaleMin) / (scaleMax - scaleMin)) * 100),
-          )
+          const clipped = s.ratio > scaleMax;
+          const fillPct = Math.max(0, Math.min(100, ((s.ratio - scaleMin) / (scaleMax - scaleMin)) * 100));
           return (
             <div
               key={s.key}
@@ -116,8 +113,8 @@ export function CompositionMarimekko({ result }: Props) {
                 <span className="pointer-events-none absolute inset-x-0 top-1 z-20 px-1 text-center text-[10px] font-medium leading-tight text-neutral-700">
                   {s.tax > 0 ? (
                     <>
-                      {formatPercent(s.incomeShare, 0)} → {formatPercent(s.taxShare, 0)} ·{' '}
-                      {s.ratio.toFixed(2)}×{clipped ? '↑' : ''}
+                      {formatPercent(s.incomeShare, 0)} → {formatPercent(s.taxShare, 0)} · {s.ratio.toFixed(2)}×
+                      {clipped ? '↑' : ''}
                     </>
                   ) : (
                     formatPercent(s.incomeShare, 0)
@@ -125,7 +122,7 @@ export function CompositionMarimekko({ result }: Props) {
                 </span>
               )}
             </div>
-          )
+          );
         })}
       </div>
 
@@ -140,8 +137,7 @@ export function CompositionMarimekko({ result }: Props) {
             label={active.label}
             subtitle={
               <>
-                {formatPercent(active.incomeShare, 1)} of income →{' '}
-                {formatPercent(active.taxShare, 1)} of tax
+                {formatPercent(active.incomeShare, 1)} of income → {formatPercent(active.taxShare, 1)} of tax
               </>
             }
             amount={active.amount}
@@ -152,5 +148,5 @@ export function CompositionMarimekko({ result }: Props) {
         )}
       </HoverTooltip>
     </div>
-  )
+  );
 }

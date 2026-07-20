@@ -1,30 +1,14 @@
-import { type ReactNode } from 'react'
-import { Info } from 'lucide-react'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import { Label } from '@/components/ui/label'
-import { MoneyInput } from '@/components/MoneyInput'
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover'
-import { FILING_STATUS_LABELS, FILING_STATUSES } from '@/tax/filingStatus'
-import { AVAILABLE_YEARS } from '@/tax/years'
-import { SOURCE_META, formatCurrency } from '@/tax/format'
-import {
-  allowsNegativeAmount,
-  type FilingStatus,
-  type IncomeSource,
-  type TaxInput,
-  type TaxResult,
-} from '@/tax/types'
-import { DeductionControl } from '@/components/DeductionControl'
+import { type ReactNode } from 'react';
+import { Info } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
+import { MoneyInput } from '@/components/MoneyInput';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { FILING_STATUS_LABELS, FILING_STATUSES } from '@/tax/filingStatus';
+import { AVAILABLE_YEARS } from '@/tax/years';
+import { SOURCE_META, formatCurrency } from '@/tax/format';
+import { allowsNegativeAmount, type FilingStatus, type IncomeSource, type TaxInput, type TaxResult } from '@/tax/types';
+import { DeductionControl } from '@/components/DeductionControl';
 
 const ORDINARY_FIELDS: IncomeSource[] = [
   'wages',
@@ -32,14 +16,14 @@ const ORDINARY_FIELDS: IncomeSource[] = [
   'interest',
   'nonQualifiedDividends',
   'shortTermGains',
-]
-const PREFERENTIAL_FIELDS: IncomeSource[] = ['qualifiedDividends', 'longTermGains']
+];
+const PREFERENTIAL_FIELDS: IncomeSource[] = ['qualifiedDividends', 'longTermGains'];
 
 interface IncomeFormProps {
-  value: TaxInput
-  onChange: (next: TaxInput) => void
+  value: TaxInput;
+  onChange: (next: TaxInput) => void;
   /** The engine's capital-gains netting summary for the current input, for the netting note. */
-  capitalGains: TaxResult['capitalGains']
+  capitalGains: TaxResult['capitalGains'];
 }
 
 function MoneyField({
@@ -47,11 +31,11 @@ function MoneyField({
   value,
   onChange,
 }: {
-  source: IncomeSource
-  value: number
-  onChange: (n: number) => void
+  source: IncomeSource;
+  value: number;
+  onChange: (n: number) => void;
 }) {
-  const meta = SOURCE_META[source]
+  const meta = SOURCE_META[source];
   return (
     <div className="space-y-1.5">
       <div className="flex items-center gap-1.5">
@@ -81,7 +65,7 @@ function MoneyField({
         {meta.hint}
       </span>
     </div>
-  )
+  );
 }
 
 /**
@@ -94,39 +78,38 @@ function MoneyField({
  * summary rather than recomputing, so form and results never disagree.
  */
 function CapitalNettingNote({ capitalGains }: { capitalGains: TaxResult['capitalGains'] }) {
-  const { netShortTerm, netLongTerm, taxableShortTerm, taxableLongTerm, lossDeduction, carryover } =
-    capitalGains
-  const changed = netShortTerm !== taxableShortTerm || netLongTerm !== taxableLongTerm
-  if (!changed) return null
+  const { netShortTerm, netLongTerm, taxableShortTerm, taxableLongTerm, lossDeduction, carryover } = capitalGains;
+  const changed = netShortTerm !== taxableShortTerm || netLongTerm !== taxableLongTerm;
+  if (!changed) return null;
 
-  const carryoverTotal = carryover.shortTerm + carryover.longTerm
+  const carryoverTotal = carryover.shortTerm + carryover.longTerm;
 
-  let body: ReactNode
+  let body: ReactNode;
   if (lossDeduction <= 0 && carryoverTotal <= 0) {
     // A loss was present on a leg but only offset a gain — nothing left to deduct or carry.
     body = (
       <p>
-        A capital loss offset part of your gains. Taxed after netting:{' '}
-        {formatCurrency(taxableShortTerm)} short-term, {formatCurrency(taxableLongTerm)} long-term.
+        A capital loss offset part of your gains. Taxed after netting: {formatCurrency(taxableShortTerm)} short-term,{' '}
+        {formatCurrency(taxableLongTerm)} long-term.
       </p>
-    )
+    );
   } else if (lossDeduction > 0) {
     body = (
       <p>
-        Your capital results net to a loss. {formatCurrency(lossDeduction)} offsets ordinary income
-        this year (max $3,000; $1,500 if filing separately)
-        {carryoverTotal > 0 && <> and {formatCurrency(carryoverTotal)} would carry to future years</>}.{' '}
-        Loss carryovers aren&apos;t applied yet, so any carryover is informational.
+        Your capital results net to a loss. {formatCurrency(lossDeduction)} offsets ordinary income this year (max
+        $3,000; $1,500 if filing separately)
+        {carryoverTotal > 0 && <> and {formatCurrency(carryoverTotal)} would carry to future years</>}. Loss carryovers
+        aren&apos;t applied yet, so any carryover is informational.
       </p>
-    )
+    );
   } else {
     body = (
       <p>
-        Your capital results net to a loss. None offsets income this year (taxable income is already
-        $0), so the full {formatCurrency(carryoverTotal)} would carry to future years. Loss carryovers
-        aren&apos;t applied yet, so any carryover is informational.
+        Your capital results net to a loss. None offsets income this year (taxable income is already $0), so the full{' '}
+        {formatCurrency(carryoverTotal)} would carry to future years. Loss carryovers aren&apos;t applied yet, so any
+        carryover is informational.
       </p>
-    )
+    );
   }
 
   return (
@@ -134,11 +117,11 @@ function CapitalNettingNote({ capitalGains }: { capitalGains: TaxResult['capital
       <p className="font-medium text-foreground">Capital gains netted</p>
       {body}
     </div>
-  )
+  );
 }
 
 export function IncomeForm({ value, onChange, capitalGains }: IncomeFormProps) {
-  const set = (patch: Partial<TaxInput>) => onChange({ ...value, ...patch })
+  const set = (patch: Partial<TaxInput>) => onChange({ ...value, ...patch });
 
   return (
     <div className="space-y-6">
@@ -146,10 +129,7 @@ export function IncomeForm({ value, onChange, capitalGains }: IncomeFormProps) {
         <Label htmlFor="taxYear" className="text-sm">
           Tax year
         </Label>
-        <Select
-          value={String(value.taxYear)}
-          onValueChange={(v) => set({ taxYear: Number(v) })}
-        >
+        <Select value={String(value.taxYear)} onValueChange={(v) => set({ taxYear: Number(v) })}>
           <SelectTrigger id="taxYear" className="w-full">
             <SelectValue />
           </SelectTrigger>
@@ -167,10 +147,7 @@ export function IncomeForm({ value, onChange, capitalGains }: IncomeFormProps) {
         <Label htmlFor="filingStatus" className="text-sm">
           Filing status
         </Label>
-        <Select
-          value={value.filingStatus}
-          onValueChange={(v) => set({ filingStatus: v as FilingStatus })}
-        >
+        <Select value={value.filingStatus} onValueChange={(v) => set({ filingStatus: v as FilingStatus })}>
           <SelectTrigger id="filingStatus" className="w-full">
             <SelectValue />
           </SelectTrigger>
@@ -205,9 +182,7 @@ export function IncomeForm({ value, onChange, capitalGains }: IncomeFormProps) {
       <CapitalNettingNote capitalGains={capitalGains} />
 
       <fieldset className="space-y-4">
-        <legend className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          Deductions
-        </legend>
+        <legend className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Deductions</legend>
         <DeductionControl
           value={value.deduction}
           onChange={(d) => set({ deduction: d })}
@@ -216,5 +191,5 @@ export function IncomeForm({ value, onChange, capitalGains }: IncomeFormProps) {
         />
       </fieldset>
     </div>
-  )
+  );
 }

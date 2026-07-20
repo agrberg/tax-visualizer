@@ -1,23 +1,28 @@
-import { Lightbulb } from 'lucide-react'
-import { formatCurrency, formatRatePercent } from '@/tax/format'
-import type { SurchargeResult } from '@/tax/types'
-import { cn } from '@/lib/utils'
+import { Lightbulb } from 'lucide-react';
+import { formatCurrency, formatRatePercent } from '@/tax/format';
+import type { SurchargeResult } from '@/tax/types';
+import { cn } from '@/lib/utils';
 
 /** A labeled row in the calculation breakdown. */
 function Row({ label, value, strong = false }: { label: string; value: string; strong?: boolean }) {
   return (
     <div className="flex justify-between gap-2">
       <dt className="min-w-0 text-muted-foreground">{label}</dt>
-      <dd className={cn('shrink-0 tabular-nums', strong ? 'font-semibold text-amber-700 dark:text-amber-400' : 'font-medium')}>
+      <dd
+        className={cn(
+          'shrink-0 tabular-nums',
+          strong ? 'font-semibold text-amber-700 dark:text-amber-400' : 'font-medium',
+        )}
+      >
         {value}
       </dd>
     </div>
-  )
+  );
 }
 
 function NiitCalc({ s }: { s: SurchargeResult }) {
-  const nii = s.investmentIncome ?? 0
-  const lesserIsNii = nii <= s.incomeOverThreshold
+  const nii = s.investmentIncome ?? 0;
+  const lesserIsNii = nii <= s.incomeOverThreshold;
   return (
     <dl className="mt-1.5 space-y-0.5 text-xs">
       <Row label="MAGI" value={formatCurrency(s.incomeMeasured)} />
@@ -33,13 +38,11 @@ function NiitCalc({ s }: { s: SurchargeResult }) {
         </>
       ) : (
         <p className="pt-0.5 text-muted-foreground">
-          {s.incomeOverThreshold <= 0
-            ? 'MAGI is under the threshold — no NIIT.'
-            : 'No net investment income to tax.'}
+          {s.incomeOverThreshold <= 0 ? 'MAGI is under the threshold — no NIIT.' : 'No net investment income to tax.'}
         </p>
       )}
     </dl>
-  )
+  );
 }
 
 function MedicareCalc({ s }: { s: SurchargeResult }) {
@@ -57,7 +60,7 @@ function MedicareCalc({ s }: { s: SurchargeResult }) {
         <p className="pt-0.5 text-muted-foreground">Wages are under the threshold — no surtax.</p>
       )}
     </dl>
-  )
+  );
 }
 
 /** Social Security is *capped*: the rate applies to wages up to the wage base, then stops. */
@@ -82,7 +85,7 @@ function SocialSecurityCalc({ s }: { s: SurchargeResult }) {
         <p className="pt-0.5 text-muted-foreground">No wages — no Social Security tax.</p>
       )}
     </dl>
-  )
+  );
 }
 
 /** Base Medicare is a flat rate on all wages — no cap, no threshold. */
@@ -91,41 +94,37 @@ function MedicareBaseCalc({ s }: { s: SurchargeResult }) {
     <dl className="mt-1.5 space-y-0.5 text-xs">
       <Row label="Wages" value={formatCurrency(s.incomeMeasured)} />
       {s.applies ? (
-        <Row
-          label={`Medicare (${formatRatePercent(s.rate)})`}
-          value={`+${formatCurrency(s.amount, true)}`}
-          strong
-        />
+        <Row label={`Medicare (${formatRatePercent(s.rate)})`} value={`+${formatCurrency(s.amount, true)}`} strong />
       ) : (
         <p className="pt-0.5 text-muted-foreground">No wages — no Medicare tax.</p>
       )}
     </dl>
-  )
+  );
 }
 
 /** The calculation panel for a surcharge, chosen by its rule key. */
 function SurchargeCalc({ s }: { s: SurchargeResult }) {
   switch (s.key) {
     case 'socialSecurity':
-      return <SocialSecurityCalc s={s} />
+      return <SocialSecurityCalc s={s} />;
     case 'medicare':
-      return <MedicareBaseCalc s={s} />
+      return <MedicareBaseCalc s={s} />;
     case 'niit':
-      return <NiitCalc s={s} />
+      return <NiitCalc s={s} />;
     default:
-      return <MedicareCalc s={s} />
+      return <MedicareCalc s={s} />;
   }
 }
 
 interface IndicatorProps {
-  title: string
-  description: string
-  surcharge: SurchargeResult
-  children: React.ReactNode
+  title: string;
+  description: string;
+  surcharge: SurchargeResult;
+  children: React.ReactNode;
 }
 
 function Indicator({ title, description, surcharge, children }: IndicatorProps) {
-  const on = surcharge.applies
+  const on = surcharge.applies;
   return (
     <div
       className={cn(
@@ -136,9 +135,7 @@ function Indicator({ title, description, surcharge, children }: IndicatorProps) 
       <Lightbulb
         className={cn(
           'mt-0.5 size-6 shrink-0',
-          on
-            ? 'fill-amber-300 text-amber-500 drop-shadow-[0_0_6px_rgba(251,191,36,0.7)]'
-            : 'text-muted-foreground/50',
+          on ? 'fill-amber-300 text-amber-500 drop-shadow-[0_0_6px_rgba(251,191,36,0.7)]' : 'text-muted-foreground/50',
         )}
       />
       <div className="min-w-0 flex-1">
@@ -157,7 +154,7 @@ function Indicator({ title, description, surcharge, children }: IndicatorProps) 
         {children}
       </div>
     </div>
-  )
+  );
 }
 
 /** Static blurb per surcharge, keyed by its rule key. */
@@ -166,10 +163,10 @@ const DESCRIPTIONS: Record<string, string> = {
   medicare: '1.45% on all wages — no cap.',
   niit: '3.8% on the lesser of net investment income and MAGI over the threshold.',
   additionalMedicare: '0.9% on earned income (wages) above the threshold.',
-}
+};
 
 interface Props {
-  surcharges: SurchargeResult[]
+  surcharges: SurchargeResult[];
 }
 
 export function SurchargeIndicators({ surcharges }: Props) {
@@ -181,5 +178,5 @@ export function SurchargeIndicators({ surcharges }: Props) {
         </Indicator>
       ))}
     </div>
-  )
+  );
 }

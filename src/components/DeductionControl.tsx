@@ -1,15 +1,15 @@
-import { useId } from 'react'
-import { cn } from '@/lib/utils'
-import { MoneyInput } from '@/components/MoneyInput'
-import { taxTablesFor } from '@/tax/years'
-import { formatCurrency } from '@/tax/format'
-import type { FilingStatus } from '@/tax/types'
+import { useId } from 'react';
+import { cn } from '@/lib/utils';
+import { MoneyInput } from '@/components/MoneyInput';
+import { taxTablesFor } from '@/tax/years';
+import { formatCurrency } from '@/tax/format';
+import type { FilingStatus } from '@/tax/types';
 
 interface DeductionControlProps {
-  value: number | null
-  onChange: (v: number | null) => void
-  filingStatus: FilingStatus
-  taxYear: number
+  value: number | null;
+  onChange: (v: number | null) => void;
+  filingStatus: FilingStatus;
+  taxYear: number;
 }
 
 /**
@@ -28,20 +28,14 @@ interface DeductionControlProps {
  * the import review modal — don't merge into one native radio group.
  */
 export function DeductionControl({ value, onChange, filingStatus, taxYear }: DeductionControlProps) {
-  const groupName = useId()
-  const inputId = useId()
-  const standardAmount = taxTablesFor(taxYear).standardDeduction[filingStatus]
-  const isItemized = value !== null
+  const groupName = useId();
+  const inputId = useId();
+  const standardAmount = taxTablesFor(taxYear).standardDeduction[filingStatus];
+  const isItemized = value !== null;
 
   const segment = (label: string, active: boolean, onSelect: () => void) => (
     <label className="flex-1">
-      <input
-        type="radio"
-        name={groupName}
-        className="peer sr-only"
-        checked={active}
-        onChange={onSelect}
-      />
+      <input type="radio" name={groupName} className="peer sr-only" checked={active} onChange={onSelect} />
       <span
         className={cn(
           'block cursor-pointer px-3 py-1.5 text-center text-sm transition-colors',
@@ -52,7 +46,7 @@ export function DeductionControl({ value, onChange, filingStatus, taxYear }: Ded
         {label}
       </span>
     </label>
-  )
+  );
 
   return (
     <div className="space-y-2">
@@ -78,5 +72,5 @@ export function DeductionControl({ value, onChange, filingStatus, taxYear }: Ded
         </p>
       )}
     </div>
-  )
+  );
 }

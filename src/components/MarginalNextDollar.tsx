@@ -1,14 +1,14 @@
-import { Info } from 'lucide-react'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { marginalNextDollar } from '@/tax/calculate'
-import type { MarginalScenario, TaxResult } from '@/tax/types'
+import { Info } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { marginalNextDollar } from '@/tax/calculate';
+import type { MarginalScenario, TaxResult } from '@/tax/types';
 
-const cents = (rate: number) => `${(rate * 100).toFixed(1)}¢`
+const cents = (rate: number) => `${(rate * 100).toFixed(1)}¢`;
 // Surtax component rates need exact precision (e.g. Medicare 1.45¢), trailing zeros trimmed.
-const centsExact = (rate: number) => `${+(rate * 100).toFixed(2)}¢`
+const centsExact = (rate: number) => `${+(rate * 100).toFixed(2)}¢`;
 // The whole dollar kept reads as "$1", not "100.0¢".
-const keepLabel = (kept: number) => (kept >= 1 ? '$1' : cents(kept))
-const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
+const keepLabel = (kept: number) => (kept >= 1 ? '$1' : cents(kept));
+const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 const LABELS: Record<MarginalScenario['key'], { label: string; baseLabel: string; hint: string }> = {
   wages: {
@@ -31,31 +31,31 @@ const LABELS: Record<MarginalScenario['key'], { label: string; baseLabel: string
     baseLabel: 'cap-gains tax',
     hint: 'Qualified dividends and long-term capital gains. Taxed on the preferential 0 / 15 / 20% capital-gains ladder.',
   },
-}
+};
 
 /** A component of the next dollar: its color, label, and cents — for the receipt rows. */
 interface Part {
-  label: string
-  value: string
-  dot: string
-  bump?: boolean
+  label: string;
+  value: string;
+  dot: string;
+  bump?: boolean;
 }
 
 /** What the next $1 of each income type costs in tax, with surtaxes broken out. */
 export function MarginalNextDollar({ result }: { result: TaxResult }) {
-  const scenarios = marginalNextDollar(result)
+  const scenarios = marginalNextDollar(result);
 
   return (
     <div className="divide-y">
       {scenarios.map((s) => {
-        const meta = LABELS[s.key]
-        const kept = Math.max(0, 1 - s.totalRate)
-        const noTax = s.totalRate <= 0
+        const meta = LABELS[s.key];
+        const kept = Math.max(0, 1 - s.totalRate);
+        const noTax = s.totalRate <= 0;
 
         // Receipt rows: base tax, each surtax, then what's kept — colors match the bar.
-        const parts: Part[] = []
+        const parts: Part[] = [];
         if (s.baseRate > 0) {
-          parts.push({ label: capitalize(meta.baseLabel), value: cents(s.baseRate), dot: 'bg-slate-500' })
+          parts.push({ label: capitalize(meta.baseLabel), value: cents(s.baseRate), dot: 'bg-slate-500' });
         }
         for (const su of s.surtaxes) {
           parts.push({
@@ -63,9 +63,9 @@ export function MarginalNextDollar({ result }: { result: TaxResult }) {
             value: centsExact(su.rate),
             dot: su.tone === 'bump' ? 'bg-violet-500' : 'bg-amber-500',
             bump: su.tone === 'bump',
-          })
+          });
         }
-        parts.push({ label: 'Keep', value: cents(kept), dot: 'bg-emerald-500' })
+        parts.push({ label: 'Keep', value: cents(kept), dot: 'bg-emerald-500' });
 
         return (
           <div key={s.key} className="py-4 first:pt-0 last:pb-0">
@@ -74,11 +74,7 @@ export function MarginalNextDollar({ result }: { result: TaxResult }) {
                 {meta.label}
                 <Popover>
                   <PopoverTrigger asChild>
-                    <button
-                      type="button"
-                      className="shrink-0 text-muted-foreground"
-                      aria-label={`About ${meta.label}`}
-                    >
+                    <button type="button" className="shrink-0 text-muted-foreground" aria-label={`About ${meta.label}`}>
                       <Info className="size-3.5" />
                     </button>
                   </PopoverTrigger>
@@ -105,34 +101,27 @@ export function MarginalNextDollar({ result }: { result: TaxResult }) {
                   {su.rate >= 0.08 ? centsExact(su.rate) : ''}
                 </div>
               ))}
-              <div
-                className="flex items-center justify-center bg-emerald-500"
-                style={{ width: `${kept * 100}%` }}
-              >
+              <div className="flex items-center justify-center bg-emerald-500" style={{ width: `${kept * 100}%` }}>
                 {kept >= 0.1 ? `keep ${keepLabel(kept)}` : ''}
               </div>
             </div>
 
             {noTax ? (
-              <div className="mt-1.5 text-xs text-muted-foreground">
-                No tax on the next dollar — keep the full $1.
-              </div>
+              <div className="mt-1.5 text-xs text-muted-foreground">No tax on the next dollar — keep the full $1.</div>
             ) : (
               <div className="mt-1.5 space-y-0.5 text-xs">
                 {parts.map((p, i) => (
                   <div key={`${p.label}-${i}`} className="flex items-center gap-1.5">
                     <span className={`size-2 shrink-0 rounded-full ${p.dot}`} aria-hidden />
-                    <span className={p.bump ? 'text-violet-600' : 'text-muted-foreground'}>
-                      {p.label}
-                    </span>
+                    <span className={p.bump ? 'text-violet-600' : 'text-muted-foreground'}>{p.label}</span>
                     <span className="ml-auto tabular-nums text-foreground">{p.value}</span>
                   </div>
                 ))}
               </div>
             )}
           </div>
-        )
+        );
       })}
     </div>
-  )
+  );
 }

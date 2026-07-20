@@ -133,7 +133,7 @@ flowchart LR
      any remainder shields preferential income proportionally.
    - `fillBands` / `marginalRateAt` (`engine.ts`) — the band arithmetic: fill an
      income range into rate bands and read off the marginal rate at a position.
-     Preferential income stacks *on top* of ordinary taxable income.
+     Preferential income stacks _on top_ of ordinary taxable income.
    - `ordinaryLayers` / `preferentialLayers` (`attribution.ts`) — slice each
      source into taxable layers positioned in the stack, for the towers.
    - surcharge rules (`surcharges.ts`) — each `SurchargeRule` (NIIT, Additional
@@ -152,26 +152,26 @@ The assembled `TaxResult` nests the federal figures under `result.federal`
 ## Capital-gains netting & the net-loss deduction
 
 Short- and long-term capital results don't just each get taxed in place — they net
-against each other, and a leftover *net loss* offsets other income. This is the one
+against each other, and a leftover _net loss_ offsets other income. This is the one
 piece of the engine whose rules come straight from the tax code (IRC §1211/§1212/§1222,
 Schedule D), so it's worth spelling out. The work is split across two modules by what
 each one can know:
 
 - **`nettedCapitalGains(shortTerm, longTerm)`** (`income.ts`) — pure §1222 netting, and
-  nothing else. The two inputs are already each period's *net* figure (Schedule D nets
+  nothing else. The two inputs are already each period's _net_ figure (Schedule D nets
   within a period first). Either may be negative (a loss). It returns the taxable gain
   per pool plus any residual loss, split by holding-period character:
 
-  | net ST | net LT | taxable ST | taxable LT | residual loss | rule |
-  |---|---|---|---|---|---|
-  | +100 | +1000 | 100 | 1000 | — | two gains, no interaction |
-  | −100 | +1000 | 0 | 900 | — | ST loss absorbs into LT gain; survivor is **long-term** |
-  | +1000 | −100 | 900 | 0 | — | LT loss absorbs into ST gain; survivor is **short-term** |
-  | −1000 | +1000 | 0 | 0 | — | exact wash |
-  | +100 | −1000 | 0 | 0 | 900 LT | net loss keeps the **loss leg's** character |
-  | −100 | −1000 | 0 | 0 | 100 ST + 1000 LT | two losses; each carries on its own character |
+  | net ST | net LT | taxable ST | taxable LT | residual loss    | rule                                                     |
+  | ------ | ------ | ---------- | ---------- | ---------------- | -------------------------------------------------------- |
+  | +100   | +1000  | 100        | 1000       | —                | two gains, no interaction                                |
+  | −100   | +1000  | 0          | 900        | —                | ST loss absorbs into LT gain; survivor is **long-term**  |
+  | +1000  | −100   | 900        | 0          | —                | LT loss absorbs into ST gain; survivor is **short-term** |
+  | −1000  | +1000  | 0          | 0          | —                | exact wash                                               |
+  | +100   | −1000  | 0          | 0          | 900 LT           | net loss keeps the **loss leg's** character              |
+  | −100   | −1000  | 0          | 0          | 100 ST + 1000 LT | two losses; each carries on its own character            |
 
-  A surviving *gain* keeps the character of the **gain** leg; a surviving *loss* keeps
+  A surviving _gain_ keeps the character of the **gain** leg; a surviving _loss_ keeps
   the character of the **loss** leg. Qualified dividends are deliberately not an input,
   so a capital loss can never offset them.
 
@@ -183,11 +183,11 @@ each one can know:
   2. **`preLossTaxable`** = `max(0, grossOrdinary + grossPreferential − deduction)`
      — the taxable income there would be with no loss at all.
   3. **`lossDeduction`** = `min(netCapitalLoss, capitalLossLimit, preLossTaxable)`. The
-     loss is limited by *both* the annual filing-status cap (`capitalLossLimit`, $3,000 /
-     $1,500 MFS) *and* available taxable income — it can't drive taxable income below zero.
-     Matching the IRS *Capital Loss Carryover Worksheet*, the limit is taxable income
+     loss is limited by _both_ the annual filing-status cap (`capitalLossLimit`, $3,000 /
+     $1,500 MFS) _and_ available taxable income — it can't drive taxable income below zero.
+     Matching the IRS _Capital Loss Carryover Worksheet_, the limit is taxable income
      **after** the deduction (Form 1040 line 15), so a loss against income already
-     covered by the deduction is fully *carried forward*, not spent.
+     covered by the deduction is fully _carried forward_, not spent.
   4. **Apply it, ordinary side first.** `lossAbsorbedOnOrdinary` comes off the ordinary
      pool; only the part that exceeds all ordinary income (rare — under ~$3k of ordinary
      income) spills onto the preferential pool. The income deduction then applies on top
@@ -196,16 +196,16 @@ each one can know:
      **short-term used first**.
   6. **MAGI** (the NIIT threshold basis) is reduced by the full `lossDeduction` — the loss
      reduces AGI, so a net loss can pull income under the NIIT threshold. (The income
-     deduction does *not* reduce AGI, so it isn't subtracted here.)
+     deduction does _not_ reduce AGI, so it isn't subtracted here.)
 
   Per-source attribution then divides the loss the same way for the towers: the ordinary
   layers absorb `deductionOnOrdinary + lossAbsorbedOnOrdinary` from the bottom, and the
-  preferential layers are shielded by `preferentialShieldFraction` (derived from *gross*
+  preferential layers are shielded by `preferentialShieldFraction` (derived from _gross_
   preferential income so the per-source slices still sum to `preferentialTaxable` when a
   loss spills over). Which source is shielded is a visualizer approximation; the **total
   tax is exact** regardless.
 
-Carryover is *informational* — a single-year tool has no future year to apply it to — but
+Carryover is _informational_ — a single-year tool has no future year to apply it to — but
 the current-year deduction is fully applied.
 
 ## PDF 1040 import pipeline
@@ -249,38 +249,38 @@ The federal computation is modeled as one **`Jurisdiction`** — data describing
 an ordinary ladder, a deduction, an optional preferential ladder, and its
 surcharges. `computeJurisdiction` is generic over that data. This is deliberate
 headroom: a state jurisdiction would be a second `Jurisdiction` (ordinary
-brackets + deduction, usually *no* preferential ladder) computed the same way and
+brackets + deduction, usually _no_ preferential ladder) computed the same way and
 slotted into `TaxResult` alongside `federal`. The code that folds preferential
 income into ordinary when there's no ladder already exists for that path.
 
 ## Module map
 
-| Module | Responsibility |
-|---|---|
-| `tax/years/{2025,2026}.ts` | Per-year rate tables, deductions, thresholds (one `TaxYearTables` each) |
-| `tax/years/index.ts` | Year registry: `TAX_YEARS`, `AVAILABLE_YEARS`, `DEFAULT_TAX_YEAR`, `taxTablesFor`, `isTaxYear` |
-| `tax/filingStatus.ts` | Filing-status labels, validity guard, canonical status list |
-| `tax/types.ts` | Shared types: `TaxInput`, `TaxResult`, `JurisdictionResult`, `TaxYearTables`, etc. |
-| `tax/income.ts` | Net capital gains (`nettedCapitalGains`) and classify raw input into ordinary / preferential pools |
-| `tax/federal.ts` | Assemble the federal `Jurisdiction` from the selected year's tables |
-| `tax/jurisdiction.ts` | `computeJurisdiction` — run income through one jurisdiction |
-| `tax/engine.ts` | Band math: `fillBands`, `taxOverRange`, `marginalRateAt` |
-| `tax/deduction.ts` | Split a deduction across the two pools |
-| `tax/surcharges.ts` | NIIT + Additional Medicare rules (assess + marginal) |
-| `tax/attribution.ts` | Per-source layers and the combined breakdown |
-| `tax/marginal.ts` | `marginalNextDollar` — cost of the next dollar by income type |
-| `tax/calculate.ts` | `calculateTax` orchestrator (the engine's entry point) |
-| `tax/format.ts` | Currency / percent formatting + composition segments |
-| `App.tsx` | Input + scenario state, persistence, memoized compute, layout |
-| `scenarios.ts` | Named input scenarios — `save` / `rename` / `remove` / list |
-| `storage.ts` | `localStorage` load / save for input + scenarios |
-| `components/` | Form, visualizations, and the saved-scenarios panel (see overview diagram) |
-| `import/parse1040.ts` | Entry point — dynamically loads `pdfText.ts`, then `extract1040Fields` |
-| `import/pdfText.ts` | Pulls positioned text items out of a PDF via `pdfjs-dist` |
-| `import/extract1040.ts` | Pure, unit-tested mapping from positioned text to `TaxInput` fields |
-| `import/parsedReturn.ts` | `ParsedReturn` type + `mergeParsedInput` (applies fields via `normalizeInput`) |
-| `import/importLog.ts` | Dev-only console tracing of the match/extract pipeline |
-| `components/ImportReturn.tsx` | Drop zone + review modal for confirming detected fields |
+| Module                        | Responsibility                                                                                     |
+| ----------------------------- | -------------------------------------------------------------------------------------------------- |
+| `tax/years/{2025,2026}.ts`    | Per-year rate tables, deductions, thresholds (one `TaxYearTables` each)                            |
+| `tax/years/index.ts`          | Year registry: `TAX_YEARS`, `AVAILABLE_YEARS`, `DEFAULT_TAX_YEAR`, `taxTablesFor`, `isTaxYear`     |
+| `tax/filingStatus.ts`         | Filing-status labels, validity guard, canonical status list                                        |
+| `tax/types.ts`                | Shared types: `TaxInput`, `TaxResult`, `JurisdictionResult`, `TaxYearTables`, etc.                 |
+| `tax/income.ts`               | Net capital gains (`nettedCapitalGains`) and classify raw input into ordinary / preferential pools |
+| `tax/federal.ts`              | Assemble the federal `Jurisdiction` from the selected year's tables                                |
+| `tax/jurisdiction.ts`         | `computeJurisdiction` — run income through one jurisdiction                                        |
+| `tax/engine.ts`               | Band math: `fillBands`, `taxOverRange`, `marginalRateAt`                                           |
+| `tax/deduction.ts`            | Split a deduction across the two pools                                                             |
+| `tax/surcharges.ts`           | NIIT + Additional Medicare rules (assess + marginal)                                               |
+| `tax/attribution.ts`          | Per-source layers and the combined breakdown                                                       |
+| `tax/marginal.ts`             | `marginalNextDollar` — cost of the next dollar by income type                                      |
+| `tax/calculate.ts`            | `calculateTax` orchestrator (the engine's entry point)                                             |
+| `tax/format.ts`               | Currency / percent formatting + composition segments                                               |
+| `App.tsx`                     | Input + scenario state, persistence, memoized compute, layout                                      |
+| `scenarios.ts`                | Named input scenarios — `save` / `rename` / `remove` / list                                        |
+| `storage.ts`                  | `localStorage` load / save for input + scenarios                                                   |
+| `components/`                 | Form, visualizations, and the saved-scenarios panel (see overview diagram)                         |
+| `import/parse1040.ts`         | Entry point — dynamically loads `pdfText.ts`, then `extract1040Fields`                             |
+| `import/pdfText.ts`           | Pulls positioned text items out of a PDF via `pdfjs-dist`                                          |
+| `import/extract1040.ts`       | Pure, unit-tested mapping from positioned text to `TaxInput` fields                                |
+| `import/parsedReturn.ts`      | `ParsedReturn` type + `mergeParsedInput` (applies fields via `normalizeInput`)                     |
+| `import/importLog.ts`         | Dev-only console tracing of the match/extract pipeline                                             |
+| `components/ImportReturn.tsx` | Drop zone + review modal for confirming detected fields                                            |
 
 ## Conventions & constraints
 

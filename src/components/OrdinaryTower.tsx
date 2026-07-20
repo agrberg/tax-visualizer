@@ -1,8 +1,8 @@
-import { useState } from 'react'
-import { taxTablesFor } from '@/tax/years'
-import { SOURCE_META, formatCurrency, formatPercent, wagesBracketFill } from '@/tax/format'
-import { ORDINARY_SOURCES, type IncomeSource, type TaxResult } from '@/tax/types'
-import { marginalOrdinaryIdx, nextOrdinaryBracket, ordinaryAxisMaxFor, pct, tall } from './tower'
+import { useState } from 'react';
+import { taxTablesFor } from '@/tax/years';
+import { SOURCE_META, formatCurrency, formatPercent, wagesBracketFill } from '@/tax/format';
+import { ORDINARY_SOURCES, type IncomeSource, type TaxResult } from '@/tax/types';
+import { marginalOrdinaryIdx, nextOrdinaryBracket, ordinaryAxisMaxFor, pct, tall } from './tower';
 import {
   BracketBreakdown,
   ColumnTotal,
@@ -14,46 +14,46 @@ import {
   Slice,
   SourceLegendRow,
   TowerColumn,
-} from './TowerParts'
-import { useTooltip } from './use-tooltip'
+} from './TowerParts';
+import { useTooltip } from './use-tooltip';
 
 interface Props {
-  result: TaxResult
+  result: TaxResult;
 }
 
 export function OrdinaryTower({ result }: Props) {
-  const fed = result.federal
-  const tables = taxTablesFor(result.taxYear)
-  const brackets = tables.ordinaryBrackets[result.filingStatus]
-  const deduction = fed.deduction
+  const fed = result.federal;
+  const tables = taxTablesFor(result.taxYear);
+  const brackets = tables.ordinaryBrackets[result.filingStatus];
+  const deduction = fed.deduction;
   // Label by the actual mode, not by comparing amounts — a custom deduction that happens to
   // equal the standard is still "Deduction", not "Std. deduction".
-  const deductionLabel = result.deductionIsCustom ? 'Deduction' : 'Std. deduction'
-  const axisMax = ordinaryAxisMaxFor(result)
+  const deductionLabel = result.deductionIsCustom ? 'Deduction' : 'Std. deduction';
+  const axisMax = ordinaryAxisMaxFor(result);
   // The marginal bracket holds the last taxable dollar; the one above it is pinned
   // to the top edge as the "next rate" (rather than drawn to scale far above).
-  const marginalIdx = marginalOrdinaryIdx(result)
-  const nextBracket = nextOrdinaryBracket(result)
-  const tip = useTooltip()
-  const [hovered, setHovered] = useState<IncomeSource | null>(null)
+  const marginalIdx = marginalOrdinaryIdx(result);
+  const nextBracket = nextOrdinaryBracket(result);
+  const tip = useTooltip();
+  const [hovered, setHovered] = useState<IncomeSource | null>(null);
 
   // Gross ordinary income, stacked by source (wages first). The deduction shields the bottom.
-  let base = 0
+  let base = 0;
   const grossLayers = ORDINARY_SOURCES.map((source) => {
-    const amount = result.sourceBreakdown.find((b) => b.source === source)?.amount ?? 0
-    const layer = { source, amount, base }
-    base += amount
-    return layer
-  }).filter((l) => l.amount > 0)
-  const grossOrdinary = base
+    const amount = result.sourceBreakdown.find((b) => b.source === source)?.amount ?? 0;
+    const layer = { source, amount, base };
+    base += amount;
+    return layer;
+  }).filter((l) => l.amount > 0);
+  const grossOrdinary = base;
 
-  const hoveredLayer = grossLayers.find((l) => l.source === hovered)
-  const hoveredTax = result.sourceBreakdown.find((b) => b.source === hovered)?.tax ?? 0
+  const hoveredLayer = grossLayers.find((l) => l.source === hovered);
+  const hoveredTax = result.sourceBreakdown.find((b) => b.source === hovered)?.tax ?? 0;
 
   // Split the standard deduction: used on ordinary income, spilled onto gains, truly unused.
-  const usedOnOrdinary = fed.deductionOnOrdinary
-  const spilledToGains = fed.preferentialDeduction
-  const unusedDeduction = fed.leftoverDeduction - fed.preferentialDeduction
+  const usedOnOrdinary = fed.deductionOnOrdinary;
+  const spilledToGains = fed.preferentialDeduction;
+  const unusedDeduction = fed.leftoverDeduction - fed.preferentialDeduction;
 
   return (
     <div className="flex w-full max-w-xs flex-col items-center sm:max-w-none sm:flex-1">
@@ -61,29 +61,28 @@ export function OrdinaryTower({ result }: Props) {
         title="Ordinary income"
         subtitle={
           <>
-            Marginal rate {formatPercent(fed.marginalOrdinaryRate, 0)} · tax{' '}
-            {formatCurrency(fed.ordinaryTax)}
+            Marginal rate {formatPercent(fed.marginalOrdinaryRate, 0)} · tax {formatCurrency(fed.ordinaryTax)}
           </>
         }
         ariaLabel={`Ordinary income tower: ${formatCurrency(fed.ordinaryTaxable)} taxable ordinary income, ${formatCurrency(fed.ordinaryTax)} income tax, marginal rate ${formatPercent(fed.marginalOrdinaryRate, 0)}. Per-source figures are in the overall breakdown table below.`}
         onMouseMove={tip.onMove}
         onMouseLeave={() => {
-          tip.onLeave()
-          setHovered(null)
+          tip.onLeave();
+          setHovered(null);
         }}
       >
         {/* source slices, stacked bottom → top (gross). Wages is split by bracket into greens. */}
         {grossLayers.map((layer) => {
-          const dim = hovered !== null && hovered !== layer.source
-          const top = layer.base + layer.amount
+          const dim = hovered !== null && hovered !== layer.source;
+          const top = layer.base + layer.amount;
           if (layer.source === 'wages') {
-            const slices: { from: number; to: number; color: string }[] = []
-            const shieldTo = Math.min(top, deduction)
-            if (shieldTo > layer.base) slices.push({ from: layer.base, to: shieldTo, color: 'bg-green-200' })
+            const slices: { from: number; to: number; color: string }[] = [];
+            const shieldTo = Math.min(top, deduction);
+            if (shieldTo > layer.base) slices.push({ from: layer.base, to: shieldTo, color: 'bg-green-200' });
             for (const b of brackets) {
-              const lo = Math.max(deduction + b.min, layer.base, deduction)
-              const hi = Math.min(deduction + b.max, top)
-              if (hi > lo) slices.push({ from: lo, to: hi, color: wagesBracketFill(b.rate) })
+              const lo = Math.max(deduction + b.min, layer.base, deduction);
+              const hi = Math.min(deduction + b.max, top);
+              if (hi > lo) slices.push({ from: lo, to: hi, color: wagesBracketFill(b.rate) });
             }
             return slices.map((s) => (
               <Slice
@@ -95,7 +94,7 @@ export function OrdinaryTower({ result }: Props) {
                 dim={dim}
                 onEnter={() => setHovered('wages')}
               />
-            ))
+            ));
           }
           return (
             <Slice
@@ -107,7 +106,7 @@ export function OrdinaryTower({ result }: Props) {
               dim={dim}
               onEnter={() => setHovered(layer.source)}
             />
-          )
+          );
         })}
 
         {/* standard-deduction zone: the part shielding ordinary income, the part that
@@ -166,9 +165,9 @@ export function OrdinaryTower({ result }: Props) {
         {brackets.map((b, i) => {
           // The next bracket (and anything above) is pinned to the top edge below,
           // not drawn to scale — only render crossed/marginal boundaries here.
-          if (i > marginalIdx) return null
-          const value = deduction + b.min
-          if (value <= 0 || value > axisMax) return null
+          if (i > marginalIdx) return null;
+          const value = deduction + b.min;
+          if (value <= 0 || value > axisMax) return null;
           return (
             <Marker
               key={b.rate}
@@ -178,7 +177,7 @@ export function OrdinaryTower({ result }: Props) {
               left={b.min > 0 ? formatCurrency(b.min) : undefined}
               right={formatPercent(b.rate, 0)}
             />
-          )
+          );
         })}
 
         {/* the next bracket up, pinned to the top edge (threshold left, rate right) —
@@ -198,13 +197,13 @@ export function OrdinaryTower({ result }: Props) {
         {/* inline per-source labels, centered in each slice that is tall enough;
             thin slices (interest, non-qual div) stay collapsed and show on hover. */}
         {grossLayers.map((layer) => {
-          if (!tall(layer.amount, axisMax)) return null
-          const mid = layer.base + layer.amount / 2
+          if (!tall(layer.amount, axisMax)) return null;
+          const mid = layer.base + layer.amount / 2;
           return (
             <LayerLabel key={`label-${layer.source}`} topPct={100 - pct(mid, axisMax)}>
               {SOURCE_META[layer.source].short} · {formatCurrency(layer.amount)}
             </LayerLabel>
-          )
+          );
         })}
 
         {/* taxable ordinary income at the top of the stack — labeled in taxable
@@ -226,43 +225,27 @@ export function OrdinaryTower({ result }: Props) {
       {/* legend */}
       <div className="mt-3 w-full max-w-[280px] space-y-1 text-[11px] sm:text-xs">
         <div className="flex items-center gap-1.5">
-          <span
-            className="size-2.5 rounded-sm border border-dashed border-neutral-400 bg-neutral-200"
-            aria-hidden
-          />
+          <span className="size-2.5 rounded-sm border border-dashed border-neutral-400 bg-neutral-200" aria-hidden />
           <span>{deductionLabel}</span>
           <span className="ml-auto text-muted-foreground">{formatCurrency(deduction)}</span>
         </div>
         {spilledToGains > 0 && (
           <div className="flex items-center gap-1.5">
-            <span
-              className="size-2.5 rounded-sm border border-dashed border-violet-500/60 bg-violet-200"
-              aria-hidden
-            />
+            <span className="size-2.5 rounded-sm border border-dashed border-violet-500/60 bg-violet-200" aria-hidden />
             <span>→ shields gains</span>
             <span className="ml-auto text-muted-foreground">{formatCurrency(spilledToGains)}</span>
           </div>
         )}
         {unusedDeduction > 0 && (
           <div className="flex items-center gap-1.5">
-            <span
-              className="size-2.5 rounded-sm border border-dashed border-neutral-300 bg-neutral-100"
-              aria-hidden
-            />
+            <span className="size-2.5 rounded-sm border border-dashed border-neutral-300 bg-neutral-100" aria-hidden />
             <span>Deduction unused</span>
             <span className="ml-auto text-muted-foreground">{formatCurrency(unusedDeduction)}</span>
           </div>
         )}
         {grossLayers.map((layer) => {
-          const meta = SOURCE_META[layer.source]
-          return (
-            <SourceLegendRow
-              key={layer.source}
-              swatch={meta.swatch}
-              label={meta.short}
-              amount={layer.amount}
-            />
-          )
+          const meta = SOURCE_META[layer.source];
+          return <SourceLegendRow key={layer.source} swatch={meta.swatch} label={meta.short} amount={layer.amount} />;
         })}
       </div>
 
@@ -271,14 +254,12 @@ export function OrdinaryTower({ result }: Props) {
           <HoveredSlice
             label={SOURCE_META[hoveredLayer.source].label}
             swatch={SOURCE_META[hoveredLayer.source].swatch}
-            taxable={
-              fed.layers.ordinary.find((l) => l.source === hoveredLayer.source)?.taxableAmount ?? 0
-            }
+            taxable={fed.layers.ordinary.find((l) => l.source === hoveredLayer.source)?.taxableAmount ?? 0}
             tax={hoveredTax}
           />
         )}
         <BracketBreakdown title="Tax by bracket" fills={fed.ordinaryFills} total={fed.ordinaryTax} />
       </HoverTooltip>
     </div>
-  )
+  );
 }
