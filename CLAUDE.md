@@ -76,7 +76,20 @@ Adding a new tax year: see `src/tax/years/README.md` for the step-by-step guide 
 
 Uses the bundled `pdfjs-dist` package (worker asset bundled too — no CDN or network fetch), lazily code-split via a dynamic `import()` so the ~1 MB parser only loads when a PDF is dropped. Extracts the text layer and maps fields to `TaxInput`. Pure client-side; no upload. Entry point: `parse1040.ts`.
 
-`extract1040.ts` reads the 1040 face across a **7-year window (2019–2025)**. Line numbers drift year to year and even get reused with different meanings (e.g. `9` = deduction in 2019 but total income later; the deduction moved to page-2 `12e` in 2025), so fields whose id drifts (deduction, pensions, the 1040 capital-gain fallback) are located by their **stable printed label** via `amountForLabel`, not by line number; only genuinely stable ids (`2b`/`3a`/`3b`/`4b`, wages `1z`, Schedule D `7`/`15`) are read by id. Lower-confidence reads (older-form wages fallback, capital gain taken from the 1040 with no Schedule D) are flagged `assumed` and shown as "assumed — verify" in the review modal.
+The pipeline is split into focused modules:
+
+| File              | Role                                                                                                                    |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `parse1040.ts`    | Entry point — dynamically loads `pdfText.ts`, then `extract1040Fields`                                                  |
+| `pdfText.ts`      | Pulls positioned text items out of a PDF via `pdfjs-dist` (the only external dep)                                       |
+| `rows.ts`         | Reconstructs form "rows" from positioned text (`groupRows`) + `parseAmount`                                             |
+| `lineLookup.ts`   | Finds a line's amount by stable id (`amountForId`) or drifting label (`amountForLabel`)                                 |
+| `detect.ts`       | Best-effort filing-status + tax-year detection from the face                                                            |
+| `extract1040.ts`  | Thin orchestrator: small per-field readers assemble a `ParsedReturn`; owns page-1 boundary ids (`SEGMENT_BOUNDARY_IDS`) |
+| `parsedReturn.ts` | `ParsedReturn` type + `mergeParsedInput`                                                                                |
+| `importLog.ts`    | Dev-only console tracing                                                                                                |
+
+`extract1040.ts` reads the 1040 face across a **7-year window (2019–2025)**. Line numbers drift year to year and even get reused with different meanings (e.g. `9` = deduction in 2019 but total income later; the deduction moved to page-2 `12e` in 2025), so fields whose id drifts (deduction, pensions, the 1040 capital-gain fallback) are located by their **stable printed label** via `amountForLabel`, not by line number; only genuinely stable ids (`2b`/`3a`/`3b`/`4b`, wages `1z`, Schedule D `7`/`15`) are read by id. Reads stay label-anchored and year-agnostic, so an untabled future year or a pre-2019 form still degrades gracefully. Lower-confidence reads (older-form wages fallback, capital gain taken from the 1040 with no Schedule D) are flagged `assumed` and shown as "assumed — verify" in the review modal.
 
 ## Keeping docs in sync
 
@@ -85,6 +98,28 @@ file/module structure. Before finishing a feature, check whether they still desc
 accurately — and update them if not — when you: add a new file/module under `src/`, change
 what an existing module is responsible for, or add/remove a user-facing feature. Routine logic
 changes, bug fixes, and refactors that don't change a module's shape don't need this check.
+
+## Readability conventions
+
+Naming and cleanup preferences applied across this codebase:
+
+- **Names carry the meaning** so a clarifying comment isn't needed. Non-trivial locals and every
+  function/constant get a descriptive, accurate name (`amountForId` not `amountForLine`,
+  `setFieldAndSource` not `setMoney`, `itemIndex`/`checkToken` not `idx`/`tok`). A name reused with
+  different meanings gets a distinct one each time.
+- **But don't over-rename.** Single-letter `i`/`c`/`t` are fine in short inline callbacks that just
+  grab `.text` (± trim); match the file's existing style. Keep diffs minimal — don't churn what
+  already reads fine.
+- **Regexes become named module constants** with a `https://regexper.com/#…` link where first
+  introduced; dedupe a pattern used more than once.
+- **Remove dead, duplicate, or needlessly-coupled code**: redundant operations, duplicate types
+  (alias instead), and back-compat re-export shims (import from the owner module — that's the point
+  of splitting a file).
+- **Efficiency with judgment**: compute once, order predicate checks cheapest-first, don't reassign
+  parameters (`const t = text.trim()`); but don't micro-optimize non-issues.
+- **Formatting is Prettier's job.** Run `npx prettier --write` on every touched file, Markdown
+  included (GFM tables and their `---` separators reflow to the widest cell, so a one-cell edit
+  ripples the whole column). `arrowParens: "always"` is enforced — keep `(i) =>`.
 
 ## Testing conventions
 

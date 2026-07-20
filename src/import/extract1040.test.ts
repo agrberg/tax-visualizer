@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll } from 'vitest';
-import { extract1040Fields, groupRows, parseAmount, type TextItem } from './extract1040';
+import { extract1040Fields } from './extract1040';
+import { groupRows, parseAmount, type TextItem } from './rows';
 import { setImportLogging } from './importLog';
 
 beforeAll(() => setImportLogging(false));
@@ -291,9 +292,9 @@ describe('extract1040Fields', () => {
 
   it('reads IRA (4b) from its own segment when it shares a baseline with pensions (4c/4d) — 2019 layout', () => {
     // On the 2019 form, "b Taxable amount 4b" and "d Taxable amount 4d" can land on the same
-    // physical row. 4c/4d aren't in FACE_IDS, so without them as segment boundaries too, 4b's
-    // segment used to bleed past its own amount into the pensions columns and read 4d's amount
-    // instead of 4b's — retirementIncome would then double-count pensions and drop IRA entirely.
+    // physical row. 4c/4d are in SEGMENT_BOUNDARY_IDS precisely so they bound 4b's segment here:
+    // without them, 4b's segment would bleed past its own amount into the pension columns and read
+    // 4d's amount instead of 4b's — retirementIncome would then double-count pensions and drop IRA.
     const items = line(1, 460, [
       ['4a', 40],
       ['IRA distributions', 70],
@@ -398,7 +399,7 @@ describe('extract1040Fields', () => {
 
   it('does not extract the line number when a targeted line has no dollar value', () => {
     // Blank line 7a (no capital gains): only the line-number item and label are present.
-    // amountForLine must not return the line identifier itself as a dollar value.
+    // amountForId must not return the line identifier itself as a dollar value.
     const items = line(1, 360, [
       ['7a', 40],
       ['Capital gain or (loss)', 70],

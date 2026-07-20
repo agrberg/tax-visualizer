@@ -1,6 +1,6 @@
 import * as pdfjs from 'pdfjs-dist';
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
-import type { TextItem } from './extract1040';
+import type { TextItem } from './rows';
 import { ilog } from './importLog';
 
 // pdf.js runs its parser in a web worker; point it at the bundled worker asset.
