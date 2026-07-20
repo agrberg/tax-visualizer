@@ -18,6 +18,11 @@ Run a single test file: `npx vitest run src/tax/engine.test.ts`
 
 Node 24 required (pinned in `.tool-versions`).
 
+## Git worktrees
+
+Parallel workstreams live in git worktrees under `.claude/worktrees/` (already gitignored), not as
+sibling directories next to this repo. Use the `EnterWorktree` tool to create them.
+
 ## Architecture
 
 **Frontend-only SPA** — no backend, no API. All tax computation is pure client-side TypeScript. State persists to `localStorage` and URL hash only.
