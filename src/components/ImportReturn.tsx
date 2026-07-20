@@ -1,84 +1,78 @@
-import { useRef, useState } from 'react'
-import { FileUp, Upload, X } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Label } from '@/components/ui/label'
-import { Modal } from '@/components/ui/modal'
-import { MoneyInput } from '@/components/MoneyInput'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import { SOURCE_META } from '@/tax/format'
-import { FILING_STATUS_LABELS, FILING_STATUSES, isFilingStatus } from '@/tax/filingStatus'
-import { AVAILABLE_YEARS, taxTablesFor } from '@/tax/years'
-import { ALL_SOURCES, allowsNegativeAmount, type IncomeSource, type TaxInput } from '@/tax/types'
-import { parse1040 } from '@/import/parse1040'
-import { mergeParsedInput, type ParsedReturn } from '@/import/parsedReturn'
-import { DeductionControl } from '@/components/DeductionControl'
+import { useRef, useState } from 'react';
+import { FileUp, Upload, X } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import { Modal } from '@/components/ui/modal';
+import { MoneyInput } from '@/components/MoneyInput';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { SOURCE_META } from '@/tax/format';
+import { FILING_STATUS_LABELS, FILING_STATUSES, isFilingStatus } from '@/tax/filingStatus';
+import { AVAILABLE_YEARS, taxTablesFor } from '@/tax/years';
+import { ALL_SOURCES, allowsNegativeAmount, type IncomeSource, type TaxInput } from '@/tax/types';
+import { parse1040 } from '@/import/parse1040';
+import { mergeParsedInput, type ParsedReturn } from '@/import/parsedReturn';
+import { DeductionControl } from '@/components/DeductionControl';
 
-const MAX_BYTES = 10 * 1024 * 1024
+const MAX_BYTES = 10 * 1024 * 1024;
 
 interface ImportReturnProps {
-  current: TaxInput
-  onApply: (next: TaxInput) => void
+  current: TaxInput;
+  onApply: (next: TaxInput) => void;
 }
 
 interface Review {
-  draft: TaxInput
-  provenance: ParsedReturn['provenance']
+  draft: TaxInput;
+  provenance: ParsedReturn['provenance'];
   // Field names present in the parsed return. A plain string set: it's only ever queried by
   // `.has(...)` with known TaxInput keys, so widening avoids an unsound `keyof TaxInput` cast
   // over `Object.keys` (which is typed `string[]`).
-  detected: Set<string>
-  assumed: ParsedReturn['assumed']
-  warnings: string[]
+  detected: Set<string>;
+  assumed: ParsedReturn['assumed'];
+  warnings: string[];
 }
 
 export function ImportReturn({ current, onApply }: ImportReturnProps) {
-  const inputRef = useRef<HTMLInputElement>(null)
-  const [dragging, setDragging] = useState(false)
-  const [parsing, setParsing] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [notice, setNotice] = useState<string | null>(null)
-  const [review, setReview] = useState<Review | null>(null)
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [dragging, setDragging] = useState(false);
+  const [parsing, setParsing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [review, setReview] = useState<Review | null>(null);
 
   async function handleFile(file: File) {
-    if (parsing) return
-    setError(null)
-    setNotice(null)
+    if (parsing) return;
+    setError(null);
+    setNotice(null);
     if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
-      setError('Please choose a PDF file.')
-      return
+      setError('Please choose a PDF file.');
+      return;
     }
     if (file.size > MAX_BYTES) {
-      setError('That file is larger than 10 MB — please choose a smaller PDF.')
-      return
+      setError('That file is larger than 10 MB — please choose a smaller PDF.');
+      return;
     }
-    setParsing(true)
+    setParsing(true);
     try {
-      const result = await parse1040(file)
-      const detected = new Set(Object.keys(result.fields))
+      const result = await parse1040(file);
+      const detected = new Set(Object.keys(result.fields));
       // The PDF read fine but no income figures came out (scanned image / odd layout).
       // Skip the editing modal — it would be a wall of empty fields that reads as success.
       // Point the user at the by-hand fallback below instead.
       if (!ALL_SOURCES.some((s) => detected.has(s))) {
         setNotice(
           "We couldn't read income figures from this PDF — it may be a scanned image or an unusual layout. You can enter your values by hand below.",
-        )
-        return
+        );
+        return;
       }
       // Seed the draft from a zeroed income base (keeping filing status / tax year)
       // so undetected sources start at 0 — matching the "Not found on your return"
       // hint — rather than silently carrying the current/default amounts into the
       // imported scenario. Detected fields overlay on top.
-      const zeroedBase: TaxInput = { ...current }
-      for (const source of ALL_SOURCES) zeroedBase[source] = 0
+      const zeroedBase: TaxInput = { ...current };
+      for (const source of ALL_SOURCES) zeroedBase[source] = 0;
       // Reset the deduction to standard too, so an undetected line 12 matches the review's
       // "defaulting to standard deduction" hint rather than silently carrying the current value.
-      zeroedBase.deduction = null
+      zeroedBase.deduction = null;
       setReview({
         // A capital loss keeps its sign through the review and Apply; the engine nets it.
         draft: mergeParsedInput(zeroedBase, result.fields),
@@ -86,30 +80,30 @@ export function ImportReturn({ current, onApply }: ImportReturnProps) {
         detected,
         assumed: result.assumed,
         warnings: result.warnings,
-      })
+      });
     } catch (err) {
-      console.error('[1040 import] parse failed:', err)
-      setError("Couldn't read that PDF. You can still enter your values by hand.")
+      console.error('[1040 import] parse failed:', err);
+      setError("Couldn't read that PDF. You can still enter your values by hand.");
     } finally {
-      setParsing(false)
+      setParsing(false);
     }
   }
 
   function onDrop(e: React.DragEvent) {
-    e.preventDefault()
-    setDragging(false)
-    const file = e.dataTransfer.files?.[0]
-    if (file) void handleFile(file)
+    e.preventDefault();
+    setDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) void handleFile(file);
   }
 
   function setField(patch: Partial<TaxInput>) {
-    setReview((r) => (r ? { ...r, draft: { ...r.draft, ...patch } } : r))
+    setReview((r) => (r ? { ...r, draft: { ...r.draft, ...patch } } : r));
   }
 
   function apply() {
-    if (!review) return
-    onApply(mergeParsedInput(current, review.draft))
-    setReview(null)
+    if (!review) return;
+    onApply(mergeParsedInput(current, review.draft));
+    setReview(null);
   }
 
   // Whether the draft's deduction is an itemized amount (above the standard for its own
@@ -118,9 +112,9 @@ export function ImportReturn({ current, onApply }: ImportReturnProps) {
   // itself in this modal.
   const draftStandardDeduction = review
     ? taxTablesFor(review.draft.taxYear).standardDeduction[review.draft.filingStatus]
-    : null
+    : null;
   const deductionIsItemized =
-    review !== null && review.draft.deduction !== null && review.draft.deduction > (draftStandardDeduction ?? 0)
+    review !== null && review.draft.deduction !== null && review.draft.deduction > (draftStandardDeduction ?? 0);
 
   return (
     <>
@@ -131,8 +125,8 @@ export function ImportReturn({ current, onApply }: ImportReturnProps) {
           onClick={() => inputRef.current?.click()}
           onDrop={onDrop}
           onDragOver={(e) => {
-            e.preventDefault()
-            setDragging(true)
+            e.preventDefault();
+            setDragging(true);
           }}
           onDragLeave={() => setDragging(false)}
           className={`flex w-full flex-col items-center gap-1.5 rounded-md border border-dashed px-3 py-6 text-center text-sm transition-colors ${
@@ -150,20 +144,22 @@ export function ImportReturn({ current, onApply }: ImportReturnProps) {
           accept=".pdf,application/pdf"
           className="hidden"
           onChange={(e) => {
-            const file = e.target.files?.[0]
-            if (file) void handleFile(file)
-            e.target.value = ''
+            const file = e.target.files?.[0];
+            if (file) void handleFile(file);
+            e.target.value = '';
           }}
         />
-        <p className="text-xs text-destructive" aria-live="polite">{error}</p>
+        <p className="text-xs text-destructive" aria-live="polite">
+          {error}
+        </p>
         {notice && (
           <p className="rounded-md bg-amber-50 p-2 text-xs text-amber-900" aria-live="polite">
             {notice}
           </p>
         )}
         <p className="text-xs text-muted-foreground">
-          Reads income figures only, in your browser — nothing is uploaded. You'll confirm the values
-          before they're applied.
+          Reads income figures only, in your browser — nothing is uploaded. You'll confirm the values before they're
+          applied.
         </p>
       </div>
 
@@ -175,17 +171,13 @@ export function ImportReturn({ current, onApply }: ImportReturnProps) {
           review && (
             <div className="flex items-start justify-between gap-2">
               <div className="space-y-1">
-                <div
-                  id="import-review-title"
-                  className="flex items-center gap-2 text-base font-medium"
-                >
+                <div id="import-review-title" className="flex items-center gap-2 text-base font-medium">
                   <FileUp className="size-4" />
                   Review imported values
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Found {ALL_SOURCES.filter((s) => review.detected.has(s)).length} of{' '}
-                  {ALL_SOURCES.length} income figures from your {review.draft.taxYear} return. Edit
-                  anything below, then apply.
+                  Found {ALL_SOURCES.filter((s) => review.detected.has(s)).length} of {ALL_SOURCES.length} income
+                  figures from your {review.draft.taxYear} return. Edit anything below, then apply.
                 </p>
               </div>
               <button
@@ -223,10 +215,14 @@ export function ImportReturn({ current, onApply }: ImportReturnProps) {
             )}
 
             <div className="space-y-1.5">
-              <Label htmlFor="import-filing-status" className="text-sm">Filing status</Label>
+              <Label htmlFor="import-filing-status" className="text-sm">
+                Filing status
+              </Label>
               <Select
                 value={review.draft.filingStatus}
-                onValueChange={(v) => { if (isFilingStatus(v)) setField({ filingStatus: v }) }}
+                onValueChange={(v) => {
+                  if (isFilingStatus(v)) setField({ filingStatus: v });
+                }}
               >
                 <SelectTrigger id="import-filing-status" className="w-full">
                   <SelectValue />
@@ -247,7 +243,9 @@ export function ImportReturn({ current, onApply }: ImportReturnProps) {
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="import-tax-year" className="text-sm">Tax year</Label>
+              <Label htmlFor="import-tax-year" className="text-sm">
+                Tax year
+              </Label>
               <Select value={String(review.draft.taxYear)} onValueChange={(v) => setField({ taxYear: Number(v) })}>
                 <SelectTrigger id="import-tax-year" className="w-full">
                   <SelectValue />
@@ -294,7 +292,7 @@ export function ImportReturn({ current, onApply }: ImportReturnProps) {
             </div>
 
             {ALL_SOURCES.map((source) => {
-              const detected = review.detected.has(source)
+              const detected = review.detected.has(source);
               return (
                 <ReviewMoneyField
                   key={source}
@@ -305,13 +303,13 @@ export function ImportReturn({ current, onApply }: ImportReturnProps) {
                   assumed={review.assumed[source]}
                   onChange={(n) => setField({ [source]: n })}
                 />
-              )
+              );
             })}
           </div>
         )}
       </Modal>
     </>
-  )
+  );
 }
 
 function ReviewMoneyField({
@@ -322,12 +320,12 @@ function ReviewMoneyField({
   assumed,
   onChange,
 }: {
-  source: IncomeSource
-  value: number
-  detected: boolean
-  provenance: string | undefined
-  assumed?: boolean
-  onChange: (n: number) => void
+  source: IncomeSource;
+  value: number;
+  detected: boolean;
+  provenance: string | undefined;
+  assumed?: boolean;
+  onChange: (n: number) => void;
 }) {
   return (
     <div className="space-y-1">
@@ -350,7 +348,7 @@ function ReviewMoneyField({
         fallback="Not found on your return — enter if it applies"
       />
     </div>
-  )
+  );
 }
 
 /**
@@ -365,18 +363,18 @@ function DetectedNote({
   fallback,
   assumed,
 }: {
-  detected: boolean
-  provenance: string | undefined
-  fallback: string
-  assumed?: boolean
+  detected: boolean;
+  provenance: string | undefined;
+  fallback: string;
+  assumed?: boolean;
 }) {
   if (detected) {
-    if (!provenance) return null
+    if (!provenance) return null;
     return assumed ? (
       <p className="text-xs text-amber-700">assumed from {provenance} — verify</p>
     ) : (
       <p className="text-xs text-emerald-700">from {provenance}</p>
-    )
+    );
   }
-  return <p className="text-xs text-muted-foreground/70">{fallback}</p>
+  return <p className="text-xs text-muted-foreground/70">{fallback}</p>;
 }

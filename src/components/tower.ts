@@ -1,18 +1,18 @@
-import type { OrdinaryBracket, TaxResult } from '@/tax/types'
-import { taxTablesFor } from '@/tax/years'
+import type { OrdinaryBracket, TaxResult } from '@/tax/types';
+import { taxTablesFor } from '@/tax/years';
 
 /** Fixed pixel height of a tower column; segment heights are a fraction of this. */
-export const TOWER_HEIGHT = 440
+export const TOWER_HEIGHT = 440;
 
 /** Percentage (0–100) of the axis a dollar amount occupies. */
 export function pct(amount: number, axisMax: number): number {
-  if (axisMax <= 0) return 0
-  return (amount / axisMax) * 100
+  if (axisMax <= 0) return 0;
+  return (amount / axisMax) * 100;
 }
 
 /** Whether a band is tall enough to carry its own in-bar label (else the legend does). */
 export function tall(amount: number, axisMax: number): boolean {
-  return pct(amount, axisMax) >= 7
+  return pct(amount, axisMax) >= 7;
 }
 
 /**
@@ -21,7 +21,7 @@ export function tall(amount: number, axisMax: number): boolean {
  * two fills land at the same height — reading as level with each other — while
  * the next bracket/rate boundary is pinned to the top edge just above.
  */
-export const AXIS_HEADROOM = 1.05
+export const AXIS_HEADROOM = 1.05;
 
 /**
  * Axis for the capital-gains tower. Scaled to the top of the visible stack
@@ -31,15 +31,15 @@ export const AXIS_HEADROOM = 1.05
  * never creates a large proportional void.
  */
 export function axisMaxFor(result: TaxResult): number {
-  const fed = result.federal
-  const fillTop = fed.preferentialDeduction + fed.capitalGainsBaseline + fed.preferentialTaxable
-  return fillTop * AXIS_HEADROOM
+  const fed = result.federal;
+  const fillTop = fed.preferentialDeduction + fed.capitalGainsBaseline + fed.preferentialTaxable;
+  return fillTop * AXIS_HEADROOM;
 }
 
 /** Index of the ordinary bracket holding the marginal (last taxable) dollar. */
 export function marginalOrdinaryIdx(result: TaxResult): number {
-  const brackets = taxTablesFor(result.taxYear).ordinaryBrackets[result.filingStatus]
-  return brackets.findIndex((b) => result.federal.ordinaryTaxable < b.max)
+  const brackets = taxTablesFor(result.taxYear).ordinaryBrackets[result.filingStatus];
+  return brackets.findIndex((b) => result.federal.ordinaryTaxable < b.max);
 }
 
 /**
@@ -49,8 +49,8 @@ export function marginalOrdinaryIdx(result: TaxResult): number {
  * income) the marginal bracket is the lowest (10%), so this returns the 12% bracket.
  */
 export function nextOrdinaryBracket(result: TaxResult): OrdinaryBracket | null {
-  const brackets = taxTablesFor(result.taxYear).ordinaryBrackets[result.filingStatus]
-  return brackets[marginalOrdinaryIdx(result) + 1] ?? null
+  const brackets = taxTablesFor(result.taxYear).ordinaryBrackets[result.filingStatus];
+  return brackets[marginalOrdinaryIdx(result) + 1] ?? null;
 }
 
 /**
@@ -61,8 +61,8 @@ export function nextOrdinaryBracket(result: TaxResult): OrdinaryBracket | null {
  * scale — so a distant next bracket never creates a huge proportional void.
  */
 export function ordinaryAxisMaxFor(result: TaxResult): number {
-  const deduction = result.federal.deduction
+  const deduction = result.federal.deduction;
   // When income is fully shielded, keep the deduction visible; otherwise track income.
-  const fillTop = Math.max(result.ordinaryIncome, deduction)
-  return fillTop * AXIS_HEADROOM
+  const fillTop = Math.max(result.ordinaryIncome, deduction);
+  return fillTop * AXIS_HEADROOM;
 }

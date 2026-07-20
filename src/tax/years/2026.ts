@@ -1,6 +1,6 @@
-import type { TaxYearTables } from '../types'
+import type { TaxYearTables } from '../types';
 
-const INF = Number.POSITIVE_INFINITY
+const INF = Number.POSITIVE_INFINITY;
 
 /**
  * 2026 federal tax tables.
@@ -79,4 +79,4 @@ export const TAX_YEAR_2026: TaxYearTables = {
     rate: 0.009,
     threshold: { single: 200000, mfj: 250000, hoh: 200000, mfs: 125000 },
   },
-}
+};

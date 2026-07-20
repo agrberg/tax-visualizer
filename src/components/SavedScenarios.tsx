@@ -1,18 +1,18 @@
-import { useState } from 'react'
-import { Pencil, Trash2 } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { normalizeName, scenarioNames, type Scenarios } from '@/scenarios'
+import { useState } from 'react';
+import { Pencil, Trash2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { normalizeName, scenarioNames, type Scenarios } from '@/scenarios';
 
 interface SavedScenariosProps {
-  scenarios: Scenarios
-  selectedName: string | null
-  onSave: (name: string) => void
-  onLoad: (name: string) => void
-  onDelete: (name: string) => void
-  onRename: (oldName: string) => void
-  onUpdate: (name: string) => void
+  scenarios: Scenarios;
+  selectedName: string | null;
+  onSave: (name: string) => void;
+  onLoad: (name: string) => void;
+  onDelete: (name: string) => void;
+  onRename: (oldName: string) => void;
+  onUpdate: (name: string) => void;
 }
 
 export function SavedScenarios({
@@ -24,15 +24,15 @@ export function SavedScenarios({
   onRename,
   onUpdate,
 }: SavedScenariosProps) {
-  const [name, setName] = useState('')
-  const names = scenarioNames(scenarios)
-  const canSave = normalizeName(name) !== null
+  const [name, setName] = useState('');
+  const names = scenarioNames(scenarios);
+  const canSave = normalizeName(name) !== null;
 
   const handleSave = () => {
-    if (!canSave) return
-    onSave(name)
-    setName('')
-  }
+    if (!canSave) return;
+    onSave(name);
+    setName('');
+  };
 
   return (
     <div className="space-y-3">
@@ -48,7 +48,7 @@ export function SavedScenarios({
           value={name}
           onChange={(e) => setName(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === 'Enter') handleSave()
+            if (e.key === 'Enter') handleSave();
           }}
         />
         <Button type="button" size="sm" disabled={!canSave} onClick={handleSave}>
@@ -72,12 +72,7 @@ export function SavedScenarios({
               >
                 {n}
               </button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="xs"
-                onClick={() => onUpdate(n)}
-              >
+              <Button type="button" variant="ghost" size="xs" onClick={() => onUpdate(n)}>
                 Update
               </Button>
               <Button
@@ -103,5 +98,5 @@ export function SavedScenarios({
         </ul>
       )}
     </div>
-  )
+  );
 }

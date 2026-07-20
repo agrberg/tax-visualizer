@@ -1,8 +1,8 @@
-import { useState } from 'react'
-import { taxTablesFor } from '@/tax/years'
-import { SOURCE_META, formatCurrency } from '@/tax/format'
-import type { IncomeSource, TaxResult } from '@/tax/types'
-import { pct, tall } from './tower'
+import { useState } from 'react';
+import { taxTablesFor } from '@/tax/years';
+import { SOURCE_META, formatCurrency } from '@/tax/format';
+import type { IncomeSource, TaxResult } from '@/tax/types';
+import { pct, tall } from './tower';
 import {
   BracketBreakdown,
   ColumnTotal,
@@ -14,42 +14,42 @@ import {
   Slice,
   SourceLegendRow,
   TowerColumn,
-} from './TowerParts'
-import { useTooltip } from './use-tooltip'
+} from './TowerParts';
+import { useTooltip } from './use-tooltip';
 
 interface Props {
-  result: TaxResult
-  axisMax: number
+  result: TaxResult;
+  axisMax: number;
 }
 
 export function CapitalGainsTower({ result, axisMax }: Props) {
-  const fed = result.federal
-  const { rate0Max, rate15Max } = taxTablesFor(result.taxYear).capitalGains.breakpoints[result.filingStatus]
-  const baseline = fed.capitalGainsBaseline
-  const topOfGains = baseline + fed.preferentialTaxable
-  const layers = fed.layers.preferential.filter((l) => l.taxableAmount > 0)
-  const tip = useTooltip()
-  const [hovered, setHovered] = useState<IncomeSource | null>(null)
-  const hoveredLayer = layers.find((l) => l.source === hovered)
+  const fed = result.federal;
+  const { rate0Max, rate15Max } = taxTablesFor(result.taxYear).capitalGains.breakpoints[result.filingStatus];
+  const baseline = fed.capitalGainsBaseline;
+  const topOfGains = baseline + fed.preferentialTaxable;
+  const layers = fed.layers.preferential.filter((l) => l.taxableAmount > 0);
+  const tip = useTooltip();
+  const [hovered, setHovered] = useState<IncomeSource | null>(null);
+  const hoveredLayer = layers.find((l) => l.source === hovered);
 
   // Standard deduction that spilled onto preferential income sits below the brackets (0%).
-  const offset = fed.preferentialDeduction
+  const offset = fed.preferentialDeduction;
   // Position (%) of a taxable-income value, shifted up by the shielded deduction.
-  const posPct = (taxableValue: number) => pct(offset + taxableValue, axisMax)
+  const posPct = (taxableValue: number) => pct(offset + taxableValue, axisMax);
 
   // Each dollar boundary carries the rate that *starts* above it, on the right —
   // matching the ordinary tower's convention.
   const dividers = [
     { value: rate0Max, rateAbove: '15%' },
     { value: rate15Max, rateAbove: '20%' },
-  ]
+  ];
   // The rate boundary just above the gains is pinned off-axis to the top edge
   // (mirrors the ordinary tower's next-bracket pin); boundaries the gains have
   // already crossed are drawn to scale below.
-  const nextBoundary = dividers.find((d) => d.value > topOfGains) ?? null
+  const nextBoundary = dividers.find((d) => d.value > topOfGains) ?? null;
   // Center of the visible 0% band, which has no lower divider line to sit on.
-  const zeroZoneTop = Math.min(offset + rate0Max, axisMax)
-  const zeroBandCenter = pct((offset + zeroZoneTop) / 2, axisMax)
+  const zeroZoneTop = Math.min(offset + rate0Max, axisMax);
+  const zeroBandCenter = pct((offset + zeroZoneTop) / 2, axisMax);
 
   return (
     <div className="flex w-full max-w-xs flex-col items-center sm:max-w-none sm:flex-1">
@@ -59,8 +59,8 @@ export function CapitalGainsTower({ result, axisMax }: Props) {
         ariaLabel={`Capital gains tower: ${formatCurrency(fed.preferentialTaxable)} of preferential long-term gains and qualified dividends stacked on ordinary income, ${formatCurrency(fed.capitalGainsTax)} tax, ${formatCurrency(fed.roomAt0)} of room remaining at the 0% rate. Per-source figures are in the overall breakdown table below.`}
         onMouseMove={tip.onMove}
         onMouseLeave={() => {
-          tip.onLeave()
-          setHovered(null)
+          tip.onLeave();
+          setHovered(null);
         }}
       >
         {/* standard-deduction spill: shields the bottom of preferential income at 0% */}
@@ -108,7 +108,7 @@ export function CapitalGainsTower({ result, axisMax }: Props) {
 
         {/* preferential gains, stacked on the baseline, colored by source */}
         {layers.map((layer) => {
-          const dim = hovered !== null && hovered !== layer.source
+          const dim = hovered !== null && hovered !== layer.source;
           return (
             <Slice
               key={layer.source}
@@ -119,7 +119,7 @@ export function CapitalGainsTower({ result, axisMax }: Props) {
               dim={dim}
               onEnter={() => setHovered(layer.source)}
             />
-          )
+          );
         })}
 
         {/* aggregate total at the top of the stacked gains */}
@@ -129,13 +129,13 @@ export function CapitalGainsTower({ result, axisMax }: Props) {
 
         {/* inline per-source labels, centered in each gains layer that is tall enough */}
         {layers.map((layer) => {
-          if (!tall(layer.taxableAmount, axisMax)) return null
-          const mid = layer.base + layer.taxableAmount / 2
+          if (!tall(layer.taxableAmount, axisMax)) return null;
+          const mid = layer.base + layer.taxableAmount / 2;
           return (
             <LayerLabel key={`label-${layer.source}`} topPct={100 - posPct(mid)}>
               {SOURCE_META[layer.source].short} · {formatCurrency(layer.taxableAmount)}
             </LayerLabel>
-          )
+          );
         })}
 
         {/* 0% rate label — its band has no lower divider line, so center it in-zone.
@@ -151,11 +151,7 @@ export function CapitalGainsTower({ result, axisMax }: Props) {
 
         {/* baseline marker: top of ordinary income / where gains start */}
         {baseline > 0 && offset + baseline <= axisMax && (
-          <Marker
-            border="border-t-2 border-foreground/50"
-            bottom={posPct(baseline)}
-            left={formatCurrency(baseline)}
-          />
+          <Marker border="border-t-2 border-foreground/50" bottom={posPct(baseline)} left={formatCurrency(baseline)} />
         )}
 
         {/* dollar boundaries the gains have crossed, drawn to scale: threshold left, next rate right */}
@@ -222,7 +218,7 @@ export function CapitalGainsTower({ result, axisMax }: Props) {
           <span className="font-medium">{formatCurrency(fed.roomAt15)}</span>
         </div>
         {layers.map((layer) => {
-          const meta = SOURCE_META[layer.source]
+          const meta = SOURCE_META[layer.source];
           return (
             <SourceLegendRow
               key={layer.source}
@@ -231,7 +227,7 @@ export function CapitalGainsTower({ result, axisMax }: Props) {
               label={meta.short}
               amount={layer.taxableAmount}
             />
-          )
+          );
         })}
       </div>
 
@@ -247,5 +243,5 @@ export function CapitalGainsTower({ result, axisMax }: Props) {
         <BracketBreakdown title="Tax by rate" fills={fed.capitalGainsFills} total={fed.capitalGainsTax} />
       </HoverTooltip>
     </div>
-  )
+  );
 }

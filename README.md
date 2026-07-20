@@ -47,12 +47,18 @@ The dev server prints a URL. Note it includes the base path:
 ## Scripts
 
 ```bash
-npm run dev      # dev server with hot reload
-npm run test     # tax-logic unit tests (Vitest)
-npm run lint     # oxlint
-npm run build    # type-check + production build to dist/
-npm run preview  # serve the built dist/ locally — smoke-test before deploying
+npm run dev           # dev server with hot reload
+npm run test          # tax-logic unit tests (Vitest)
+npm run lint          # oxlint
+npm run format        # Prettier — write formatting fixes
+npm run format:check  # Prettier — check only, no writes (used in CI)
+npm run build         # type-check + production build to dist/
+npm run preview       # serve the built dist/ locally — smoke-test before deploying
 ```
+
+This repo has one commit that's a repo-wide Prettier reformat, listed in `.git-blame-ignore-revs`.
+Run `git config blame.ignoreRevsFile .git-blame-ignore-revs` once locally so `git blame` skips
+over it and attributes lines to their real last author.
 
 ## Deploy (GitHub Pages)
 

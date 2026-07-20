@@ -1,38 +1,32 @@
-import {
-  INVESTMENT_SOURCES,
-  ORDINARY_SOURCES,
-  PREFERENTIAL_SOURCES,
-  type IncomeSource,
-  type TaxInput,
-} from './types'
+import { INVESTMENT_SOURCES, ORDINARY_SOURCES, PREFERENTIAL_SOURCES, type IncomeSource, type TaxInput } from './types';
 
 /** Income clamped to ≥0 and split into the ordinary and preferential pools. */
 export interface ClassifiedIncome {
-  amounts: Record<IncomeSource, number>
-  ordinaryIncome: number
-  preferentialIncome: number
-  totalIncome: number
+  amounts: Record<IncomeSource, number>;
+  ordinaryIncome: number;
+  preferentialIncome: number;
+  totalIncome: number;
   /** Everything except wages — the base NIIT is measured against. */
-  netInvestmentIncome: number
+  netInvestmentIncome: number;
   /**
    * The residual net capital loss after ST/LT netting, split by holding-period character
    * (both ≥0). The jurisdiction turns this into the §1211(b) deduction (capped at the
    * filing-status limit, then limited by taxable income) and the §1212(b) carryover — all
    * of which it can only size once the cap and taxable income are known.
    */
-  capitalNetLoss: { shortTerm: number; longTerm: number }
+  capitalNetLoss: { shortTerm: number; longTerm: number };
 }
 
 /** The taxable capital-gains pools plus the net-loss figures after ST/LT netting. */
 export interface CapitalGainOutcome {
   /** Net short-term gain that remains taxable (ordinary rates); ≥0. */
-  shortTermGains: number
+  shortTermGains: number;
   /** Net long-term gain that remains taxable (preferential ladder); ≥0. */
-  longTermGains: number
+  longTermGains: number;
   /** Residual net short-term capital loss (≥0) after netting against long-term. */
-  shortTermLoss: number
+  shortTermLoss: number;
   /** Residual net long-term capital loss (≥0) after netting against short-term. */
-  longTermLoss: number
+  longTermLoss: number;
 }
 
 /**
@@ -58,34 +52,34 @@ export interface CapitalGainOutcome {
  * 2025 Instructions for Schedule D (Form 1040), https://www.irs.gov/instructions/i1040sd
  */
 export function nettedCapitalGains(shortTerm: number, longTerm: number): CapitalGainOutcome {
-  const st = Number.isFinite(shortTerm) ? shortTerm : 0
-  const lt = Number.isFinite(longTerm) ? longTerm : 0
+  const st = Number.isFinite(shortTerm) ? shortTerm : 0;
+  const lt = Number.isFinite(longTerm) ? longTerm : 0;
 
   // Taxable gain per pool, and any residual loss split by holding-period character.
-  let taxableShortTerm = 0
-  let taxableLongTerm = 0
-  let shortTermLoss = 0
-  let longTermLoss = 0
+  let taxableShortTerm = 0;
+  let taxableLongTerm = 0;
+  let shortTermLoss = 0;
+  let longTermLoss = 0;
 
   if (st >= 0 && lt >= 0) {
     // Two gains (or zeros): no interaction.
-    taxableShortTerm = st
-    taxableLongTerm = lt
+    taxableShortTerm = st;
+    taxableLongTerm = lt;
   } else if (st < 0 && lt < 0) {
     // Two losses: nothing taxable; each carries out on its own character.
-    shortTermLoss = -st
-    longTermLoss = -lt
+    shortTermLoss = -st;
+    longTermLoss = -lt;
   } else {
     // Opposite signs: the loss offsets the gain. The combined figure keeps the sign —
     // and thus the character — of whichever leg was the gain.
-    const combined = st + lt
+    const combined = st + lt;
     if (combined > 0) {
-      if (lt > 0) taxableLongTerm = combined
-      else taxableShortTerm = combined
+      if (lt > 0) taxableLongTerm = combined;
+      else taxableShortTerm = combined;
     } else if (combined < 0) {
       // Net loss on the loss leg's character (the larger-magnitude leg).
-      if (lt < 0) longTermLoss = -combined
-      else shortTermLoss = -combined
+      if (lt < 0) longTermLoss = -combined;
+      else shortTermLoss = -combined;
     }
     // combined === 0 is a wash: nothing taxable, no loss.
   }
@@ -95,16 +89,16 @@ export function nettedCapitalGains(shortTerm: number, longTerm: number): Capital
     longTermGains: taxableLongTerm,
     shortTermLoss,
     longTermLoss,
-  }
+  };
 }
 
 /** Normalize a raw input (net capital gains, clamp negatives) and classify it by tax treatment. */
 export function classifyIncome(input: TaxInput): ClassifiedIncome {
   // Coerce non-finite (e.g. a field absent from older saved input) to 0, then clamp.
-  const amt = (n: number) => (Number.isFinite(n) ? Math.max(0, n) : 0)
+  const amt = (n: number) => (Number.isFinite(n) ? Math.max(0, n) : 0);
   // Net short- vs long-term capital results before pooling. `shortTerm`/`longTerm` may
   // be negative (a capital loss); the outcome's taxable pools are already ≥0.
-  const capital = nettedCapitalGains(input.shortTermGains, input.longTermGains)
+  const capital = nettedCapitalGains(input.shortTermGains, input.longTermGains);
   const amounts: Record<IncomeSource, number> = {
     wages: amt(input.wages),
     retirementIncome: amt(input.retirementIncome),
@@ -113,9 +107,9 @@ export function classifyIncome(input: TaxInput): ClassifiedIncome {
     shortTermGains: capital.shortTermGains,
     qualifiedDividends: amt(input.qualifiedDividends),
     longTermGains: capital.longTermGains,
-  }
-  const ordinaryIncome = ORDINARY_SOURCES.reduce((s, k) => s + amounts[k], 0)
-  const preferentialIncome = PREFERENTIAL_SOURCES.reduce((s, k) => s + amounts[k], 0)
+  };
+  const ordinaryIncome = ORDINARY_SOURCES.reduce((s, k) => s + amounts[k], 0);
+  const preferentialIncome = PREFERENTIAL_SOURCES.reduce((s, k) => s + amounts[k], 0);
   return {
     amounts,
     ordinaryIncome,
@@ -123,5 +117,5 @@ export function classifyIncome(input: TaxInput): ClassifiedIncome {
     totalIncome: ordinaryIncome + preferentialIncome,
     netInvestmentIncome: INVESTMENT_SOURCES.reduce((s, k) => s + amounts[k], 0),
     capitalNetLoss: { shortTerm: capital.shortTermLoss, longTerm: capital.longTermLoss },
-  }
+  };
 }

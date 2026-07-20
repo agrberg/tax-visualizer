@@ -1,10 +1,10 @@
-import type { FilingStatus, MarginalScenario, SurchargeResult, TaxYearTables } from './types'
+import type { FilingStatus, MarginalScenario, SurchargeResult, TaxYearTables } from './types';
 
 /** The income facts a surcharge is assessed against. */
 export interface SurchargeContext {
-  wages: number
-  netInvestmentIncome: number
-  magi: number
+  wages: number;
+  netInvestmentIncome: number;
+  magi: number;
 }
 
 /**
@@ -12,7 +12,7 @@ export interface SurchargeContext {
  * `wages` puts the whole amount on wages; `investment` spreads it proportionally
  * over the investment sources by gross amount.
  */
-export type SurchargeAttribution = { kind: 'wages' } | { kind: 'investment' }
+export type SurchargeAttribution = { kind: 'wages' } | { kind: 'investment' };
 
 /**
  * A surcharge rule owns *both* how it is assessed and how it hits the next dollar,
@@ -21,20 +21,20 @@ export type SurchargeAttribution = { kind: 'wages' } | { kind: 'investment' }
  * `attribution` declares how its dollars land on sources in the breakdown.
  */
 export interface SurchargeRule {
-  key: string
-  label: string
-  shortLabel: string
-  rate: number
-  attribution: SurchargeAttribution
-  assess(ctx: SurchargeContext): SurchargeResult
-  marginalRate(type: MarginalScenario['key'], assessed: SurchargeResult): number
+  key: string;
+  label: string;
+  shortLabel: string;
+  rate: number;
+  attribution: SurchargeAttribution;
+  assess(ctx: SurchargeContext): SurchargeResult;
+  marginalRate(type: MarginalScenario['key'], assessed: SurchargeResult): number;
 }
 
 /** NIIT: 3.8% on the lesser of net investment income and MAGI over the threshold. */
 export function niitRule(filingStatus: FilingStatus, niit: TaxYearTables['niit']): SurchargeRule {
-  const threshold = niit.threshold[filingStatus]
-  const rate = niit.rate
-  const label = 'Net Investment Income'
+  const threshold = niit.threshold[filingStatus];
+  const rate = niit.rate;
+  const label = 'Net Investment Income';
   return {
     key: 'niit',
     label,
@@ -42,9 +42,9 @@ export function niitRule(filingStatus: FilingStatus, niit: TaxYearTables['niit']
     rate,
     attribution: { kind: 'investment' },
     assess(ctx) {
-      const incomeOverThreshold = Math.max(0, ctx.magi - threshold)
-      const taxedAmount = Math.min(ctx.netInvestmentIncome, incomeOverThreshold)
-      const amount = taxedAmount * rate
+      const incomeOverThreshold = Math.max(0, ctx.magi - threshold);
+      const taxedAmount = Math.min(ctx.netInvestmentIncome, incomeOverThreshold);
+      const amount = taxedAmount * rate;
       return {
         key: 'niit',
         label,
@@ -56,19 +56,19 @@ export function niitRule(filingStatus: FilingStatus, niit: TaxYearTables['niit']
         taxedAmount,
         amount,
         investmentIncome: ctx.netInvestmentIncome,
-      }
+      };
     },
     // An investment/preferential dollar always incurs NIIT once MAGI is over the
     // threshold. A wage or retirement dollar does only when the MAGI-over-threshold
     // cap is below net investment income (raising MAGI then pulls more NII under the
     // cap) — neither is itself investment income.
     marginalRate(type, a) {
-      if (a.incomeOverThreshold <= 0) return 0
+      if (a.incomeOverThreshold <= 0) return 0;
       if (type === 'wages' || type === 'retirement')
-        return a.incomeOverThreshold < (a.investmentIncome ?? 0) ? rate : 0
-      return rate
+        return a.incomeOverThreshold < (a.investmentIncome ?? 0) ? rate : 0;
+      return rate;
     },
-  }
+  };
 }
 
 /** Additional Medicare Tax: 0.9% on wages over the (statutory) threshold. */
@@ -76,9 +76,9 @@ export function medicareRule(
   filingStatus: FilingStatus,
   additionalMedicare: TaxYearTables['additionalMedicare'],
 ): SurchargeRule {
-  const threshold = additionalMedicare.threshold[filingStatus]
-  const rate = additionalMedicare.rate
-  const label = 'Additional Medicare'
+  const threshold = additionalMedicare.threshold[filingStatus];
+  const rate = additionalMedicare.rate;
+  const label = 'Additional Medicare';
   return {
     key: 'additionalMedicare',
     label,
@@ -86,8 +86,8 @@ export function medicareRule(
     rate,
     attribution: { kind: 'wages' },
     assess(ctx) {
-      const incomeOverThreshold = Math.max(0, ctx.wages - threshold)
-      const amount = incomeOverThreshold * rate
+      const incomeOverThreshold = Math.max(0, ctx.wages - threshold);
+      const amount = incomeOverThreshold * rate;
       return {
         key: 'additionalMedicare',
         label,
@@ -98,12 +98,12 @@ export function medicareRule(
         incomeOverThreshold,
         taxedAmount: incomeOverThreshold,
         amount,
-      }
+      };
     },
     marginalRate(type, a) {
-      return type === 'wages' && a.incomeOverThreshold > 0 ? rate : 0
+      return type === 'wages' && a.incomeOverThreshold > 0 ? rate : 0;
     },
-  }
+  };
 }
 
 /**
@@ -111,9 +111,9 @@ export function medicareRule(
  * the inverse of a threshold — the rate applies *below* it — so `cap` carries that boundary.
  */
 export function socialSecurityRule(socialSecurity: TaxYearTables['socialSecurity']): SurchargeRule {
-  const cap = socialSecurity.wageBase
-  const rate = socialSecurity.rate
-  const label = 'Social Security'
+  const cap = socialSecurity.wageBase;
+  const rate = socialSecurity.rate;
+  const label = 'Social Security';
   return {
     key: 'socialSecurity',
     label,
@@ -121,8 +121,8 @@ export function socialSecurityRule(socialSecurity: TaxYearTables['socialSecurity
     rate,
     attribution: { kind: 'wages' },
     assess(ctx) {
-      const taxedAmount = Math.min(ctx.wages, cap)
-      const amount = taxedAmount * rate
+      const taxedAmount = Math.min(ctx.wages, cap);
+      const amount = taxedAmount * rate;
       return {
         key: 'socialSecurity',
         label,
@@ -135,19 +135,19 @@ export function socialSecurityRule(socialSecurity: TaxYearTables['socialSecurity
         incomeOverThreshold: Math.max(0, ctx.wages - cap),
         taxedAmount,
         amount,
-      }
+      };
     },
     // A wage dollar incurs SS only while wages are still under the cap.
     marginalRate(type, a) {
-      return type === 'wages' && a.incomeMeasured < cap ? rate : 0
+      return type === 'wages' && a.incomeMeasured < cap ? rate : 0;
     },
-  }
+  };
 }
 
 /** Medicare (HI): 1.45% on all wages, no cap. The 0.9% Additional Medicare rides on top. */
 export function medicareBaseRule(medicare: TaxYearTables['medicare']): SurchargeRule {
-  const rate = medicare.rate
-  const label = 'Medicare'
+  const rate = medicare.rate;
+  const label = 'Medicare';
   return {
     key: 'medicare',
     label,
@@ -155,7 +155,7 @@ export function medicareBaseRule(medicare: TaxYearTables['medicare']): Surcharge
     rate,
     attribution: { kind: 'wages' },
     assess(ctx) {
-      const amount = ctx.wages * rate
+      const amount = ctx.wages * rate;
       return {
         key: 'medicare',
         label,
@@ -166,23 +166,20 @@ export function medicareBaseRule(medicare: TaxYearTables['medicare']): Surcharge
         incomeOverThreshold: 0,
         taxedAmount: ctx.wages,
         amount,
-      }
+      };
     },
     marginalRate(type) {
-      return type === 'wages' ? rate : 0
+      return type === 'wages' ? rate : 0;
     },
-  }
+  };
 }
 
 /** The surcharges that ride on top of the federal income tax. */
-export function federalSurchargeRules(
-  filingStatus: FilingStatus,
-  tables: TaxYearTables,
-): SurchargeRule[] {
+export function federalSurchargeRules(filingStatus: FilingStatus, tables: TaxYearTables): SurchargeRule[] {
   return [
     socialSecurityRule(tables.socialSecurity),
     medicareBaseRule(tables.medicare),
     medicareRule(filingStatus, tables.additionalMedicare),
     niitRule(filingStatus, tables.niit),
-  ]
+  ];
 }

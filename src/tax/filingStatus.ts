@@ -1,4 +1,4 @@
-import type { FilingStatus } from './types'
+import type { FilingStatus } from './types';
 
 /**
  * Filing-status runtime values — the display labels, canonical order, and validity
@@ -8,14 +8,14 @@ import type { FilingStatus } from './types'
  */
 
 /** All filing statuses in canonical display order (drives the form dropdown). */
-export const FILING_STATUSES: FilingStatus[] = ['single', 'mfj', 'hoh', 'mfs']
+export const FILING_STATUSES: FilingStatus[] = ['single', 'mfj', 'hoh', 'mfs'];
 
 export const FILING_STATUS_LABELS: Record<FilingStatus, string> = {
   single: 'Single',
   mfj: 'Married filing jointly',
   hoh: 'Head of household',
   mfs: 'Married filing separately',
-}
+};
 
 /**
  * Runtime guard for a valid filing status. Uses an own-property check so inherited
@@ -25,5 +25,5 @@ export const FILING_STATUS_LABELS: Record<FilingStatus, string> = {
  * by the localStorage and share-link input paths so both validate identically.
  */
 export function isFilingStatus(value: unknown): value is FilingStatus {
-  return typeof value === 'string' && Object.hasOwn(FILING_STATUS_LABELS, value)
+  return typeof value === 'string' && Object.hasOwn(FILING_STATUS_LABELS, value);
 }

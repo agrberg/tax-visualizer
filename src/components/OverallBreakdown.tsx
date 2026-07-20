@@ -1,35 +1,35 @@
-import { useState, type ReactNode } from 'react'
-import { compositionSegments, formatCurrency, formatPercent, taxComponents } from '@/tax/format'
-import type { TaxResult } from '@/tax/types'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { CompositionRibbon } from './CompositionRibbon'
-import { CompositionMarimekko } from './CompositionMarimekko'
-import { Swatch } from './TowerParts'
+import { useState, type ReactNode } from 'react';
+import { compositionSegments, formatCurrency, formatPercent, taxComponents } from '@/tax/format';
+import type { TaxResult } from '@/tax/types';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { CompositionRibbon } from './CompositionRibbon';
+import { CompositionMarimekko } from './CompositionMarimekko';
+import { Swatch } from './TowerParts';
 
 interface Props {
-  result: TaxResult
+  result: TaxResult;
 }
 
-type CompositionView = 'bars' | 'marimekko' | 'both'
+type CompositionView = 'bars' | 'marimekko' | 'both';
 
 const COMPOSITION_VIEWS: { value: CompositionView; label: string }[] = [
   { value: 'bars', label: 'Paired bars' },
   { value: 'marimekko', label: 'Marimekko' },
   { value: 'both', label: 'Both' },
-]
+];
 
 export function OverallBreakdown({ result }: Props) {
-  const segments = compositionSegments(result)
-  const total = result.totalIncome
-  const takeHome = total - result.totalTax
-  const hasTax = result.totalTax > 0
-  const [view, setView] = useState<CompositionView>('bars')
+  const segments = compositionSegments(result);
+  const total = result.totalIncome;
+  const takeHome = total - result.totalTax;
+  const hasTax = result.totalTax > 0;
+  const [view, setView] = useState<CompositionView>('bars');
 
   // The headline total and effective rate fold income tax, payroll tax (FICA), and
   // surtaxes into one number; a hover breaks them apart so the blend is legible.
-  const components = taxComponents(result).filter((c) => c.amount > 0)
+  const components = taxComponents(result).filter((c) => c.amount > 0);
   // True when FICA/surtaxes fold into a source's "Tax" column below (e.g. wages carry FICA).
-  const sourceTaxIncludesSurcharges = components.some((c) => c.key !== 'income')
+  const sourceTaxIncludesSurcharges = components.some((c) => c.key !== 'income');
   const taxBreakout = hasTax ? (
     <div>
       <div className="font-medium">Total tax by type</div>
@@ -55,11 +55,11 @@ export function OverallBreakdown({ result }: Props) {
         </tfoot>
       </table>
       <div className="mt-1.5 opacity-70">
-        The source table below splits this same total by income source instead — each source's
-        tax there includes its share of payroll tax and surtaxes.
+        The source table below splits this same total by income source instead — each source's tax there includes its
+        share of payroll tax and surtaxes.
       </div>
     </div>
-  ) : null
+  ) : null;
 
   return (
     <div className="space-y-4">
@@ -68,21 +68,14 @@ export function OverallBreakdown({ result }: Props) {
         <Stat label="Total income" value={formatCurrency(total)} />
         <Stat label="Total tax" value={formatCurrency(result.totalTax)} tooltip={taxBreakout} />
         <Stat label="Take-home" value={formatCurrency(takeHome)} />
-        <Stat
-          label="Weighted rate"
-          value={formatPercent(result.effectiveRate, 1)}
-          tooltip={taxBreakout}
-          emphasis
-        />
+        <Stat label="Weighted rate" value={formatPercent(result.effectiveRate, 1)} tooltip={taxBreakout} emphasis />
       </div>
 
       {/* income & tax composition — switch between the two views */}
       {total > 0 && (
         <div className="space-y-3">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div className="text-sm font-medium">
-              {hasTax ? 'Income & tax composition' : 'Income composition'}
-            </div>
+            <div className="text-sm font-medium">{hasTax ? 'Income & tax composition' : 'Income composition'}</div>
             {hasTax && (
               <div className="inline-flex w-fit rounded-md border p-0.5 text-xs">
                 {COMPOSITION_VIEWS.map((o) => (
@@ -91,9 +84,7 @@ export function OverallBreakdown({ result }: Props) {
                     type="button"
                     onClick={() => setView(o.value)}
                     className={`rounded px-2 py-1 transition-colors ${
-                      view === o.value
-                        ? 'bg-foreground text-background'
-                        : 'text-muted-foreground hover:text-foreground'
+                      view === o.value ? 'bg-foreground text-background' : 'text-muted-foreground hover:text-foreground'
                     }`}
                   >
                     {o.label}
@@ -104,9 +95,7 @@ export function OverallBreakdown({ result }: Props) {
           </div>
           <div className="space-y-5">
             {(!hasTax || view === 'bars' || view === 'both') && <CompositionRibbon result={result} />}
-            {hasTax && (view === 'marimekko' || view === 'both') && (
-              <CompositionMarimekko result={result} />
-            )}
+            {hasTax && (view === 'marimekko' || view === 'both') && <CompositionMarimekko result={result} />}
           </div>
         </div>
       )}
@@ -138,18 +127,10 @@ export function OverallBreakdown({ result }: Props) {
                   {s.short}
                 </span>
               </td>
-              <td className="py-1.5 pl-2 text-right tabular-nums sm:pl-3">
-                {formatCurrency(s.amount)}
-              </td>
-              <td className="py-1.5 pl-2 text-right tabular-nums sm:pl-3">
-                {formatCurrency(s.tax)}
-              </td>
-              <td className="py-1.5 pl-2 text-right tabular-nums sm:pl-3">
-                {formatCurrency(s.amount - s.tax)}
-              </td>
-              <td className="py-1.5 pl-2 text-right tabular-nums sm:pl-3">
-                {formatPercent(s.effectiveRate, 1)}
-              </td>
+              <td className="py-1.5 pl-2 text-right tabular-nums sm:pl-3">{formatCurrency(s.amount)}</td>
+              <td className="py-1.5 pl-2 text-right tabular-nums sm:pl-3">{formatCurrency(s.tax)}</td>
+              <td className="py-1.5 pl-2 text-right tabular-nums sm:pl-3">{formatCurrency(s.amount - s.tax)}</td>
+              <td className="py-1.5 pl-2 text-right tabular-nums sm:pl-3">{formatPercent(s.effectiveRate, 1)}</td>
             </tr>
           ))}
         </tbody>
@@ -157,18 +138,10 @@ export function OverallBreakdown({ result }: Props) {
           <tfoot>
             <tr className="border-t-2 font-medium">
               <td className="py-1.5">Total</td>
-              <td className="py-1.5 pl-2 text-right tabular-nums sm:pl-3">
-                {formatCurrency(total)}
-              </td>
-              <td className="py-1.5 pl-2 text-right tabular-nums sm:pl-3">
-                {formatCurrency(result.totalTax)}
-              </td>
-              <td className="py-1.5 pl-2 text-right tabular-nums sm:pl-3">
-                {formatCurrency(takeHome)}
-              </td>
-              <td className="py-1.5 pl-2 text-right tabular-nums sm:pl-3">
-                {formatPercent(result.effectiveRate, 1)}
-              </td>
+              <td className="py-1.5 pl-2 text-right tabular-nums sm:pl-3">{formatCurrency(total)}</td>
+              <td className="py-1.5 pl-2 text-right tabular-nums sm:pl-3">{formatCurrency(result.totalTax)}</td>
+              <td className="py-1.5 pl-2 text-right tabular-nums sm:pl-3">{formatCurrency(takeHome)}</td>
+              <td className="py-1.5 pl-2 text-right tabular-nums sm:pl-3">{formatPercent(result.effectiveRate, 1)}</td>
             </tr>
           </tfoot>
         )}
@@ -176,24 +149,22 @@ export function OverallBreakdown({ result }: Props) {
 
       {sourceTaxIncludesSurcharges && (
         <p className="text-[10px] text-muted-foreground">
-          Each source's <span className="font-medium">Tax</span> is by income source — it includes
-          the payroll tax (FICA) and surtaxes attributed to it (e.g. FICA on wages), so it is more
-          than income tax alone. Hover <span className="font-medium">Total tax</span> to see the
-          split by kind of tax.
+          Each source's <span className="font-medium">Tax</span> is by income source — it includes the payroll tax
+          (FICA) and surtaxes attributed to it (e.g. FICA on wages), so it is more than income tax alone. Hover{' '}
+          <span className="font-medium">Total tax</span> to see the split by kind of tax.
         </p>
       )}
 
       {segments.some((s) => s.key === 'ordinaryInvestment') && (
         <p className="text-[10px] text-muted-foreground">
-          Interest, non-qualified dividends, and short-term gains are all ordinary income taxed
-          identically — grouped here. Any per-source rate differences reflect stacking order, not
-          the tax treatment.
+          Interest, non-qualified dividends, and short-term gains are all ordinary income taxed identically — grouped
+          here. Any per-source rate differences reflect stacking order, not the tax treatment.
         </p>
       )}
 
       <CapitalLossNote capitalGains={result.capitalGains} />
     </div>
-  )
+  );
 }
 
 /**
@@ -203,27 +174,27 @@ export function OverallBreakdown({ result }: Props) {
  * doesn't yet apply.
  */
 function CapitalLossNote({ capitalGains }: { capitalGains: TaxResult['capitalGains'] }) {
-  const carryover = capitalGains.carryover.shortTerm + capitalGains.carryover.longTerm
-  const deduction = capitalGains.lossDeduction
-  if (deduction <= 0 && carryover <= 0) return null
+  const carryover = capitalGains.carryover.shortTerm + capitalGains.carryover.longTerm;
+  const deduction = capitalGains.lossDeduction;
+  if (deduction <= 0 && carryover <= 0) return null;
   return (
     <p className="text-[10px] text-muted-foreground">
       Your capital gains net to a loss.{' '}
       {deduction > 0 ? (
         <>
-          {formatCurrency(deduction)} offsets ordinary income this year (the annual limit is $3,000;
-          $1,500 if married filing separately)
+          {formatCurrency(deduction)} offsets ordinary income this year (the annual limit is $3,000; $1,500 if married
+          filing separately)
           {carryover > 0 && <> and {formatCurrency(carryover)} would carry to future years</>}.
         </>
       ) : (
         <>
-          None of it offsets income this year (taxable income is already $0), so the full{' '}
-          {formatCurrency(carryover)} would carry to future years.
+          None of it offsets income this year (taxable income is already $0), so the full {formatCurrency(carryover)}{' '}
+          would carry to future years.
         </>
       )}{' '}
       Loss carryovers aren&apos;t applied yet.
     </p>
-  )
+  );
 }
 
 function Stat({
@@ -232,17 +203,13 @@ function Stat({
   tooltip,
   emphasis = false,
 }: {
-  label: string
-  value: string
-  tooltip?: ReactNode
-  emphasis?: boolean
+  label: string;
+  value: string;
+  tooltip?: ReactNode;
+  emphasis?: boolean;
 }) {
   const card = (
-    <div
-      className={`flex h-full flex-col rounded-lg border p-2 sm:p-3 ${
-        tooltip ? 'cursor-pointer' : ''
-      }`}
-    >
+    <div className={`flex h-full flex-col rounded-lg border p-2 sm:p-3 ${tooltip ? 'cursor-pointer' : ''}`}>
       <div className="text-xs text-muted-foreground">
         {label}
         {tooltip && (
@@ -252,15 +219,13 @@ function Stat({
         )}
       </div>
       <div
-        className={`mt-auto pt-1 ${
-          emphasis ? 'text-lg font-bold sm:text-xl' : 'text-base font-semibold sm:text-lg'
-        }`}
+        className={`mt-auto pt-1 ${emphasis ? 'text-lg font-bold sm:text-xl' : 'text-base font-semibold sm:text-lg'}`}
       >
         {value}
       </div>
     </div>
-  )
-  if (!tooltip) return card
+  );
+  if (!tooltip) return card;
   return (
     <Popover>
       <PopoverTrigger asChild>
@@ -270,5 +235,5 @@ function Stat({
       </PopoverTrigger>
       <PopoverContent className="w-64 text-xs">{tooltip}</PopoverContent>
     </Popover>
-  )
+  );
 }

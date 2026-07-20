@@ -1,25 +1,25 @@
-import { PREFERENTIAL_SOURCES, type IncomeSource, type TaxResult } from './types'
+import { PREFERENTIAL_SOURCES, type IncomeSource, type TaxResult } from './types';
 
 const currency0 = new Intl.NumberFormat('en-US', {
   style: 'currency',
   currency: 'USD',
   maximumFractionDigits: 0,
-})
+});
 
 const currency2 = new Intl.NumberFormat('en-US', {
   style: 'currency',
   currency: 'USD',
   minimumFractionDigits: 2,
   maximumFractionDigits: 2,
-})
+});
 
 export function formatCurrency(value: number, cents = false): string {
-  if (!Number.isFinite(value)) return '—'
-  return (cents ? currency2 : currency0).format(value)
+  if (!Number.isFinite(value)) return '—';
+  return (cents ? currency2 : currency0).format(value);
 }
 
 export function formatPercent(fraction: number, digits = 1): string {
-  return `${(fraction * 100).toFixed(digits)}%`
+  return `${(fraction * 100).toFixed(digits)}%`;
 }
 
 /**
@@ -27,17 +27,17 @@ export function formatPercent(fraction: number, digits = 1): string {
  * trailing zeros trimmed (0.062 → "6.2%", 0.0145 → "1.45%", 0.038 → "3.8%").
  */
 export function formatRatePercent(fraction: number): string {
-  return `${+(fraction * 100).toFixed(2)}%`
+  return `${+(fraction * 100).toFixed(2)}%`;
 }
 
 export interface SourceMeta {
-  label: string
-  short: string
-  hint: string
+  label: string;
+  short: string;
+  hint: string;
   /** Tailwind bg class for the segment fill. */
-  fill: string
+  fill: string;
   /** Tailwind bg class for the swatch/legend dot. */
-  swatch: string
+  swatch: string;
 }
 
 // Colors are spread across the hue wheel so adjacent stacked slices stay distinct.
@@ -91,7 +91,7 @@ export const SOURCE_META: Record<IncomeSource, SourceMeta> = {
     fill: 'bg-src-ltgains',
     swatch: 'bg-src-ltgains',
   },
-}
+};
 
 // Each source's theme-token color as a `var(--color-src-*)` string, for inline SVG
 // fills and alpha-blended backgrounds that Tailwind's class scanner can't generate.
@@ -103,7 +103,7 @@ export const SOURCE_COLOR: Record<IncomeSource, string> = {
   shortTermGains: 'var(--color-src-stgains)',
   qualifiedDividends: 'var(--color-src-qualdiv)',
   longTermGains: 'var(--color-src-ltgains)',
-}
+};
 
 /**
  * A row in the income/tax composition charts. Wages and retirement pass through
@@ -114,26 +114,22 @@ export const SOURCE_COLOR: Record<IncomeSource, string> = {
  * source fills the lower brackets / remaining 0% room first looks cheaper).
  */
 export interface CompositionSegment {
-  key: string
-  label: string
-  short: string
+  key: string;
+  label: string;
+  short: string;
   /** One color, or the two source colors when the capital-gains bucket blends both. */
-  colors: string[]
-  amount: number
-  tax: number
-  effectiveRate: number
+  colors: string[];
+  amount: number;
+  tax: number;
+  effectiveRate: number;
 }
 
 // Ordinary income taxed identically and treated as investment income (NIIT-eligible).
 // They share a bracket ladder, so a per-source rate gap is only a stacking artifact.
-const ORDINARY_INVESTMENT_SOURCES: IncomeSource[] = [
-  'interest',
-  'nonQualifiedDividends',
-  'shortTermGains',
-]
+const ORDINARY_INVESTMENT_SOURCES: IncomeSource[] = ['interest', 'nonQualifiedDividends', 'shortTermGains'];
 
 export function compositionSegments(result: TaxResult): CompositionSegment[] {
-  const rows = result.sourceBreakdown.filter((s) => s.amount > 0)
+  const rows = result.sourceBreakdown.filter((s) => s.amount > 0);
   const passThrough = (s: (typeof rows)[number]): CompositionSegment => ({
     key: s.source,
     label: SOURCE_META[s.source].label,
@@ -142,28 +138,22 @@ export function compositionSegments(result: TaxResult): CompositionSegment[] {
     amount: s.amount,
     tax: s.tax,
     effectiveRate: s.effectiveRate,
-  })
+  });
 
   // Wages and retirement are their own ordinary flavors (FICA / plain); pass them through.
   const segments: CompositionSegment[] = rows
-    .filter(
-      (s) =>
-        !PREFERENTIAL_SOURCES.includes(s.source) && !ORDINARY_INVESTMENT_SOURCES.includes(s.source),
-    )
-    .map(passThrough)
+    .filter((s) => !PREFERENTIAL_SOURCES.includes(s.source) && !ORDINARY_INVESTMENT_SOURCES.includes(s.source))
+    .map(passThrough);
 
   // Merge the investment-type ordinary sources into one bucket (one source names itself).
   const investment = rows
     .filter((s) => ORDINARY_INVESTMENT_SOURCES.includes(s.source))
-    .sort(
-      (a, b) =>
-        ORDINARY_INVESTMENT_SOURCES.indexOf(a.source) - ORDINARY_INVESTMENT_SOURCES.indexOf(b.source),
-    )
+    .sort((a, b) => ORDINARY_INVESTMENT_SOURCES.indexOf(a.source) - ORDINARY_INVESTMENT_SOURCES.indexOf(b.source));
   if (investment.length === 1) {
-    segments.push(passThrough(investment[0]))
+    segments.push(passThrough(investment[0]));
   } else if (investment.length > 1) {
-    const amount = investment.reduce((sum, s) => sum + s.amount, 0)
-    const tax = investment.reduce((sum, s) => sum + s.tax, 0)
+    const amount = investment.reduce((sum, s) => sum + s.amount, 0);
+    const tax = investment.reduce((sum, s) => sum + s.tax, 0);
     segments.push({
       key: 'ordinaryInvestment',
       label: investment.map((s) => SOURCE_META[s.source].label).join(' · '),
@@ -172,17 +162,17 @@ export function compositionSegments(result: TaxResult): CompositionSegment[] {
       amount,
       tax,
       effectiveRate: amount > 0 ? tax / amount : 0,
-    })
+    });
   }
 
   const preferential = rows
     .filter((s) => PREFERENTIAL_SOURCES.includes(s.source))
-    .sort((a, b) => PREFERENTIAL_SOURCES.indexOf(a.source) - PREFERENTIAL_SOURCES.indexOf(b.source))
+    .sort((a, b) => PREFERENTIAL_SOURCES.indexOf(a.source) - PREFERENTIAL_SOURCES.indexOf(b.source));
   if (preferential.length > 0) {
-    const amount = preferential.reduce((sum, s) => sum + s.amount, 0)
-    const tax = preferential.reduce((sum, s) => sum + s.tax, 0)
+    const amount = preferential.reduce((sum, s) => sum + s.amount, 0);
+    const tax = preferential.reduce((sum, s) => sum + s.tax, 0);
     // With only one preferential source, name it plainly; with both, they share a bucket.
-    const only = preferential.length === 1 ? preferential[0].source : null
+    const only = preferential.length === 1 ? preferential[0].source : null;
     segments.push({
       key: 'capitalGains',
       label: only ? SOURCE_META[only].label : 'Long-term gains & qualified dividends',
@@ -191,19 +181,19 @@ export function compositionSegments(result: TaxResult): CompositionSegment[] {
       amount,
       tax,
       effectiveRate: amount > 0 ? tax / amount : 0,
-    })
+    });
   }
-  return segments
+  return segments;
 }
 
 // Surcharge keys that are mandatory payroll tax (FICA) rather than income-tax surtaxes.
-const PAYROLL_SURCHARGE_KEYS = new Set(['socialSecurity', 'medicare'])
+const PAYROLL_SURCHARGE_KEYS = new Set(['socialSecurity', 'medicare']);
 
 /** One flavor of the total tax, for the headline-stat breakout. */
 export interface TaxComponent {
-  key: 'income' | 'payroll' | 'surtax'
-  label: string
-  amount: number
+  key: 'income' | 'payroll' | 'surtax';
+  label: string;
+  amount: number;
 }
 
 /**
@@ -213,18 +203,18 @@ export interface TaxComponent {
  * Medicare). Their amounts sum to `result.totalTax`.
  */
 export function taxComponents(result: TaxResult): TaxComponent[] {
-  const fed = result.federal
-  let payroll = 0
-  let surtax = 0
+  const fed = result.federal;
+  let payroll = 0;
+  let surtax = 0;
   for (const s of fed.surcharges) {
-    if (PAYROLL_SURCHARGE_KEYS.has(s.key)) payroll += s.amount
-    else surtax += s.amount
+    if (PAYROLL_SURCHARGE_KEYS.has(s.key)) payroll += s.amount;
+    else surtax += s.amount;
   }
   return [
     { key: 'income', label: 'Income tax', amount: fed.ordinaryTax + fed.capitalGainsTax },
     { key: 'payroll', label: 'Payroll tax (FICA)', amount: payroll },
     { key: 'surtax', label: "Surtaxes (NIIT, Add'l Medicare)", amount: surtax },
-  ]
+  ];
 }
 
 /**
@@ -237,42 +227,41 @@ export function blendBackground(
   colors: string[],
   opts: { stripe?: number; alpha?: number } = {},
 ): { backgroundColor?: string; backgroundImage?: string } {
-  const stripe = opts.stripe ?? 8
-  const tint = (c: string) =>
-    opts.alpha === undefined ? c : `color-mix(in oklch, ${c} ${opts.alpha}%, transparent)`
-  if (colors.length === 1) return { backgroundColor: tint(colors[0]) }
+  const stripe = opts.stripe ?? 8;
+  const tint = (c: string) => (opts.alpha === undefined ? c : `color-mix(in oklch, ${c} ${opts.alpha}%, transparent)`);
+  if (colors.length === 1) return { backgroundColor: tint(colors[0]) };
   const stops = colors
     .map(tint)
     .map((c, i) => `${c} ${i * stripe}px, ${c} ${(i + 1) * stripe}px`)
-    .join(', ')
+    .join(', ');
   return {
     backgroundImage: `repeating-linear-gradient(45deg, ${stops})`,
-  }
+  };
 }
 
 /** Color for a capital-gains rate band. */
 export function capitalGainsRateColor(rate: number): string {
-  if (rate === 0) return 'bg-green-500'
-  if (rate === 0.15) return 'bg-amber-500'
-  return 'bg-red-500'
+  if (rate === 0) return 'bg-green-500';
+  if (rate === 0.15) return 'bg-amber-500';
+  return 'bg-red-500';
 }
 
 /** Green shade for a wages slice, darkening as the ordinary rate rises. */
 export function wagesBracketFill(rate: number): string {
   switch (rate) {
     case 0.1:
-      return 'bg-green-200'
+      return 'bg-green-200';
     case 0.12:
-      return 'bg-green-300'
+      return 'bg-green-300';
     case 0.22:
-      return 'bg-green-400'
+      return 'bg-green-400';
     case 0.24:
-      return 'bg-green-500'
+      return 'bg-green-500';
     case 0.32:
-      return 'bg-green-600'
+      return 'bg-green-600';
     case 0.35:
-      return 'bg-green-700'
+      return 'bg-green-700';
     default:
-      return 'bg-green-800'
+      return 'bg-green-800';
   }
 }

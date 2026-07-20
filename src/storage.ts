@@ -1,10 +1,10 @@
-import { ALL_SOURCES, allowsNegativeAmount, coerceDeduction, type TaxInput } from './tax/types'
-import { isFilingStatus } from './tax/filingStatus'
-import { DEFAULT_TAX_YEAR, isTaxYear } from './tax/years'
-import type { Scenarios } from './scenarios'
+import { ALL_SOURCES, allowsNegativeAmount, coerceDeduction, type TaxInput } from './tax/types';
+import { isFilingStatus } from './tax/filingStatus';
+import { DEFAULT_TAX_YEAR, isTaxYear } from './tax/years';
+import type { Scenarios } from './scenarios';
 
-const KEY = 'tax-visualizer:input:v1'
-const SCENARIOS_KEY = 'tax-visualizer:saved:v1'
+const KEY = 'tax-visualizer:input:v1';
+const SCENARIOS_KEY = 'tax-visualizer:saved:v1';
 
 /**
  * Fill any missing or non-finite income field with 0, and reset an unrecognized
@@ -21,36 +21,36 @@ const SCENARIOS_KEY = 'tax-visualizer:saved:v1'
  * wage into the form.
  */
 export function normalizeInput(input: TaxInput): TaxInput {
-  const normalized = { ...input }
+  const normalized = { ...input };
   for (const source of ALL_SOURCES) {
-    const n = normalized[source]
-    if (!Number.isFinite(n)) normalized[source] = 0
-    else if (!allowsNegativeAmount(source)) normalized[source] = Math.max(0, n)
+    const n = normalized[source];
+    if (!Number.isFinite(n)) normalized[source] = 0;
+    else if (!allowsNegativeAmount(source)) normalized[source] = Math.max(0, n);
   }
   if (!isFilingStatus(normalized.filingStatus)) {
-    normalized.filingStatus = 'single'
+    normalized.filingStatus = 'single';
   }
   if (!isTaxYear(normalized.taxYear)) {
-    normalized.taxYear = DEFAULT_TAX_YEAR
+    normalized.taxYear = DEFAULT_TAX_YEAR;
   }
   // Old saved data won't have this field; treat missing/invalid as null (standard deduction).
-  const rawDed = (normalized as { deduction?: number | null }).deduction
-  normalized.deduction = coerceDeduction(rawDed)
-  return normalized
+  const rawDed = (normalized as { deduction?: number | null }).deduction;
+  normalized.deduction = coerceDeduction(rawDed);
+  return normalized;
 }
 
 export function loadInput(): TaxInput | null {
   try {
-    const raw = localStorage.getItem(KEY)
-    return raw ? normalizeInput(JSON.parse(raw) as TaxInput) : null
+    const raw = localStorage.getItem(KEY);
+    return raw ? normalizeInput(JSON.parse(raw) as TaxInput) : null;
   } catch {
-    return null
+    return null;
   }
 }
 
 export function saveInput(input: TaxInput): void {
   try {
-    localStorage.setItem(KEY, JSON.stringify(input))
+    localStorage.setItem(KEY, JSON.stringify(input));
   } catch {
     // ignore quota / privacy-mode errors
   }
@@ -58,23 +58,23 @@ export function saveInput(input: TaxInput): void {
 
 export function loadScenarios(): Scenarios {
   try {
-    const raw = localStorage.getItem(SCENARIOS_KEY)
-    if (!raw) return {}
-    const parsed = JSON.parse(raw)
-    if (!parsed || typeof parsed !== 'object') return {}
-    const normalized: Scenarios = {}
+    const raw = localStorage.getItem(SCENARIOS_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return {};
+    const normalized: Scenarios = {};
     for (const [name, value] of Object.entries(parsed as Scenarios)) {
-      normalized[name] = normalizeInput(value)
+      normalized[name] = normalizeInput(value);
     }
-    return normalized
+    return normalized;
   } catch {
-    return {}
+    return {};
   }
 }
 
 export function saveScenarios(scenarios: Scenarios): void {
   try {
-    localStorage.setItem(SCENARIOS_KEY, JSON.stringify(scenarios))
+    localStorage.setItem(SCENARIOS_KEY, JSON.stringify(scenarios));
   } catch {
     // ignore quota / privacy-mode errors
   }
@@ -83,11 +83,11 @@ export function saveScenarios(scenarios: Scenarios): void {
 /** Remove only this app's persisted keys — used to recover from corrupted saved input. */
 export function clearStoredData(): void {
   try {
-    localStorage.removeItem(KEY)
-    localStorage.removeItem(SCENARIOS_KEY)
+    localStorage.removeItem(KEY);
+    localStorage.removeItem(SCENARIOS_KEY);
   } catch (err) {
     // On the recovery path, surface the failure rather than swallowing it silently:
     // if the reset can't clear storage, the reload will hit the same corrupt data.
-    console.error('Failed to clear saved tax-visualizer data:', err)
+    console.error('Failed to clear saved tax-visualizer data:', err);
   }
 }

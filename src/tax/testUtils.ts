@@ -1,4 +1,4 @@
-import type { TaxInput } from './types'
+import type { TaxInput } from './types';
 
 /**
  * Build a full `TaxInput` for tests from partial overrides. Defaults to a single filer in 2026
@@ -18,5 +18,5 @@ export function makeInput(overrides: Partial<TaxInput> = {}): TaxInput {
     longTermGains: 0,
     deduction: null,
     ...overrides,
-  }
+  };
 }

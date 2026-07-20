@@ -1,4 +1,4 @@
-export type FilingStatus = 'single' | 'mfj' | 'hoh' | 'mfs'
+export type FilingStatus = 'single' | 'mfj' | 'hoh' | 'mfs';
 
 /** Individual income sources the user enters. */
 export type IncomeSource =
@@ -8,7 +8,7 @@ export type IncomeSource =
   | 'nonQualifiedDividends'
   | 'shortTermGains'
   | 'qualifiedDividends'
-  | 'longTermGains'
+  | 'longTermGains';
 
 /** Sources taxed at ordinary marginal rates. Order = layering order in the tower (bottom → top). */
 export const ORDINARY_SOURCES: IncomeSource[] = [
@@ -17,25 +17,22 @@ export const ORDINARY_SOURCES: IncomeSource[] = [
   'interest',
   'nonQualifiedDividends',
   'shortTermGains',
-]
+];
 
 /** Sources taxed on the preferential 0/15/20% capital-gains ladder. */
-export const PREFERENTIAL_SOURCES: IncomeSource[] = [
-  'qualifiedDividends',
-  'longTermGains',
-]
+export const PREFERENTIAL_SOURCES: IncomeSource[] = ['qualifiedDividends', 'longTermGains'];
 
 /** Every income source, ordinary pool first then preferential. */
-export const ALL_SOURCES: IncomeSource[] = [...ORDINARY_SOURCES, ...PREFERENTIAL_SOURCES]
+export const ALL_SOURCES: IncomeSource[] = [...ORDINARY_SOURCES, ...PREFERENTIAL_SOURCES];
 
 /**
  * The subset of sources that may be negative — a capital *loss*. Short- and long-term gains
  * net against each other (see `nettedCapitalGains`), so both carry a real sign end to end
  * (input → storage → share link → engine). Every other source is clamped to ≥0.
  */
-export type SignedSource = 'shortTermGains' | 'longTermGains'
+export type SignedSource = 'shortTermGains' | 'longTermGains';
 
-export const SIGNED_SOURCES: readonly SignedSource[] = ['shortTermGains', 'longTermGains']
+export const SIGNED_SOURCES: readonly SignedSource[] = ['shortTermGains', 'longTermGains'];
 
 /**
  * Whether a source may hold a negative amount (a capital loss). The one predicate behind
@@ -48,7 +45,7 @@ export const SIGNED_SOURCES: readonly SignedSource[] = ['shortTermGains', 'longT
  * `includes` accepts just `SignedSource`; the runtime check is still a plain membership test.
  */
 export const allowsNegativeAmount = (source: IncomeSource): source is SignedSource =>
-  SIGNED_SOURCES.includes(source as SignedSource)
+  SIGNED_SOURCES.includes(source as SignedSource);
 
 /**
  * The investment sources that make up net investment income (the NIIT base).
@@ -61,7 +58,7 @@ export const INVESTMENT_SOURCES: IncomeSource[] = [
   'shortTermGains',
   'qualifiedDividends',
   'longTermGains',
-]
+];
 
 /**
  * Coerce a raw value to a valid custom deduction: a finite number ≥ 0, else `null` (meaning
@@ -69,34 +66,34 @@ export const INVESTMENT_SOURCES: IncomeSource[] = [
  * normalization, the share-link codec, and 1040 import — so the rule lives in one place.
  */
 export const coerceDeduction = (value: number | null | undefined): number | null =>
-  typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null
+  typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null;
 
 export interface TaxInput {
-  filingStatus: FilingStatus
+  filingStatus: FilingStatus;
   /** Tax year whose tables drive the calculation. See TaxYearTables / the years registry. */
-  taxYear: number
-  wages: number
-  retirementIncome: number
-  interest: number
-  nonQualifiedDividends: number
-  shortTermGains: number
-  qualifiedDividends: number
-  longTermGains: number
+  taxYear: number;
+  wages: number;
+  retirementIncome: number;
+  interest: number;
+  nonQualifiedDividends: number;
+  shortTermGains: number;
+  qualifiedDividends: number;
+  longTermGains: number;
   /** Deduction applied before computing tax. null = use the standard deduction from tables. */
-  deduction: number | null
+  deduction: number | null;
 }
 
 /** A single ordinary-income bracket: [min, max) of taxable income at `rate`. */
 export interface OrdinaryBracket {
-  rate: number
-  min: number
-  max: number // Infinity for the top bracket
+  rate: number;
+  min: number;
+  max: number; // Infinity for the top bracket
 }
 
 /** Long-term capital-gains / qualified-dividend breakpoints: 0% up to rate0Max, 15% up to rate15Max, 20% above. */
 export interface CapitalGainsBreakpoints {
-  rate0Max: number
-  rate15Max: number
+  rate0Max: number;
+  rate15Max: number;
 }
 
 /**
@@ -107,72 +104,72 @@ export interface CapitalGainsBreakpoints {
  * only the rates/thresholds below drive it.
  */
 export interface TaxYearTables {
-  year: number
+  year: number;
   /** Sourcing citation for these figures, surfaced in the app footer. */
-  source: string
-  ordinaryBrackets: Record<FilingStatus, OrdinaryBracket[]>
-  standardDeduction: Record<FilingStatus, number>
+  source: string;
+  ordinaryBrackets: Record<FilingStatus, OrdinaryBracket[]>;
+  standardDeduction: Record<FilingStatus, number>;
   capitalGains: {
-    breakpoints: Record<FilingStatus, CapitalGainsBreakpoints>
-    rates: { rate0: number; rate15: number; rate20: number }
-  }
-  niit: { rate: number; threshold: Record<FilingStatus, number> }
-  socialSecurity: { rate: number; wageBase: number }
-  medicare: { rate: number }
-  additionalMedicare: { rate: number; threshold: Record<FilingStatus, number> }
+    breakpoints: Record<FilingStatus, CapitalGainsBreakpoints>;
+    rates: { rate0: number; rate15: number; rate20: number };
+  };
+  niit: { rate: number; threshold: Record<FilingStatus, number> };
+  socialSecurity: { rate: number; wageBase: number };
+  medicare: { rate: number };
+  additionalMedicare: { rate: number; threshold: Record<FilingStatus, number> };
 }
 
 /** How many dollars of income landed in one bracket, and the tax on them. */
 export interface BracketFill {
-  rate: number
-  min: number
-  max: number
-  amountInBracket: number
-  taxInBracket: number
+  rate: number;
+  min: number;
+  max: number;
+  amountInBracket: number;
+  taxInBracket: number;
 }
 
 /** Result of a surcharge (NIIT / Additional Medicare) evaluation — drives the light-bulb. */
 export interface SurchargeResult {
-  key: string
-  label: string
-  applies: boolean
-  rate: number
-  threshold: number
+  key: string;
+  label: string;
+  applies: boolean;
+  rate: number;
+  threshold: number;
   /** The income measured against the threshold (MAGI for NIIT, wages for Medicare/FICA). */
-  incomeMeasured: number
+  incomeMeasured: number;
   /** Amount of that income over the threshold. */
-  incomeOverThreshold: number
+  incomeOverThreshold: number;
   /** Social Security only: the wage-base cap the rate applies *below* (inverse of a threshold). */
-  cap?: number
+  cap?: number;
   /** The dollar base the rate is actually applied to (amount = taxedAmount * rate). */
-  taxedAmount: number
-  amount: number
+  taxedAmount: number;
+  amount: number;
   /** NIIT only: net investment income, the other candidate for the taxed base. */
-  investmentIncome?: number
+  investmentIncome?: number;
 }
 
 /** Per-source contribution and its own effective rate, for the overall breakdown. */
 export interface SourceBreakdown {
-  source: IncomeSource
-  amount: number
-  tax: number
-  effectiveRate: number
+  source: IncomeSource;
+  amount: number;
+  tax: number;
+  effectiveRate: number;
 }
 
 /** One add-on to the base marginal rate: a surtax (NIIT/Medicare) or a cap-gains bump. */
 export interface MarginalComponent {
-  label: string
-  rate: number
-  tone: 'surtax' | 'bump'
+  label: string;
+  rate: number;
+  tone: 'surtax' | 'bump';
 }
 
 /** The next-dollar marginal cost for one income type: base rate + add-on components. */
 export interface MarginalScenario {
-  key: 'wages' | 'ordinaryInvestment' | 'retirement' | 'preferential'
-  baseRate: number
-  surtaxes: MarginalComponent[]
-  surRate: number
-  totalRate: number
+  key: 'wages' | 'ordinaryInvestment' | 'retirement' | 'preferential';
+  baseRate: number;
+  surtaxes: MarginalComponent[];
+  surRate: number;
+  totalRate: number;
 }
 
 /**
@@ -180,9 +177,9 @@ export interface MarginalScenario {
  * stack — the "capital-gains bump". Null when the next ordinary dollar displaces nothing.
  */
 export interface GainsBump {
-  rate: number // fromRate → toRate spread
-  fromRate: number // band the displaced gain dollar leaves
-  toRate: number // band it enters
+  rate: number; // fromRate → toRate spread
+  fromRate: number; // band the displaced gain dollar leaves
+  toRate: number; // band it enters
 }
 
 /**
@@ -190,10 +187,10 @@ export interface GainsBump {
  * `base` is the cumulative taxable income at the bottom of this layer.
  */
 export interface IncomeLayer {
-  source: IncomeSource
-  taxableAmount: number
-  base: number
-  tax: number // income tax on this slice (excludes surcharges)
+  source: IncomeSource;
+  taxableAmount: number;
+  base: number;
+  tax: number; // income tax on this slice (excludes surcharges)
 }
 
 /**
@@ -202,48 +199,48 @@ export interface IncomeLayer {
  * jurisdiction with no preferential ladder.
  */
 export interface JurisdictionResult {
-  key: string
-  deduction: number
-  deductionOnOrdinary: number
-  leftoverDeduction: number
-  preferentialDeduction: number
-  ordinaryTaxable: number
-  preferentialTaxable: number
-  taxableIncome: number
-  ordinaryFills: BracketFill[]
-  capitalGainsFills: BracketFill[]
-  capitalGainsBaseline: number
-  roomAt0: number
-  roomAt15: number
-  ordinaryTax: number
-  capitalGainsTax: number
+  key: string;
+  deduction: number;
+  deductionOnOrdinary: number;
+  leftoverDeduction: number;
+  preferentialDeduction: number;
+  ordinaryTaxable: number;
+  preferentialTaxable: number;
+  taxableIncome: number;
+  ordinaryFills: BracketFill[];
+  capitalGainsFills: BracketFill[];
+  capitalGainsBaseline: number;
+  roomAt0: number;
+  roomAt15: number;
+  ordinaryTax: number;
+  capitalGainsTax: number;
   /** This jurisdiction's total tax: income tax + its surcharges. */
-  tax: number
+  tax: number;
   /**
    * The net capital loss applied this year (§1211(b), limited by taxable income) and the
    * remainder carried forward by character (§1212(b)). Both zero when there's no net loss.
    */
-  capitalLoss: { deduction: number; carryover: { shortTerm: number; longTerm: number } }
-  surcharges: SurchargeResult[]
-  marginalOrdinaryRate: number
-  marginalCapitalGainsRate: number
-  marginalGainsBump: GainsBump | null
-  layers: { ordinary: IncomeLayer[]; preferential: IncomeLayer[] }
+  capitalLoss: { deduction: number; carryover: { shortTerm: number; longTerm: number } };
+  surcharges: SurchargeResult[];
+  marginalOrdinaryRate: number;
+  marginalCapitalGainsRate: number;
+  marginalGainsBump: GainsBump | null;
+  layers: { ordinary: IncomeLayer[]; preferential: IncomeLayer[] };
 }
 
 export interface TaxResult {
-  filingStatus: FilingStatus
-  taxYear: number
+  filingStatus: FilingStatus;
+  taxYear: number;
   /** Whether the deduction was a user-supplied custom amount (vs. the standard deduction). */
-  deductionIsCustom: boolean
+  deductionIsCustom: boolean;
 
   // Shared inputs across jurisdictions.
-  totalIncome: number
-  ordinaryIncome: number
-  preferentialIncome: number
+  totalIncome: number;
+  ordinaryIncome: number;
+  preferentialIncome: number;
 
   /** Federal computation. A second jurisdiction (state) would sit alongside as `state`. */
-  federal: JurisdictionResult
+  federal: JurisdictionResult;
 
   /**
    * Capital-gains netting summary (IRC §1222/§1211/§1212): the net short-/long-term
@@ -256,17 +253,17 @@ export interface TaxResult {
    * its own.
    */
   capitalGains: {
-    netShortTerm: number
-    netLongTerm: number
-    taxableShortTerm: number
-    taxableLongTerm: number
-    lossDeduction: number
-    carryover: { shortTerm: number; longTerm: number }
-  }
+    netShortTerm: number;
+    netLongTerm: number;
+    taxableShortTerm: number;
+    taxableLongTerm: number;
+    lossDeduction: number;
+    carryover: { shortTerm: number; longTerm: number };
+  };
 
   /** Per-source amount + tax + effective rate, combined across jurisdictions (today: federal). */
-  sourceBreakdown: SourceBreakdown[]
+  sourceBreakdown: SourceBreakdown[];
   /** Combined tax and weighted effective rate across jurisdictions (today: federal). */
-  totalTax: number
-  effectiveRate: number
+  totalTax: number;
+  effectiveRate: number;
 }

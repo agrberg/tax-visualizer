@@ -1,8 +1,8 @@
-import { type CSSProperties, type MouseEventHandler, type ReactNode } from 'react'
-import { createPortal } from 'react-dom'
-import { blendBackground, formatCurrency, formatPercent } from '@/tax/format'
-import type { BracketFill } from '@/tax/types'
-import { TOWER_HEIGHT, pct } from './tower'
+import { type CSSProperties, type MouseEventHandler, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
+import { blendBackground, formatCurrency, formatPercent } from '@/tax/format';
+import type { BracketFill } from '@/tax/types';
+import { TOWER_HEIGHT, pct } from './tower';
 
 /** A small color dot: solid for one color, diagonal stripes when a bucket blends two. */
 export function Swatch({ colors, className }: { colors: string[]; className?: string }) {
@@ -12,7 +12,7 @@ export function Swatch({ colors, className }: { colors: string[]; className?: st
       style={blendBackground(colors, { stripe: 3 })}
       aria-hidden
     />
-  )
+  );
 }
 
 /** A floating tooltip portaled to <body> so it never clips inside a card. */
@@ -21,11 +21,11 @@ export function HoverTooltip({
   pos,
   children,
 }: {
-  visible: boolean
-  pos: { x: number; y: number }
-  children: ReactNode
+  visible: boolean;
+  pos: { x: number; y: number };
+  children: ReactNode;
 }) {
-  if (!visible) return null
+  if (!visible) return null;
   return createPortal(
     <div
       className="pointer-events-none fixed z-50 w-60 rounded-md border bg-popover p-3 text-popover-foreground shadow-md"
@@ -34,7 +34,7 @@ export function HoverTooltip({
       {children}
     </div>,
     document.body,
-  )
+  );
 }
 
 /** Header line describing the hovered source slice. */
@@ -44,10 +44,10 @@ export function HoveredSlice({
   taxable,
   tax,
 }: {
-  label: string
-  swatch: string
-  taxable: number
-  tax: number
+  label: string;
+  swatch: string;
+  taxable: number;
+  tax: number;
 }) {
   return (
     <div className="mb-2 border-b pb-2">
@@ -59,35 +59,21 @@ export function HoveredSlice({
         {formatCurrency(taxable)} taxable · {formatCurrency(tax)} tax
       </div>
     </div>
-  )
+  );
 }
 
 /** Per-bracket "how much at each rate" table plus the tower total. */
-export function BracketBreakdown({
-  title,
-  fills,
-  total,
-}: {
-  title: string
-  fills: BracketFill[]
-  total: number
-}) {
-  const rows = fills.filter((f) => f.amountInBracket > 0)
+export function BracketBreakdown({ title, fills, total }: { title: string; fills: BracketFill[]; total: number }) {
+  const rows = fills.filter((f) => f.amountInBracket > 0);
   return (
     <div>
-      <div className="mb-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-        {title}
-      </div>
+      <div className="mb-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{title}</div>
       <table className="w-full text-xs">
         <tbody>
           {rows.map((f) => (
             <tr key={f.rate}>
-              <td className="py-0.5 pr-2 tabular-nums text-muted-foreground">
-                {formatPercent(f.rate, 0)}
-              </td>
-              <td className="py-0.5 pr-2 text-right tabular-nums">
-                {formatCurrency(f.amountInBracket)}
-              </td>
+              <td className="py-0.5 pr-2 tabular-nums text-muted-foreground">{formatPercent(f.rate, 0)}</td>
+              <td className="py-0.5 pr-2 text-right tabular-nums">{formatCurrency(f.amountInBracket)}</td>
               <td className="py-0.5 text-right tabular-nums">{formatCurrency(f.taxInBracket)}</td>
             </tr>
           ))}
@@ -101,7 +87,7 @@ export function BracketBreakdown({
         </tfoot>
       </table>
     </div>
-  )
+  );
 }
 
 /** Composition-view tooltip body: header (swatch + label + subtitle) and an
@@ -115,14 +101,14 @@ export function CompositionTooltip({
   effectiveRate,
   ratio,
 }: {
-  colors: string[]
-  label: string
-  subtitle: ReactNode
-  amount: number
-  tax: number
-  effectiveRate: number
+  colors: string[];
+  label: string;
+  subtitle: ReactNode;
+  amount: number;
+  tax: number;
+  effectiveRate: number;
   /** Share of tax ÷ share of income (the marimekko height); omitted when N/A. */
-  ratio?: number
+  ratio?: number;
 }) {
   return (
     <div>
@@ -160,7 +146,7 @@ export function CompositionTooltip({
         </tbody>
       </table>
     </div>
-  )
+  );
 }
 
 /** The small white label chip used on boundary markers. */
@@ -171,7 +157,7 @@ export function MarkerChip({ side, children }: { side: 'left' | 'right'; childre
     >
       {children}
     </span>
-  )
+  );
 }
 
 /** A positioned horizontal boundary line carrying optional left/right label chips.
@@ -184,15 +170,15 @@ export function Marker({
   left,
   right,
 }: {
-  bottom?: number
-  topPinned?: boolean
-  border?: string
-  zClassName?: string
-  left?: ReactNode
-  right?: ReactNode
+  bottom?: number;
+  topPinned?: boolean;
+  border?: string;
+  zClassName?: string;
+  left?: ReactNode;
+  right?: ReactNode;
 }) {
-  const positionClass = topPinned ? 'top-0' : ''
-  const style: CSSProperties = topPinned ? {} : { bottom: `${bottom ?? 0}%` }
+  const positionClass = topPinned ? 'top-0' : '';
+  const style: CSSProperties = topPinned ? {} : { bottom: `${bottom ?? 0}%` };
   return (
     <div
       className={`pointer-events-none absolute inset-x-0 ${zClassName} ${positionClass} ${border ?? ''}`}
@@ -201,7 +187,7 @@ export function Marker({
       {left != null && <MarkerChip side="left">{left}</MarkerChip>}
       {right != null && <MarkerChip side="right">{right}</MarkerChip>}
     </div>
-  )
+  );
 }
 
 /** A diagonal-hatch band positioned by vertical range, with an optional solid
@@ -215,12 +201,12 @@ export function HatchBand({
   backgroundColor,
   children,
 }: {
-  className: string
-  bottom: string
-  height: number
-  stripe: string
-  backgroundColor?: string
-  children?: ReactNode
+  className: string;
+  bottom: string;
+  height: number;
+  stripe: string;
+  backgroundColor?: string;
+  children?: ReactNode;
 }) {
   return (
     <div
@@ -234,7 +220,7 @@ export function HatchBand({
     >
       {children}
     </div>
-  )
+  );
 }
 
 /** A centered pill label vertically positioned at `topPct` (% from top). */
@@ -248,7 +234,7 @@ export function LayerLabel({ topPct, children }: { topPct: number; children: Rea
         {children}
       </span>
     </span>
-  )
+  );
 }
 
 /** The shared tower shell: a title/subtitle header above a fixed-height bordered
@@ -261,14 +247,14 @@ export function TowerColumn({
   onMouseLeave,
   children,
 }: {
-  title: string
-  subtitle: ReactNode
+  title: string;
+  subtitle: ReactNode;
   /** Text alternative for the column's visual: the hover detail is mouse/touch-only,
       so screen readers get this summary and the per-source figures in the breakdown table. */
-  ariaLabel?: string
-  onMouseMove: MouseEventHandler<HTMLDivElement>
-  onMouseLeave: () => void
-  children: ReactNode
+  ariaLabel?: string;
+  onMouseMove: MouseEventHandler<HTMLDivElement>;
+  onMouseLeave: () => void;
+  children: ReactNode;
 }) {
   return (
     <>
@@ -287,7 +273,7 @@ export function TowerColumn({
         {children}
       </div>
     </>
-  )
+  );
 }
 
 /** A colored slice of a tower column, positioned by the dollar range [from, to]. */
@@ -299,12 +285,12 @@ export function Slice({
   dim,
   onEnter,
 }: {
-  from: number
-  to: number
-  axisMax: number
-  className: string
-  dim: boolean
-  onEnter: () => void
+  from: number;
+  to: number;
+  axisMax: number;
+  className: string;
+  dim: boolean;
+  onEnter: () => void;
 }) {
   return (
     <div
@@ -312,7 +298,7 @@ export function Slice({
       style={{ bottom: `${pct(from, axisMax)}%`, height: `${pct(to - from, axisMax)}%` }}
       onMouseEnter={onEnter}
     />
-  )
+  );
 }
 
 /** The left-side value pill marking the top of a stacked column. */
@@ -321,9 +307,9 @@ export function ColumnTotal({
   zClassName = 'z-20',
   children,
 }: {
-  topPct: number
-  zClassName?: string
-  children: ReactNode
+  topPct: number;
+  zClassName?: string;
+  children: ReactNode;
 }) {
   return (
     <span
@@ -332,7 +318,7 @@ export function ColumnTotal({
     >
       {children}
     </span>
-  )
+  );
 }
 
 /** A legend row: a colored source swatch, its short name, and a right-aligned amount. */
@@ -342,10 +328,10 @@ export function SourceLegendRow({
   amount,
   className,
 }: {
-  swatch: string
-  label: string
-  amount: number
-  className?: string
+  swatch: string;
+  label: string;
+  amount: number;
+  className?: string;
 }) {
   return (
     <div className={`flex items-center gap-1.5 ${className ?? ''}`}>
@@ -353,5 +339,5 @@ export function SourceLegendRow({
       <span>{label}</span>
       <span className="ml-auto text-muted-foreground">{formatCurrency(amount)}</span>
     </div>
-  )
+  );
 }
