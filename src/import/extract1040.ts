@@ -147,6 +147,52 @@ function amountForLine(rows: Row[], id: string, boundaryIds: string[]): number |
   return null
 }
 
+/** A token shaped like a 1040 line id — 1–2 digits with an optional trailing letter (e.g. "12e",
+ * "5b", "7a", "9"). Used to skip a reprinted line id so it isn't read as a dollar amount. */
+const LINE_ID = /^\d{1,2}[a-z]?$/i
+
+/**
+ * The rightmost dollar amount on the first row whose text contains `label` (case-insensitive),
+ * plus the id reprinted beside the amount box, for provenance. Locates a line by its *printed
+ * description* rather than its line number — labels ("Standard deduction or itemized deductions",
+ * "Pensions and annuities", "Capital gain or (loss)") are byte-stable across form years, while the
+ * numbers drift and even get reused for different lines. Skips that reprinted id so it isn't
+ * mistaken for the value; the real amount is the rightmost money token.
+ */
+function amountForLabel(rows: Row[], label: string): { value: number; lineId: string } | null {
+  const want = label.toLowerCase()
+  for (const row of rows) {
+    if (!row.text.toLowerCase().includes(want)) continue
+    // The row's own line id always leads it (leftmost token) and may be reprinted again just
+    // left of the amount box. Skip only tokens matching that specific id — not any id-shaped
+    // token — so a 1-2 digit amount (e.g. "$7"), which is shaped just like a line id, is still
+    // read as the value rather than mistaken for the reprint. The left-margin instruction column
+    // (its text, and on the deduction line its "Standard Deduction for—" heading) sits at much
+    // lower x on merged rows, so it is never the rightmost money token on a filled line; a blank
+    // line yields no money token and is correctly skipped. (Verified against IRS PDFs 2019–2025.)
+    // Search left-to-right, not just row.items[0]: a merged left-margin heading (e.g. the
+    // deduction line's "Standard Deduction for—" text) can sit left of the id itself.
+    const leadingToken = row.items.find((item) => LINE_ID.test(item.text.trim()))
+    const leadingId = leadingToken ? normalizeToken(leadingToken.text) : null
+    let value: number | null = null
+    let lineId = ''
+    for (let i = row.items.length - 1; i >= 0; i--) {
+      const token = row.items[i].text.trim()
+      if (leadingId !== null && normalizeToken(token) === leadingId) {
+        lineId = token
+        continue
+      }
+      if (value === null) value = parseAmount(token)
+      if (value !== null && lineId) break
+    }
+    if (value !== null) {
+      ilog(`matched label "${label}" on line "${lineId}" page ${row.page}: ${value}`)
+      return { value, lineId }
+    }
+  }
+  return null
+}
+
 const STATUS_KEYWORDS: { status: FilingStatus; labels: string[] }[] = [
   { status: 'mfj', labels: ['married filing jointly'] },
   { status: 'mfs', labels: ['married filing separately'] },
@@ -240,8 +286,11 @@ function detectTaxYear(faceRows: Row[]): number | null {
  * warns about anything the user must confirm or that the 1040 face can't express
  * (short vs. long-term split, capital losses). Undetected fields are simply omitted.
  */
-// The 1040-face income lines we read, in the order they appear on page 1. Passed as
-// each other's segment boundaries so a value never bleeds across sibling lines.
+// The 1040-face income line ids, in the order they appear on page 1, passed as each other's
+// segment boundaries so a value never bleeds across sibling lines. '1z'/'2b'/'3a'/'3b'/'4b' are
+// read directly by id; '5b' and '7a' (pensions, capital gain) drift too much by year to read by
+// id at all — they're read by label instead (see amountForLabel below) and only survive here as
+// boundaries for their neighbors' segments.
 const FACE_IDS = ['1z', '2b', '3a', '3b', '4b', '5b', '7a']
 
 export function extract1040Fields(items: TextItem[]): ParsedReturn {
@@ -250,6 +299,7 @@ export function extract1040Fields(items: TextItem[]): ParsedReturn {
 
   const fields: Partial<TaxInput> = {}
   const provenance: Partial<Record<keyof TaxInput, string>> = {}
+  const assumed: Partial<Record<keyof TaxInput, true>> = {}
   const warnings: string[] = []
 
   const setMoney = (field: IncomeSource, value: number, source: string) => {
@@ -270,8 +320,18 @@ export function extract1040Fields(items: TextItem[]): ParsedReturn {
     return value
   }
 
-  const wages = amountAt('1z')
-  if (wages !== null) setMoney('wages', wages, '1040 line 1z')
+  // Wages total: line 1z (2022+, "Add lines 1a through 1h"). Older forms (2019–2021) have no
+  // 1z — the total is bare line 1 "Wages, salaries, tips, etc.", located by its stable label.
+  const wages1z = amountAt('1z')
+  if (wages1z !== null) {
+    setMoney('wages', wages1z, '1040 line 1z')
+  } else {
+    const wagesOld = amountForLabel(faceRows, 'wages, salaries, tips')
+    if (wagesOld !== null) {
+      setMoney('wages', wagesOld.value, `1040 line ${wagesOld.lineId || 1} (wages, salaries, tips)`)
+      assumed.wages = true // older single-line-1 layout — flag for verification
+    }
+  }
 
   const interest = amountAt('2b')
   if (interest !== null) setMoney('interest', interest, '1040 line 2b')
@@ -288,13 +348,26 @@ export function extract1040Fields(items: TextItem[]): ParsedReturn {
     setMoney('nonQualifiedDividends', Math.max(0, nonQual), '1040 line 3b − 3a')
   }
 
-  const ira = amountAt('4b')
-  const pensions = amountAt('5b')
+  // Retirement = taxable IRA + taxable pensions. IRA is line 4b every year, but the pensions
+  // taxable line drifts (4d in 2019, 5b in 2020+) — and worse, "5b" is *Social Security* on the
+  // 2019 form, so a fixed 4b+5b sum reads SS as pensions there. Locate pensions by its stable
+  // "Pensions and annuities" label instead, and read its taxable (rightmost/b) cell.
+  // 4c/4d ('c Pensions and annuities' / 'd Taxable amount') can land on the same physical row as
+  // 4b (the 2019 layout). They aren't in FACE_IDS, so without them as boundaries too, 4b's segment
+  // bleeds past its own amount into the pensions columns and reads 4d's amount instead of 4b's.
+  const ira = amountForLine(faceRows, '4b', [...FACE_IDS, '4c', '4d'])
+  // The gross sub-line ("c Pensions and annuities") and taxable sub-line ("d Taxable amount")
+  // usually merge into one row, but may land on two adjacent ones instead. Prefer a "Taxable
+  // amount" match in the row right after the gross line so a split layout can't read the untaxed
+  // gross amount as taxable pension income; fall back to the gross line's own row otherwise.
+  const pensionsIdx = faceRows.findIndex((r) => r.text.toLowerCase().includes('pensions and annuities'))
+  const pensionsWindow = pensionsIdx === -1 ? [] : faceRows.slice(pensionsIdx, pensionsIdx + 2)
+  const pensions = amountForLabel(pensionsWindow, 'taxable amount') ?? amountForLabel(pensionsWindow, 'pensions and annuities')
   if (ira !== null || pensions !== null) {
     setMoney(
       'retirementIncome',
-      (ira ?? 0) + (pensions ?? 0),
-      '1040 lines 4b + 5b (taxable IRA + pensions)',
+      (ira ?? 0) + (pensions?.value ?? 0),
+      '1040 taxable IRA (4b) + pensions (Pensions and annuities)',
     )
   }
 
@@ -319,16 +392,21 @@ export function extract1040Fields(items: TextItem[]): ParsedReturn {
     if (shortTerm !== null) setCapitalGain('shortTermGains', shortTerm, 'Schedule D line 7 (net short-term)', 'short-term')
     if (longTerm !== null) setCapitalGain('longTermGains', longTerm, 'Schedule D line 15 (net long-term)', 'long-term')
   } else {
-    const capitalGain = amountAt('7a')
-    if (capitalGain !== null && capitalGain < 0) {
-      setMoney('longTermGains', capitalGain, '1040 line 7a')
+    // No Schedule D — fall back to the 1040 capital-gain line, located by its stable label
+    // ("Capital gain or (loss)") since its number drifts (6 in 2019, 7 in 2020–2024, 7a in 2025).
+    // It can't be split short/long, so it's always an assumed long-term value pending review.
+    const capitalGain = amountForLabel(faceRows, 'capital gain or (loss)')
+    if (capitalGain !== null && capitalGain.value < 0) {
+      setMoney('longTermGains', capitalGain.value, `1040 line ${capitalGain.lineId} (capital gain or loss)`)
+      assumed.longTermGains = true
       warnings.push(
-        `1040 line 7a is a capital loss of $${Math.abs(capitalGain).toLocaleString()}. It's shown below as a negative and netted against your gains; up to $3,000 of a net loss ($1,500 if married filing separately) offsets other income.`,
+        `The 1040 capital-gain line is a loss of $${Math.abs(capitalGain.value).toLocaleString()}. It's shown below as a negative and netted against your gains; up to $3,000 of a net loss ($1,500 if married filing separately) offsets other income.`,
       )
     } else if (capitalGain !== null) {
-      setMoney('longTermGains', capitalGain, '1040 line 7a (assumed long-term)')
+      setMoney('longTermGains', capitalGain.value, `1040 line ${capitalGain.lineId} (assumed long-term)`)
+      assumed.longTermGains = true
       warnings.push(
-        'Capital gains from 1040 line 7a were treated as long-term (no Schedule D found to split them). Adjust below if some were short-term.',
+        'Capital gains from the 1040 were treated as long-term (no Schedule D found to split them). Adjust below if some were short-term.',
       )
     }
   }
@@ -352,24 +430,21 @@ export function extract1040Fields(items: TextItem[]): ParsedReturn {
     warnings.push(`Detected tax year ${taxYear} isn't supported yet — please choose it below.`)
   }
 
-  // Deduction line: "Standard deduction or itemized deductions (from Schedule A)". Its id and
-  // page moved across form redesigns — line 12 on page 1 (2022–2024), and line 12e on page 2 of
-  // the 2025+ form, where the expanded income section (1a–1z) pushed AGI to line 11a and the
-  // deduction onto page 2. Search both 1040 pages, trying 12e before 12 so a 2025 return reads
-  // the deduction rather than the page-2 "12a" dependent-claim checkbox line.
-  const deductionRows = rows.filter((r) => r.page === facePage || r.page === facePage + 1)
-  const DEDUCTION_IDS = ['12e', '12']
-  const DEDUCTION_BOUNDS = [...DEDUCTION_IDS, '11', '11a', '11b', '13', '13a', '13b', '14']
-  let deductionAmount: number | null = null
-  let deductionLineId = ''
-  for (const id of DEDUCTION_IDS) {
-    const value = amountForLine(deductionRows, id, DEDUCTION_BOUNDS)
-    if (value !== null) {
-      deductionAmount = value
-      deductionLineId = id
-      break
-    }
+  // The label-anchored reads were built against the 2019–2025 layouts. An older form may be
+  // numbered/labeled differently enough that values land in the wrong field, so flag it.
+  if (taxYear !== null && taxYear < 2019) {
+    warnings.push(
+      `This looks like a ${taxYear} return — older than the 2019 layout this importer was built against. Double-check every value below.`,
+    )
   }
+
+  // Deduction: "Standard deduction or itemized deductions (from Schedule A)". Located by label,
+  // not number, because both the id and the page drift — line 9 (2019), 12 (2020, 2022–2024),
+  // 12a (2021), and 12e on page 2 of the 2025 redesign (the expanded income section pushed AGI to
+  // 11a and the deduction onto page 2). The label finds it on either face page; it's distinct
+  // from the left-margin "Standard Deduction for—" heading, so that won't false-match.
+  const deductionRows = rows.filter((r) => r.page === facePage || r.page === facePage + 1)
+  const deductionHit = amountForLabel(deductionRows, 'standard deduction or itemized deductions')
 
   // Validate the parsed amount through the same predicate as every other input boundary
   // (a finite number ≥ 0, else null). If it matches the standard deduction for the detected
@@ -377,8 +452,9 @@ export function extract1040Fields(items: TextItem[]): ParsedReturn {
   // the number as custom. `provenance.deduction` reports only *where* the value came from —
   // whether it's an itemized amount is a property of the value, derived fresh by the review
   // UI from the live draft, not baked in here (a filer can still edit the amount afterward).
-  const coercedDeduction = coerceDeduction(deductionAmount)
-  if (coercedDeduction !== null) {
+  const coercedDeduction = coerceDeduction(deductionHit?.value)
+  if (deductionHit !== null && coercedDeduction !== null) {
+    const lineRef = `1040 line ${deductionHit.lineId || 'deduction'}`
     const detectedYear = fields.taxYear
     const detectedStatus = fields.filingStatus
     const tableStandard =
@@ -386,8 +462,8 @@ export function extract1040Fields(items: TextItem[]): ParsedReturn {
         ? taxTablesFor(detectedYear).standardDeduction[detectedStatus]
         : null
     fields.deduction = tableStandard !== null && coercedDeduction === tableStandard ? null : coercedDeduction
-    provenance.deduction = `1040 line ${deductionLineId}`
-    ilog(`line ${deductionLineId} deduction: ${coercedDeduction} -> ${String(fields.deduction)}`)
+    provenance.deduction = lineRef
+    ilog(`deduction from ${lineRef}: ${coercedDeduction} -> ${String(fields.deduction)}`)
   }
 
   const foundIncome = ALL_SOURCES.some((source) => fields[source] !== undefined)
@@ -400,6 +476,7 @@ export function extract1040Fields(items: TextItem[]): ParsedReturn {
   setImportStep('result')
   ilog('final fields', fields)
   ilog('warnings', warnings)
+  ilog('assumed', assumed)
   setImportStep('')
-  return { fields, provenance, warnings }
+  return { fields, provenance, warnings, assumed }
 }

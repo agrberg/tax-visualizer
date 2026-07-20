@@ -2,7 +2,8 @@
 
 A single-page React app with no backend. All computation is pure, synchronous,
 client-side TypeScript; the only I/O is `localStorage` for input and saved-scenario
-persistence.
+persistence, plus reading a dropped Form 1040 PDF for import (see
+[PDF 1040 import pipeline](#pdf-1040-import-pipeline)) — both stay local to the browser.
 
 The design splits cleanly into two halves:
 
@@ -207,6 +208,41 @@ each one can know:
 Carryover is *informational* — a single-year tool has no future year to apply it to — but
 the current-year deduction is fully applied.
 
+## PDF 1040 import pipeline
+
+A third, similarly isolated piece: `src/import/` reads a filed Form 1040 PDF
+(2019–2025) and maps it onto `TaxInput` fields, entirely client-side. Like the
+tax engine, the mapping logic is pure and unit-tested; only `pdfText.ts` touches
+an external library (`pdfjs-dist`), and it's the one part of the app not on the
+main bundle — `parse1040.ts` code-splits it behind a dynamic `import()` so the
+~1 MB parser loads only when a user drops a file.
+
+```mermaid
+flowchart LR
+    file(["PDF file"])
+    pdftext["pdfText.ts<br/>extractTextItems()<br/>(pdf.js, dynamic import)"]
+    extract["extract1040.ts<br/>extract1040Fields()<br/>pure, unit-tested"]
+    parsed["parsedReturn.ts<br/>ParsedReturn<br/>{fields, provenance, warnings, assumed}"]
+    ui["ImportReturn.tsx<br/>drop zone + review modal"]
+    merge["mergeParsedInput()<br/>→ normalizeInput()"]
+    app["App.tsx<br/>TaxInput state"]
+
+    file --> pdftext --> extract --> parsed --> ui
+    ui -->|user confirms| merge --> app
+```
+
+Line numbers on the 1040 face drift year to year and even get reused for
+different lines (e.g. `9` is the deduction in 2019 but total income in later
+years), so `extract1040.ts` locates fields whose id drifts — deduction,
+pensions, the 1040 capital-gain fallback — by their byte-stable **printed
+label** (`amountForLabel`) rather than by line number; only genuinely stable
+ids (`1z`, `2b`/`3a`/`3b`/`4b`, Schedule D `7`/`15`) are read by id. Each
+detected field carries its source line/label as `provenance` for the review
+modal, and lower-confidence reads (an older-form wages fallback, a capital
+gain taken from the 1040 face with no Schedule D to split it) are flagged
+`assumed` and shown as "assumed — verify" there. Nothing is applied to
+`TaxInput` until the user confirms in the review modal.
+
 ## The jurisdiction abstraction
 
 The federal computation is modeled as one **`Jurisdiction`** — data describing
@@ -239,6 +275,12 @@ income into ordinary when there's no ladder already exists for that path.
 | `scenarios.ts` | Named input scenarios — `save` / `rename` / `remove` / list |
 | `storage.ts` | `localStorage` load / save for input + scenarios |
 | `components/` | Form, visualizations, and the saved-scenarios panel (see overview diagram) |
+| `import/parse1040.ts` | Entry point — dynamically loads `pdfText.ts`, then `extract1040Fields` |
+| `import/pdfText.ts` | Pulls positioned text items out of a PDF via `pdfjs-dist` |
+| `import/extract1040.ts` | Pure, unit-tested mapping from positioned text to `TaxInput` fields |
+| `import/parsedReturn.ts` | `ParsedReturn` type + `mergeParsedInput` (applies fields via `normalizeInput`) |
+| `import/importLog.ts` | Dev-only console tracing of the match/extract pipeline |
+| `components/ImportReturn.tsx` | Drop zone + review modal for confirming detected fields |
 
 ## Conventions & constraints
 

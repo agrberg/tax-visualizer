@@ -68,6 +68,16 @@ Adding a new tax year: see `src/tax/years/README.md` for the step-by-step guide 
 
 Uses the bundled `pdfjs-dist` package (worker asset bundled too — no CDN or network fetch), lazily code-split via a dynamic `import()` so the ~1 MB parser only loads when a PDF is dropped. Extracts the text layer and maps fields to `TaxInput`. Pure client-side; no upload. Entry point: `parse1040.ts`.
 
+`extract1040.ts` reads the 1040 face across a **7-year window (2019–2025)**. Line numbers drift year to year and even get reused with different meanings (e.g. `9` = deduction in 2019 but total income later; the deduction moved to page-2 `12e` in 2025), so fields whose id drifts (deduction, pensions, the 1040 capital-gain fallback) are located by their **stable printed label** via `amountForLabel`, not by line number; only genuinely stable ids (`2b`/`3a`/`3b`/`4b`, wages `1z`, Schedule D `7`/`15`) are read by id. Lower-confidence reads (older-form wages fallback, capital gain taken from the 1040 with no Schedule D) are flagged `assumed` and shown as "assumed — verify" in the review modal.
+
+## Keeping docs in sync
+
+README.md's "Where things live" and ARCHITECTURE.md's module map describe the current
+file/module structure. Before finishing a feature, check whether they still describe it
+accurately — and update them if not — when you: add a new file/module under `src/`, change
+what an existing module is responsible for, or add/remove a user-facing feature. Routine logic
+changes, bug fixes, and refactors that don't change a module's shape don't need this check.
+
 ## Testing conventions
 
 Two Vitest environments (configured in `vite.config.ts`):

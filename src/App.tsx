@@ -65,12 +65,10 @@ function App() {
     <TooltipProvider delayDuration={200}>
       <div className="mx-auto max-w-7xl overflow-x-clip px-4 py-6 sm:py-8">
         <header className="mb-6">
-          <h1 className="text-2xl font-bold tracking-tight">
-            {result.taxYear} Federal Tax Bracket Visualizer
-          </h1>
+          <h1 className="text-2xl font-bold tracking-tight">Federal Tax Bracket Visualizer</h1>
           <p className="text-sm text-muted-foreground">
-            See how each dollar of income fills the ordinary and capital-gains brackets — and where
-            the marginal cost of the next dollar lands.
+            See how each dollar of income fills the ordinary and capital-gains brackets — and where the marginal cost of
+            the next dollar lands.
           </p>
         </header>
 
@@ -153,8 +151,8 @@ function App() {
         </div>
 
         <footer className="mt-8 text-center text-xs text-muted-foreground">
-          Estimates for education, not tax advice. Federal only; excludes state tax, credits, and
-          many deductions. {result.taxYear} figures per {taxTablesFor(input.taxYear).source}.
+          Estimates for education, not tax advice. Federal only; excludes state tax, credits, and many deductions.{' '}
+          {result.taxYear} figures per {taxTablesFor(input.taxYear).source}.
         </footer>
       </div>
     </TooltipProvider>
