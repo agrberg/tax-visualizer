@@ -77,9 +77,10 @@ function rightmostAmount(items: TextItem[], start: number, end: number, normaliz
 /**
  * The dollar amount belonging to a line identifier (e.g. "3a", "7"): the rightmost amount within
  * the id's segment, scanning rows until one yields a value. `boundaryIds` are the sibling line
- * ids that delimit a segment (see `lineSegment` for why a segment is needed).
+ * ids that delimit a segment (see `lineSegment` for why a segment is needed); omit it for a line
+ * that sits alone on its row, where the segment simply runs to the row's end.
  */
-export function amountForId(rows: Row[], id: string, boundaryIds: string[]): number | null {
+export function amountForId(rows: Row[], id: string, boundaryIds: string[] = []): number | null {
   const normalizedId = normalizeToken(id);
   const bounds = new Set(boundaryIds.map(normalizeToken).filter((b) => b !== normalizedId));
   for (const row of rows) {

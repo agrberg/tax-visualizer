@@ -1,10 +1,95 @@
 import { ALL_SOURCES, coerceDeduction, type IncomeSource } from '../tax/types';
 import { isTaxYear, taxTablesFor } from '../tax/years';
+import { formatCurrency } from '../tax/format';
 import type { ParsedReturn } from './parsedReturn';
 import { ilog, setImportStep } from './importLog';
 import { groupRows, type Row, type TextItem } from './rows';
 import { amountForLabel, amountForId, pageContaining } from './lineLookup';
 import { detectFilingStatus, detectTaxYear } from './detect';
+import {
+  STABLE_FIELD_IDS,
+  lineIdForYear,
+  currentLineId,
+  EARLIEST_MAPPED_YEAR,
+  type DriftingField,
+} from './fieldLocations';
+
+// Phrases that identify the pages the importer reads. The 1040 face is its own physical pages;
+// Schedule D (when attached) always follows them.
+//
+// FACE_TITLE uniquely names the real face page. The looser "form 1040" also prints in every schedule's
+// footer ("Schedule D (Form 1040)") and on tax-software cover pages, so it's only a *fallback* for
+// locating the face page number — safe there because the face precedes every schedule, so its first
+// occurrence still wins.
+const FACE_TITLE = 'u.s. individual income tax return';
+const FACE_MARKERS = [FACE_TITLE, 'form 1040'] as const;
+
+// The extraction stop-guard matches only the unique title: the loose "form 1040" would let a cover
+// page or a schedule footer set `faceSeen` and stop extraction before the real face is reached.
+const pageIsFace = (pageRows: Row[]): boolean => pageContaining(pageRows, FACE_TITLE) !== null;
+
+// A page that begins a 1040 schedule, e.g. "SCHEDULE D (Form 1040)". The trailing "(Form 1040)" is
+// what distinguishes a real schedule header from the face's own line-label references to schedules
+// (e.g. line 12's "… (from Schedule A)"), which never carry it on the same row. Used to mark the end
+// of the 1040 face without assuming a fixed page count. https://regexper.com/#%2Fschedule%5Cs%2B%5Cw%2B%5Cs*%5C%28form%5Cs%2B1040%5C%29%2Fi
+const SCHEDULE_HEADER = /schedule\s+\w+\s*\(form\s+1040\)/i;
+const pageStartsSchedule = (pageRows: Row[]): boolean => pageRows.some((row) => SCHEDULE_HEADER.test(row.text));
+
+// The Schedule D page header, "SCHEDULE D (Form 1040)". Keyed off the form-identity header rather than
+// the loose "Capital Gains and Losses" title, which a brokerage 1099-B supplement or the Schedule D
+// instructions page can also carry — matching the phrase could truncate extraction early or read the
+// gains from the wrong page. https://regexper.com/#%2Fschedule%5Cs%2Bd%5Cs*%5C%28form%5Cs%2B1040%5C%29%2Fi
+const SCHEDULE_D_HEADER = /schedule\s+d\s*\(form\s+1040\)/i;
+const pageIsScheduleD = (pageRows: Row[]): boolean => pageRows.some((row) => SCHEDULE_D_HEADER.test(row.text));
+
+// Conservative face span (the classic 1040 is two pages) used when no schedule header marks the
+// face's end, so an unbounded face can't stretch across appended non-1040 pages.
+const DEFAULT_FACE_PAGES = 2;
+
+/**
+ * The last page of the 1040 face: starting at `facePage`, the face runs up to (not including) the first
+ * following page that begins a schedule (see `SCHEDULE_HEADER`) — the 1040 face is contiguous at the
+ * front of the bundle and every schedule carries a "(Form 1040)" header, so this bounds the face
+ * wherever it ends, robust to a face that grows past two pages, without pulling schedules into it.
+ *
+ * When no schedule header follows (e.g. a return with no Schedule D, then an appended state return or
+ * worksheets — none of which carry a "(Form 1040)" header), fall back to the conservative two-page
+ * span rather than extend to the document's end: `amountForId` keeps scanning past a blank/absent face
+ * line, so an unbounded face would let a colliding line id on an appended page leak into a 1040 field.
+ */
+function faceEndPage(rows: Row[], facePage: number): number {
+  // groupRows returns rows in page order, so the last row sits on the highest page.
+  const maxPage = rows.length ? rows[rows.length - 1].page : facePage;
+  for (let page = facePage + 1; page <= maxPage; page++) {
+    if (pageStartsSchedule(rows.filter((row) => row.page === page))) return page - 1;
+  }
+  return Math.min(facePage + DEFAULT_FACE_PAGES - 1, maxPage);
+}
+
+/**
+ * A stateful stop-condition for PDF text extraction (see `extractTextItems`): the importer should stop
+ * pulling in pages the moment it has everything it needs, so the app parses and stores as little as
+ * possible. Today "everything" is the 1040 face plus Schedule D (the only later page any value is read
+ * from), and Schedule D always follows the face — so we return `true` once, having seen the face, we
+ * reach Schedule D. Which page happens to be last is an implementation detail of what we currently
+ * read; if that set grows, this predicate changes and callers don't.
+ *
+ * Returns `false` until the face appears and then the last-needed page does, so a return with no
+ * Schedule D is simply read to the end (nothing signals "done" early — safe, just less economical).
+ * Requiring the face first also guards the degenerate case of a pre-1040 worksheet that merely
+ * mentions "Capital Gains and Losses": we keep reading until the real face is found.
+ */
+export function haveEverythingNeeded(): (pageItems: TextItem[]) => boolean {
+  let faceSeen = false;
+  return (pageItems) => {
+    const pageRows = groupRows(pageItems);
+    if (!faceSeen) {
+      faceSeen = pageIsFace(pageRows);
+      return false;
+    }
+    return pageIsScheduleD(pageRows);
+  };
+}
 
 /**
  * The accumulating result the readers below fill in, mutating it in place so each stays a small,
@@ -20,65 +105,61 @@ function setFieldAndSource(draft: Draft, field: IncomeSource, value: number, sou
 }
 
 /**
- * Boundary ids for page-1 income segments, so one line's amount can't bleed into a sibling's
- * (see `lineSegment`). Only the fields read *by id* need boundaries — wages `1z`, the stable
- * `2b`/`3a`/`3b`, and IRA `4b` — so this is those ids plus the sibling ids that can abut them:
- * `5b`/`7a` (the lines just past `4b`) and `4c`/`4d` (the gross/taxable pension columns that merge
- * onto `4b`'s baseline on the 2019 form, which must end `4b`'s segment before the pension amounts).
- * The fully-drifting fields — older wages `1`, capital gain `6`/`7`/`7a`, pensions — are read by
- * their printed *label*, never by id, so their drifting ids need not appear here.
+ * The line ids that can print on a *shared row* with another income field, passed as segment
+ * boundaries so one line's amount can't bleed into a neighbor's (see `lineSegment`). Two clusters
+ * do this: the dividends pair `3a`/`3b` (which print two to a row) and the IRA/pension group
+ * `4b`/`4c`/`4d` (the 2019 form merges `4b`'s gross/taxable columns onto one baseline). Every other
+ * income line sits alone on its row, so it needs no boundary and isn't listed — a read id is dropped
+ * from its own bounds by `amountForId` anyway, so an id earns a place here only by abutting a *different*
+ * field.
  */
-const SEGMENT_BOUNDARY_IDS: string[] = ['1z', '2b', '3a', '3b', '4b', '4c', '4d', '5b', '7a'];
+const SHARED_LINE_IDS: string[] = ['3a', '3b', '4b', '4c', '4d'];
 
-/** The amount for a page-1 income line id, using the shared segment-boundary ids (see
- * `SEGMENT_BOUNDARY_IDS`) so a sibling line's amount can't bleed into this one's. */
+/** The amount for a page-1 income line id, passing the ids that can share a row (see `SHARED_LINE_IDS`)
+ * as boundaries so a neighbor's amount can't bleed into this one's. */
 function incomeAmount(faceRows: Row[], id: string): number | null {
-  const value = amountForId(faceRows, id, SEGMENT_BOUNDARY_IDS);
+  const value = amountForId(faceRows, id, SHARED_LINE_IDS);
   ilog(`line ${id}: -> ${value}`);
   return value;
 }
 
-// ── Income readers ──────────────────────────────────────────────────────────────────────────
-// `STABLE_ID_FIELDS` holds the plain reads: a field on a stable line id with nothing else to do.
-// Everything else gets its own reader below, either because its id drifts year to year and must be
-// found by printed label (wages fallback, pensions, the 1040 capital-gain fallback) or because it
-// needs extra logic on top of a stable id (dividends derive non-qualified = 3b − 3a; retirement
-// sums IRA 4b with pensions). Each reader mutates `draft`.
-
-/** Fields whose line id is stable across the whole supported window — read directly by id. */
-const STABLE_ID_FIELDS: { source: IncomeSource; id: string; provenance: string }[] = [
-  { source: 'interest', id: '2b', provenance: '1040 line 2b' },
-];
-
-function readStableIdFields(faceRows: Row[], draft: Draft): void {
-  for (const field of STABLE_ID_FIELDS) {
-    const value = incomeAmount(faceRows, field.id);
-    if (value !== null) setFieldAndSource(draft, field.source, value, field.provenance);
-  }
+/** The line id a drifting field sits on for the detected year, or null if the year is unknown/pre-window. */
+function lineIdFor(field: DriftingField, year: number | null): string | null {
+  return year === null ? null : lineIdForYear(field, year);
 }
 
-function readWages(faceRows: Row[], draft: Draft): void {
-  // Wages total: line 1z (2022+, "Add lines 1a through 1h"). Older forms (2019–2021) have no
-  // 1z — the total is bare line 1 "Wages, salaries, tips, etc.", located by its stable label.
-  const wages1z = incomeAmount(faceRows, '1z');
-  if (wages1z !== null) {
-    setFieldAndSource(draft, 'wages', wages1z, '1040 line 1z');
-    return;
-  }
-  const wagesOld = amountForLabel(faceRows, 'wages, salaries, tips');
-  if (wagesOld !== null) {
-    setFieldAndSource(draft, 'wages', wagesOld.value, `1040 line ${wagesOld.lineId || 1} (wages, salaries, tips)`);
-    draft.assumed.wages = true; // older single-line-1 layout — flag for verification
-  }
+/** Warn when an id read and its label cross-check disagree (we keep the id value; ask the user to
+ *  verify). Called only for the drift-prone fields, where the printed label is a stable second opinion. */
+function warnOnMismatch(draft: Draft, description: string, id: string, idValue: number, labelValue: number): void {
+  if (labelValue === idValue) return;
+  draft.warnings.push(
+    `The ${description} on line ${id} (${formatCurrency(idValue)}) doesn't match the labeled amount (${formatCurrency(labelValue)}). Using line ${id}; please verify.`,
+  );
+}
+
+// ── Income readers ──────────────────────────────────────────────────────────────────────────
+// Where each value is read comes from fieldLocations.ts: STABLE_FIELD_IDS for fields on a
+// never-drifting line id, and the per-year DRIFTING_FIELD_IDS map for the movers. Given a detected
+// year, a drifting field is read by that year's exact id; when the year is undetected or older than
+// the mapped window (or an id read is empty) it falls back to the stable printed label. For the
+// drift-prone fields we also cross-check the id read against the label and warn on disagreement.
+// Composite fields (dividends, retirement, capital gains) combine reads. Each reader mutates `draft`.
+
+function readInterest(faceRows: Row[], draft: Draft): void {
+  const id = STABLE_FIELD_IDS.interest;
+  const value = incomeAmount(faceRows, id);
+  if (value !== null) setFieldAndSource(draft, 'interest', value, `1040 line ${id}`);
 }
 
 function readDividends(faceRows: Row[], draft: Draft): void {
-  const qualified = incomeAmount(faceRows, '3a');
-  if (qualified !== null) setFieldAndSource(draft, 'qualifiedDividends', qualified, '1040 line 3a');
+  const qualified = incomeAmount(faceRows, STABLE_FIELD_IDS.qualifiedDividends);
+  if (qualified !== null) {
+    setFieldAndSource(draft, 'qualifiedDividends', qualified, `1040 line ${STABLE_FIELD_IDS.qualifiedDividends}`);
+  }
 
-  const ordinaryDiv = incomeAmount(faceRows, '3b');
-  if (ordinaryDiv !== null) {
-    const nonQual = ordinaryDiv - (qualified ?? 0);
+  const ordinary = incomeAmount(faceRows, STABLE_FIELD_IDS.ordinaryDividends);
+  if (ordinary !== null) {
+    const nonQual = ordinary - (qualified ?? 0);
     if (nonQual < 0) {
       draft.warnings.push('Qualified dividends exceeded ordinary dividends — non-qualified set to $0.');
     }
@@ -86,37 +167,84 @@ function readDividends(faceRows: Row[], draft: Draft): void {
   }
 }
 
-function readRetirement(faceRows: Row[], draft: Draft): void {
-  // Retirement = taxable IRA + taxable pensions. IRA is line 4b every year, but the pensions
-  // taxable line drifts (4d in 2019, 5b in 2020+) — and worse, "5b" is *Social Security* on the
-  // 2019 form, so a fixed 4b+5b sum reads SS as pensions there. Locate pensions by its stable
-  // "Pensions and annuities" label instead, and read its taxable (rightmost/b) cell.
-  // 4b's segment already ends at 4c/4d/5b (they're in SEGMENT_BOUNDARY_IDS), so a 2019 merged 4b/4c/4d row
-  // (gross vs. taxable columns on one baseline) can't bleed 4d's amount into 4b's read.
-  const ira = incomeAmount(faceRows, '4b');
-  // The gross sub-line ("c Pensions and annuities") and taxable sub-line ("d Taxable amount")
-  // usually merge into one row, but may land on two adjacent ones instead. Prefer a "Taxable
-  // amount" match in the row right after the gross line so a split layout can't read the untaxed
-  // gross amount as taxable pension income; fall back to the gross line's own row otherwise.
-  const pensionsIdx = faceRows.findIndex((r) => r.text.toLowerCase().includes('pensions and annuities'));
-  const pensionsWindow = pensionsIdx === -1 ? [] : faceRows.slice(pensionsIdx, pensionsIdx + 2);
-  const pensions =
-    amountForLabel(pensionsWindow, 'taxable amount') ?? amountForLabel(pensionsWindow, 'pensions and annuities');
+function readWages(faceRows: Row[], draft: Draft, year: number | null): void {
+  // Wages total: line 1z (2022+, "Add lines 1a through 1h") or bare line 1 (2019–2021), read by the
+  // year's id when we know it.
+  const id = lineIdFor('wages', year);
+  if (id) {
+    const byId = incomeAmount(faceRows, id);
+    if (byId !== null) {
+      setFieldAndSource(draft, 'wages', byId, `1040 line ${id}`);
+      return;
+    }
+  }
+  // The id read came up empty (or the year is unknown). Fall back to the wages total on its modern
+  // (newest-mapped) line — its meaning is stable across recent years, so it's safe to try without a
+  // year — unless that's the id we just tried. This still recovers wages on a recent form whose year
+  // was missed or misdetected. The specific line (`1z` today) lives in the field map, not here.
+  const modernWagesLineId = currentLineId('wages');
+  if (id !== modernWagesLineId) {
+    const modernWagesTotal = incomeAmount(faceRows, modernWagesLineId);
+    if (modernWagesTotal !== null) {
+      setFieldAndSource(draft, 'wages', modernWagesTotal, `1040 line ${modernWagesLineId}`);
+      return;
+    }
+  }
+  // Last resort: the stable single-line-1 label (2019–2021 forms), a lower-confidence read flagged
+  // `assumed`.
+  const byLabel = amountForLabel(faceRows, 'wages, salaries, tips');
+  if (byLabel !== null) {
+    setFieldAndSource(draft, 'wages', byLabel.value, `1040 line ${byLabel.lineId || 1} (wages, salaries, tips)`);
+    draft.assumed.wages = true;
+  }
+}
+
+function readRetirement(faceRows: Row[], draft: Draft, year: number | null): void {
+  // Retirement = taxable IRA + taxable pensions. IRA is stable line 4b. The taxable-pensions line
+  // drifts (4d in 2019, 5b in 2020+) — and "5b" is *Social Security* on the 2019 form — so reading
+  // it by the year's id reads the right cell and sidesteps that trap by construction.
+  const ira = incomeAmount(faceRows, STABLE_FIELD_IDS.iraDistributions);
+  const pensions = readPensions(faceRows, draft, year);
   if (ira !== null || pensions !== null) {
     setFieldAndSource(
       draft,
       'retirementIncome',
-      (ira ?? 0) + (pensions?.value ?? 0),
-      '1040 taxable IRA (4b) + pensions (Pensions and annuities)',
+      (ira ?? 0) + (pensions ?? 0),
+      `1040 taxable IRA (${STABLE_FIELD_IDS.iraDistributions}) + pensions`,
     );
   }
 }
 
-function readCapitalGains(rows: Row[], faceRows: Row[], draft: Draft): void {
-  // Capital gains: prefer Schedule D for a real short/long-term split; fall back to the 1040
-  // capital-gain line (assumed long-term) when it isn't attached. Losses keep their real sign;
-  // the engine nets short- against long-term and applies up to $3,000 of a net loss against other
-  // income (see nettedCapitalGains), so a loss is meaningful, not zeroed.
+/** Taxable pensions for the year: by the located id, cross-checked against (and falling back to) the
+ *  "Pensions and annuities" / "Taxable amount" label. Returns the dollar amount or null. */
+function readPensions(faceRows: Row[], draft: Draft, year: number | null): number | null {
+  const byLabel = pensionsByLabel(faceRows);
+  const id = lineIdFor('pensions', year);
+  if (id) {
+    const byId = incomeAmount(faceRows, id);
+    if (byId !== null) {
+      if (byLabel !== null) warnOnMismatch(draft, 'taxable pensions', id, byId, byLabel);
+      return byId;
+    }
+  }
+  return byLabel;
+}
+
+/** The taxable pensions amount located by label. The gross ("c Pensions and annuities") and taxable
+ *  ("d Taxable amount") sub-lines usually merge into one row but may split across two adjacent ones;
+ *  prefer a "Taxable amount" match in the row after the gross line, else the gross line's own row. */
+function pensionsByLabel(faceRows: Row[]): number | null {
+  const idx = faceRows.findIndex((r) => r.text.toLowerCase().includes('pensions and annuities'));
+  const window = idx === -1 ? [] : faceRows.slice(idx, idx + 2);
+  const hit = amountForLabel(window, 'taxable amount') ?? amountForLabel(window, 'pensions and annuities');
+  return hit?.value ?? null;
+}
+
+function readCapitalGains(rows: Row[], faceRows: Row[], draft: Draft, year: number | null): void {
+  // Capital gains: prefer Schedule D for a real short/long-term split; fall back to the single 1040
+  // capital-gain line (assumed long-term) when it isn't attached. Losses keep their real sign; the
+  // engine nets short- against long-term and applies up to $3,000 of a net loss against other income
+  // (see nettedCapitalGains), so a loss is meaningful, not zeroed.
   const setCapitalGain = (field: 'shortTermGains' | 'longTermGains', value: number, source: string, label: string) => {
     if (value < 0) {
       draft.warnings.push(
@@ -126,7 +254,10 @@ function readCapitalGains(rows: Row[], faceRows: Row[], draft: Draft): void {
     setFieldAndSource(draft, field, value, source);
   };
 
-  const schedDPage = pageContaining(rows, 'capital gains and losses');
+  // Locate Schedule D by its "SCHEDULE D (Form 1040)" header, anywhere in the return (the read is
+  // position-independent — Schedule D need not physically follow the face), rather than the loose
+  // "Capital Gains and Losses" title a supplement/instructions page could also carry.
+  const schedDPage = rows.find((r) => SCHEDULE_D_HEADER.test(r.text))?.page ?? null;
   const schedDRows = schedDPage !== null ? rows.filter((r) => r.page === schedDPage) : [];
   const shortTerm = schedDPage !== null ? amountForId(schedDRows, '7', ['7', '15']) : null;
   const longTerm = schedDPage !== null ? amountForId(schedDRows, '15', ['7', '15']) : null;
@@ -138,67 +269,93 @@ function readCapitalGains(rows: Row[], faceRows: Row[], draft: Draft): void {
     return;
   }
 
-  // No Schedule D — fall back to the 1040 capital-gain line, located by its stable label
-  // ("Capital gain or (loss)") since its number drifts (6 in 2019, 7 in 2020–2024, 7a in 2025).
-  // It can't be split short/long, so it's always an assumed long-term value pending review.
-  const capitalGain = amountForLabel(faceRows, 'capital gain or (loss)');
-  if (capitalGain !== null && capitalGain.value < 0) {
-    setFieldAndSource(
-      draft,
-      'longTermGains',
-      capitalGain.value,
-      `1040 line ${capitalGain.lineId || 'capital gain'} (capital gain or loss)`,
-    );
-    draft.assumed.longTermGains = true;
+  // No Schedule D — the single 1040 capital-gain line (id drifts: 6 in 2019, 7 in 2020–2024, 7a in
+  // 2025). Read by the year's id; cross-check against, and fall back to, the "Capital gain or (loss)"
+  // label. It can't be split short/long, so it's always an assumed long-term value pending review.
+  const byLabel = amountForLabel(faceRows, 'capital gain or (loss)');
+  const id = lineIdFor('capitalGain', year);
+  let value: number | null = null;
+  let lineRef = '';
+  if (id) {
+    const byId = incomeAmount(faceRows, id);
+    if (byId !== null) {
+      if (byLabel !== null) warnOnMismatch(draft, 'capital gain', id, byId, byLabel.value);
+      value = byId;
+      lineRef = `1040 line ${id}`;
+    }
+  }
+  if (value === null && byLabel !== null) {
+    value = byLabel.value;
+    lineRef = `1040 line ${byLabel.lineId || 'capital gain'}`;
+  }
+  if (value === null) return;
+
+  draft.assumed.longTermGains = true;
+  if (value < 0) {
+    setFieldAndSource(draft, 'longTermGains', value, `${lineRef} (capital gain or loss)`);
     draft.warnings.push(
-      `The 1040 capital-gain line is a loss of $${Math.abs(capitalGain.value).toLocaleString()}. It's shown below as a negative and netted against your gains; up to $3,000 of a net loss ($1,500 if married filing separately) offsets other income.`,
+      `The 1040 capital-gain line is a loss of $${Math.abs(value).toLocaleString()}. It's shown below as a negative and netted against your gains; up to $3,000 of a net loss ($1,500 if married filing separately) offsets other income.`,
     );
-  } else if (capitalGain !== null) {
-    setFieldAndSource(
-      draft,
-      'longTermGains',
-      capitalGain.value,
-      `1040 line ${capitalGain.lineId || 'capital gain'} (assumed long-term)`,
-    );
-    draft.assumed.longTermGains = true;
+  } else {
+    setFieldAndSource(draft, 'longTermGains', value, `${lineRef} (assumed long-term)`);
     draft.warnings.push(
       'Capital gains from the 1040 were treated as long-term (no Schedule D found to split them). Adjust below if some were short-term.',
     );
   }
 }
 
-function readDeduction(rows: Row[], facePage: number, draft: Draft): void {
-  // Deduction: "Standard deduction or itemized deductions (from Schedule A)". Located by label,
-  // not number, because both the id and the page drift — line 9 (2019), 12 (2020, 2022–2024),
-  // 12a (2021), and 12e on page 2 of the 2025 redesign (the expanded income section pushed AGI to
-  // 11a and the deduction onto page 2). The label finds it on either face page; it's distinct
-  // from the left-margin "Standard Deduction for—" heading, so that won't false-match.
-  const deductionRows = rows.filter((r) => r.page === facePage || r.page === facePage + 1);
-  const deductionHit = amountForLabel(deductionRows, 'standard deduction or itemized deductions');
-  if (deductionHit === null) return;
+function readDeduction(faceRows: Row[], draft: Draft, year: number | null): void {
+  // Deduction ("Standard deduction or itemized deductions"): the id drifts — line 9 (2019), 12 (2020,
+  // 2022–2024), 12a (2021), and 12e on the 2025 redesign, which also moved it to page 2. `faceRows`
+  // already spans the 1040's two pages, so the first occurrence of the year's id finds it wherever it
+  // landed — no page bookkeeping needed. Cross-check against, and fall back to, the printed label
+  // across the same rows. The label is distinct from the left-margin "Standard Deduction for—"
+  // heading, so that won't false-match.
+  const byLabel = amountForLabel(faceRows, 'standard deduction or itemized deductions');
 
-  // Validate the parsed amount through the same predicate as every other input boundary
-  // (a finite number ≥ 0, else null). If it matches the standard deduction for the detected
-  // year/status we stay in standard mode (null); otherwise the filer itemized, so we import
-  // the number as custom. `provenance.deduction` reports only *where* the value came from —
-  // whether it's an itemized amount is a property of the value, derived fresh by the review
-  // UI from the live draft, not baked in here (a filer can still edit the amount afterward).
-  const coercedDeduction = coerceDeduction(deductionHit.value);
-  if (coercedDeduction === null) return;
-  const lineRef = `1040 line ${deductionHit.lineId || 'deduction'}`;
+  const id = lineIdFor('deduction', year);
+  let value: number | null = null;
+  let lineRef = '';
+  if (id) {
+    // The deduction line sits alone on its row, so it needs no sibling boundary ids.
+    const byId = amountForId(faceRows, id);
+    if (byId !== null) {
+      if (byLabel !== null) warnOnMismatch(draft, 'deduction', id, byId, byLabel.value);
+      value = byId;
+      lineRef = `1040 line ${id}`;
+    }
+  }
+  if (value === null && byLabel !== null) {
+    value = byLabel.value;
+    lineRef = `1040 line ${byLabel.lineId || 'deduction'}`;
+  }
+  if (value === null) return;
+
+  // Validate the amount through the same predicate as every other input boundary (finite ≥ 0, else
+  // null). If it matches the standard deduction for the detected year/status we stay in standard mode
+  // (null); otherwise the filer itemized, so we import the number as custom. `provenance.deduction`
+  // reports only *where* the value came from — whether it's an itemized amount is a property of the
+  // value, derived fresh by the review UI from the live draft, not baked in here.
+  const coerced = coerceDeduction(value);
+  if (coerced === null) return;
   const detectedYear = draft.fields.taxYear;
   const detectedStatus = draft.fields.filingStatus;
   const tableStandard =
     detectedYear && isTaxYear(detectedYear) && detectedStatus
       ? taxTablesFor(detectedYear).standardDeduction[detectedStatus]
       : null;
-  draft.fields.deduction = tableStandard !== null && coercedDeduction === tableStandard ? null : coercedDeduction;
+  draft.fields.deduction = tableStandard !== null && coerced === tableStandard ? null : coerced;
   draft.provenance.deduction = lineRef;
-  ilog(`deduction from ${lineRef}: ${coercedDeduction} -> ${String(draft.fields.deduction)}`);
+  ilog(`deduction from ${lineRef}: ${coerced} -> ${String(draft.fields.deduction)}`);
 }
 
-/** Detect the filing status and tax year from the face, recording provenance and any warnings. */
-function detectHeader(faceRows: Row[], draft: Draft): void {
+/**
+ * Detect the filing status and tax year from the face, recording provenance and any warnings.
+ * Returns the raw detected year (a `20xx` on the form, whether or not the app has tax tables for it)
+ * so the income readers can resolve per-year line ids; `fields.taxYear` is set only for a year the
+ * app actually supports (`isTaxYear`).
+ */
+function detectHeader(faceRows: Row[], draft: Draft): number | null {
   // "Couldn't detect" for filing status / tax year is surfaced inline under those controls in the
   // review UI (from the absence of a provenance entry), so no warning for a plain miss here.
   const filingStatus = detectFilingStatus(faceRows);
@@ -217,13 +374,15 @@ function detectHeader(faceRows: Row[], draft: Draft): void {
     draft.warnings.push(`Detected tax year ${taxYear} isn't supported yet — please choose it below.`);
   }
 
-  // The label-anchored reads were built against the 2019–2025 layouts. An older form may be
-  // numbered/labeled differently enough that values land in the wrong field, so flag it.
-  if (taxYear !== null && taxYear < 2019) {
+  // The per-year id map starts at EARLIEST_MAPPED_YEAR. An older form may be numbered/labeled
+  // differently enough that values land in the wrong field, so flag it (reads fall back to
+  // label-anchoring for it).
+  if (taxYear !== null && taxYear < EARLIEST_MAPPED_YEAR) {
     draft.warnings.push(
-      `This looks like a ${taxYear} return — older than the 2019 layout this importer was built against. Double-check every value below.`,
+      `This looks like a ${taxYear} return — older than the ${EARLIEST_MAPPED_YEAR} layout this importer was built against. Double-check every value below.`,
     );
   }
+  return taxYear;
 }
 
 /**
@@ -238,25 +397,27 @@ export function extract1040Fields(items: TextItem[]): ParsedReturn {
 
   const draft: Draft = { fields: {}, provenance: {}, assumed: {}, warnings: [] };
 
-  // Scope the face lines to the 1040's own page, so a stray "7" on Schedule 2 (or a
-  // repeated line number deep in the return) can't be mistaken for a 1040 value.
-  setImportStep('match');
-  const facePage = pageContaining(rows, 'u.s. individual income tax return') ?? pageContaining(rows, 'form 1040') ?? 1;
-  const faceRows = rows.filter((r) => r.page === facePage);
-  ilog(`reading 1040 face on page ${facePage}`);
+  // Scope the face lines to the 1040 face's own pages — from the face page up to (not including) the
+  // next schedule — so a stray "7" on Schedule 2 (or a repeated line number deep in the return) can't
+  // be mistaken for a 1040 value. Spanning every face page (not a fixed count) lets a field found by
+  // first occurrence land wherever its line drifted to — e.g. the 2025 deduction on page 2 — and stays
+  // correct if the face ever grows past two pages, all without per-field page bookkeeping.
+  const facePage = pageContaining(rows, FACE_MARKERS[0]) ?? pageContaining(rows, FACE_MARKERS[1]) ?? 1;
+  const lastFacePage = faceEndPage(rows, facePage);
+  const faceRows = rows.filter((r) => r.page >= facePage && r.page <= lastFacePage);
+  ilog(`reading 1040 face on pages ${facePage}–${lastFacePage}`);
 
-  readWages(faceRows, draft);
-  readStableIdFields(faceRows, draft);
-  readDividends(faceRows, draft);
-  readRetirement(faceRows, draft);
-  readCapitalGains(rows, faceRows, draft);
-
+  // Detect the year first: it selects which line ids the income readers use.
   setImportStep('detect');
-  detectHeader(faceRows, draft);
+  const year = detectHeader(faceRows, draft);
 
-  // Deduction runs after detection: whether the parsed amount reads as "standard" (null) depends
-  // on the detected year + filing status.
-  readDeduction(rows, facePage, draft);
+  setImportStep('match');
+  readWages(faceRows, draft, year);
+  readInterest(faceRows, draft);
+  readDividends(faceRows, draft);
+  readRetirement(faceRows, draft, year);
+  readCapitalGains(rows, faceRows, draft, year);
+  readDeduction(faceRows, draft, year);
 
   const foundIncome = ALL_SOURCES.some((source) => draft.fields[source] !== undefined);
   if (!foundIncome) {
