@@ -235,14 +235,22 @@ Line numbers on the 1040 face drift year to year and even get reused for
 different lines (e.g. `9` is the deduction in 2019 but total income in later
 years). `extract1040.ts` is a thin orchestrator over focused modules — `rows.ts`
 (reconstruct rows + `parseAmount`), `lineLookup.ts` (find an amount by id or
-label), and `detect.ts` (filing status + year). Fields
-whose id drifts — deduction, pensions, the 1040 capital-gain fallback — are
-located by their byte-stable **printed label** (`amountForLabel`) rather than by
-line number; only genuinely stable ids (`1z`, `2b`/`3a`/`3b`/`4b`, Schedule D
-`7`/`15`) are read by id. Because reads stay label-anchored rather than gated on
-first detecting the year, a pre-2019 or not-yet-tabled future form still degrades
+label), `detect.ts` (filing status + year), and `fieldLocations.ts` (where each
+field sits by year). The importer **detects the year first**, then reads each
+field by that year's exact line id: `STABLE_FIELD_IDS` for ids that never move
+(`2b`/`3a`/`3b`/`4b`) and the effective-dated `DRIFTING_FIELD_IDS` map
+(`lineIdForYear`, newest-first) for the movers (wages, pensions, capital gain,
+deduction). No page is recorded — the reader scans the 1040 face's own pages (from
+the face page up to the next `SCHEDULE X (Form 1040)` header, so it survives a
+face that grows past two pages) and takes the first occurrence of an id, so a
+field is found wherever its line drifted to (e.g. the 2025 deduction on page 2).
+The byte-stable **printed
+label** (`amountForLabel`) is the fallback
+for undetected / pre-2019 years and a cross-check on the drift-prone fields
+(warning when id and label disagree — a runtime guard against a wrong map entry).
+Because the fallback stays label-anchored, a pre-2019 form still degrades
 gracefully. Each detected field carries its source line/label as `provenance` for
-the review modal, and lower-confidence reads (an older-form wages fallback, a
+the review modal, and lower-confidence reads (a label-anchored wages fallback, a
 capital gain taken from the 1040 face with no Schedule D to split it) are flagged
 `assumed` and shown as "assumed — verify" there. Nothing is applied to
 `TaxInput` until the user confirms in the review modal.
@@ -259,35 +267,36 @@ income into ordinary when there's no ladder already exists for that path.
 
 ## Module map
 
-| Module                        | Responsibility                                                                                              |
-| ----------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `tax/years/{2025,2026}.ts`    | Per-year rate tables, deductions, thresholds (one `TaxYearTables` each)                                     |
-| `tax/years/index.ts`          | Year registry: `TAX_YEARS`, `AVAILABLE_YEARS`, `DEFAULT_TAX_YEAR`, `taxTablesFor`, `isTaxYear`              |
-| `tax/filingStatus.ts`         | Filing-status labels, validity guard, canonical status list                                                 |
-| `tax/types.ts`                | Shared types: `TaxInput`, `TaxResult`, `JurisdictionResult`, `TaxYearTables`, etc.                          |
-| `tax/income.ts`               | Net capital gains (`nettedCapitalGains`) and classify raw input into ordinary / preferential pools          |
-| `tax/federal.ts`              | Assemble the federal `Jurisdiction` from the selected year's tables                                         |
-| `tax/jurisdiction.ts`         | `computeJurisdiction` — run income through one jurisdiction                                                 |
-| `tax/engine.ts`               | Band math: `fillBands`, `taxOverRange`, `marginalRateAt`                                                    |
-| `tax/deduction.ts`            | Split a deduction across the two pools                                                                      |
-| `tax/surcharges.ts`           | NIIT + Additional Medicare rules (assess + marginal)                                                        |
-| `tax/attribution.ts`          | Per-source layers and the combined breakdown                                                                |
-| `tax/marginal.ts`             | `marginalNextDollar` — cost of the next dollar by income type                                               |
-| `tax/calculate.ts`            | `calculateTax` orchestrator (the engine's entry point)                                                      |
-| `tax/format.ts`               | Currency / percent formatting + composition segments                                                        |
-| `App.tsx`                     | Input + scenario state, persistence, memoized compute, layout                                               |
-| `scenarios.ts`                | Named input scenarios — `save` / `rename` / `remove` / list                                                 |
-| `storage.ts`                  | `localStorage` load / save for input + scenarios                                                            |
-| `components/`                 | Form, visualizations, and the saved-scenarios panel (see overview diagram)                                  |
-| `import/parse1040.ts`         | Entry point — dynamically loads `pdfText.ts`, then `extract1040Fields`                                      |
-| `import/pdfText.ts`           | Pulls positioned text items out of a PDF via `pdfjs-dist`                                                   |
-| `import/rows.ts`              | Reconstruct form "rows" from positioned text (`groupRows`) + `parseAmount`                                  |
-| `import/lineLookup.ts`        | Find a line's amount by stable id (`amountForId`) or drifting label (`amountForLabel`)                      |
-| `import/detect.ts`            | Best-effort filing-status + tax-year detection from the 1040 face                                           |
-| `import/extract1040.ts`       | Thin orchestrator — per-field readers map positioned text to `TaxInput` fields; owns `SEGMENT_BOUNDARY_IDS` |
-| `import/parsedReturn.ts`      | `ParsedReturn` type + `mergeParsedInput` (applies fields via `normalizeInput`)                              |
-| `import/importLog.ts`         | Dev-only console tracing of the match/extract pipeline                                                      |
-| `components/ImportReturn.tsx` | Drop zone + review modal for confirming detected fields                                                     |
+| Module                        | Responsibility                                                                                                      |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `tax/years/{2025,2026}.ts`    | Per-year rate tables, deductions, thresholds (one `TaxYearTables` each)                                             |
+| `tax/years/index.ts`          | Year registry: `TAX_YEARS`, `AVAILABLE_YEARS`, `DEFAULT_TAX_YEAR`, `taxTablesFor`, `isTaxYear`                      |
+| `tax/filingStatus.ts`         | Filing-status labels, validity guard, canonical status list                                                         |
+| `tax/types.ts`                | Shared types: `TaxInput`, `TaxResult`, `JurisdictionResult`, `TaxYearTables`, etc.                                  |
+| `tax/income.ts`               | Net capital gains (`nettedCapitalGains`) and classify raw input into ordinary / preferential pools                  |
+| `tax/federal.ts`              | Assemble the federal `Jurisdiction` from the selected year's tables                                                 |
+| `tax/jurisdiction.ts`         | `computeJurisdiction` — run income through one jurisdiction                                                         |
+| `tax/engine.ts`               | Band math: `fillBands`, `taxOverRange`, `marginalRateAt`                                                            |
+| `tax/deduction.ts`            | Split a deduction across the two pools                                                                              |
+| `tax/surcharges.ts`           | NIIT + Additional Medicare rules (assess + marginal)                                                                |
+| `tax/attribution.ts`          | Per-source layers and the combined breakdown                                                                        |
+| `tax/marginal.ts`             | `marginalNextDollar` — cost of the next dollar by income type                                                       |
+| `tax/calculate.ts`            | `calculateTax` orchestrator (the engine's entry point)                                                              |
+| `tax/format.ts`               | Currency / percent formatting + composition segments                                                                |
+| `App.tsx`                     | Input + scenario state, persistence, memoized compute, layout                                                       |
+| `scenarios.ts`                | Named input scenarios — `save` / `rename` / `remove` / list                                                         |
+| `storage.ts`                  | `localStorage` load / save for input + scenarios                                                                    |
+| `components/`                 | Form, visualizations, and the saved-scenarios panel (see overview diagram)                                          |
+| `import/parse1040.ts`         | Entry point — dynamically loads `pdfText.ts`, then `extract1040Fields`                                              |
+| `import/pdfText.ts`           | Pulls positioned text items out of a PDF via `pdfjs-dist`; stops after a caller-supplied page predicate             |
+| `import/rows.ts`              | Reconstruct form "rows" from positioned text (`groupRows`) + `parseAmount`                                          |
+| `import/lineLookup.ts`        | Find a line's amount by stable id (`amountForId`) or drifting label (`amountForLabel`)                              |
+| `import/detect.ts`            | Best-effort filing-status + tax-year detection from the 1040 face                                                   |
+| `import/fieldLocations.ts`    | Per-year field→line-id map (`STABLE_FIELD_IDS`, `DRIFTING_FIELD_IDS`, `lineIdForYear`)                              |
+| `import/extract1040.ts`       | Orchestrator — detects the year, reads each field by that year's id; owns `SHARED_LINE_IDS`, `haveEverythingNeeded` |
+| `import/parsedReturn.ts`      | `ParsedReturn` type + `mergeParsedInput` (applies fields via `normalizeInput`)                                      |
+| `import/importLog.ts`         | Dev-only console tracing of the match/extract pipeline                                                              |
+| `components/ImportReturn.tsx` | Drop zone + review modal for confirming detected fields                                                             |
 
 ## Conventions & constraints
 

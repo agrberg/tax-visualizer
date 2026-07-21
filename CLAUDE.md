@@ -78,18 +78,21 @@ Uses the bundled `pdfjs-dist` package (worker asset bundled too — no CDN or ne
 
 The pipeline is split into focused modules:
 
-| File              | Role                                                                                                                    |
-| ----------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `parse1040.ts`    | Entry point — dynamically loads `pdfText.ts`, then `extract1040Fields`                                                  |
-| `pdfText.ts`      | Pulls positioned text items out of a PDF via `pdfjs-dist` (the only external dep)                                       |
-| `rows.ts`         | Reconstructs form "rows" from positioned text (`groupRows`) + `parseAmount`                                             |
-| `lineLookup.ts`   | Finds a line's amount by stable id (`amountForId`) or drifting label (`amountForLabel`)                                 |
-| `detect.ts`       | Best-effort filing-status + tax-year detection from the face                                                            |
-| `extract1040.ts`  | Thin orchestrator: small per-field readers assemble a `ParsedReturn`; owns page-1 boundary ids (`SEGMENT_BOUNDARY_IDS`) |
-| `parsedReturn.ts` | `ParsedReturn` type + `mergeParsedInput`                                                                                |
-| `importLog.ts`    | Dev-only console tracing                                                                                                |
+| File                | Role                                                                                                                            |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `parse1040.ts`      | Entry point — dynamically loads `pdfText.ts`, then `extract1040Fields`                                                          |
+| `pdfText.ts`        | Pulls positioned text items out of a PDF via `pdfjs-dist` (the only external dep); stops after a caller-supplied page predicate |
+| `rows.ts`           | Reconstructs form "rows" from positioned text (`groupRows`) + `parseAmount`                                                     |
+| `lineLookup.ts`     | Finds a line's amount by stable id (`amountForId`) or drifting label (`amountForLabel`)                                         |
+| `detect.ts`         | Best-effort filing-status + tax-year detection from the face                                                                    |
+| `fieldLocations.ts` | Which line id each field sits on by year: `STABLE_FIELD_IDS` + the per-year `DRIFTING_FIELD_IDS` map + `lineIdForYear`          |
+| `extract1040.ts`    | Orchestrator: detects the year, then reads each field by that year's id; owns `SHARED_LINE_IDS`, `haveEverythingNeeded`         |
+| `parsedReturn.ts`   | `ParsedReturn` type + `mergeParsedInput`                                                                                        |
+| `importLog.ts`      | Dev-only console tracing                                                                                                        |
 
-`extract1040.ts` reads the 1040 face across a **7-year window (2019–2025)**. Line numbers drift year to year and even get reused with different meanings (e.g. `9` = deduction in 2019 but total income later; the deduction moved to page-2 `12e` in 2025), so fields whose id drifts (deduction, pensions, the 1040 capital-gain fallback) are located by their **stable printed label** via `amountForLabel`, not by line number; only genuinely stable ids (`2b`/`3a`/`3b`/`4b`, wages `1z`, Schedule D `7`/`15`) are read by id. Reads stay label-anchored and year-agnostic, so an untabled future year or a pre-2019 form still degrades gracefully. Lower-confidence reads (older-form wages fallback, capital gain taken from the 1040 with no Schedule D) are flagged `assumed` and shown as "assumed — verify" in the review modal.
+`extract1040.ts` reads the **1040 face's own pages** — from the face page up to (not including) the next schedule header (`SCHEDULE X (Form 1040)`), so it stays correct if the face ever grows past two pages — across a **7-year window (2019–2025)**. Line numbers drift year to year and even get reused with different meanings (e.g. `9` = deduction in 2019 but total income later; the deduction moved to page-2 `12e` in 2025). The importer **detects the year first**, then reads each field by that year's exact line id via `fieldLocations.ts`: `STABLE_FIELD_IDS` for ids that never move (`2b`/`3a`/`3b`/`4b`), and the per-year `DRIFTING_FIELD_IDS` map (`lineIdForYear`) for the movers (wages, pensions, capital gain, deduction). No page is stored per field — the reader scans the face pages in order and takes the **first occurrence** of an id, so a field is found wherever its line drifted to (like the 2025 page-2 deduction) without page bookkeeping. The map is **effective-dated**: each drifting field lists only the years it _changes_, newest-first, so `lineIdForYear` returns the first entry with `since ≤ year` (recent forms — the common case — match first; adding a year is a one-line prepend). Reading pensions by its year id sidesteps the 2019 `5b`=Social-Security trap by construction. Text extraction is **bounded**: `parse1040` passes `pdfText.ts` a `haveEverythingNeeded` predicate, so once the face has been seen and Schedule D read, the worksheets/state returns/K-1s padding a filed bundle are never parsed (a return with no Schedule D is still read to the end).
+
+The stable printed **label** (`amountForLabel`) is the **fallback** — used when the year is undetected or older than the map's window (pre-2019) — and a **cross-check**: for the drift-prone fields (pensions, capital gain, deduction) the id read is compared against the label, warning on disagreement (a runtime guard against a wrong map entry). Lower-confidence reads (label-anchored wages on an unmapped year; capital gain taken from the 1040 with no Schedule D to split it) are flagged `assumed` and shown as "assumed — verify" in the review modal. Year _misdetection_ is a known gap left for later (a year hint / most-frequent `20xx` scan).
 
 ## Keeping docs in sync
 
