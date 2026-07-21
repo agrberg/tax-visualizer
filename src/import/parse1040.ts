@@ -1,5 +1,5 @@
 import type { ParsedReturn } from './parsedReturn';
-import { extract1040Fields } from './extract1040';
+import { extract1040Fields, haveEverythingNeeded } from './extract1040';
 import { ilog } from './importLog';
 
 /**
@@ -10,10 +10,14 @@ import { ilog } from './importLog';
  * isolated in ./pdfText; the mapping in ./extract1040 is pure and unit-tested.
  * Everything the reader sees and every match decision is logged (see ./importLog)
  * so we can tune the mapping against real returns.
+ *
+ * Extraction stops as soon as the importer has everything it needs (see `haveEverythingNeeded`):
+ * nothing it reads lives past Schedule D, so the worksheets, state returns, and K-1s that pad a filed
+ * bundle are never parsed.
  */
 export async function parse1040(file: File): Promise<ParsedReturn> {
   ilog('parsing', file.name);
   const { extractTextItems } = await import('./pdfText');
-  const items = await extractTextItems(file);
+  const items = await extractTextItems(file, haveEverythingNeeded());
   return extract1040Fields(items);
 }

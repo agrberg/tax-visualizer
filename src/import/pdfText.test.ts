@@ -28,6 +28,21 @@ function fakePdf(items: unknown[]) {
   };
 }
 
+/** A pdf.js document proxy with one page per entry, each carrying its own text items. */
+function fakeMultiPagePdf(pages: unknown[][]) {
+  return {
+    numPages: pages.length,
+    getPage: vi.fn((page: number) =>
+      Promise.resolve({ getTextContent: vi.fn().mockResolvedValue({ items: pages[page - 1] }) }),
+    ),
+  };
+}
+
+/** A single positioned text item at a fixed spot, carrying `str`. */
+function item(str: string) {
+  return { str, transform: [0, 0, 0, 0, 10, 20], width: 5 };
+}
+
 describe('extractTextItems', () => {
   it('flattens positioned text items and destroys the loading task', async () => {
     const destroy = vi.fn().mockResolvedValue(undefined);
@@ -40,6 +55,27 @@ describe('extractTextItems', () => {
 
     expect(items).toEqual([{ text: 'hi', x: 10, y: 20, width: 5, page: 1 }]);
     expect(destroy).toHaveBeenCalledOnce();
+  });
+
+  it('stops extracting after the first page the predicate flags, leaving later pages unread', async () => {
+    const destroy = vi.fn().mockResolvedValue(undefined);
+    const pdf = fakeMultiPagePdf([[item('page one')], [item('STOP')], [item('page three')]]);
+    getDocument.mockReturnValue({ promise: Promise.resolve(pdf), destroy });
+
+    const items = await extractTextItems(pdfFile(), (pageItems) => pageItems.some((i) => i.text === 'STOP'));
+
+    expect(items.map((i) => i.text)).toEqual(['page one', 'STOP']);
+    expect(pdf.getPage).toHaveBeenCalledTimes(2); // page three is never fetched
+  });
+
+  it('reads every page when no stop predicate is given', async () => {
+    const destroy = vi.fn().mockResolvedValue(undefined);
+    const pdf = fakeMultiPagePdf([[item('one')], [item('two')], [item('three')]]);
+    getDocument.mockReturnValue({ promise: Promise.resolve(pdf), destroy });
+
+    const items = await extractTextItems(pdfFile());
+
+    expect(items.map((i) => i.text)).toEqual(['one', 'two', 'three']);
   });
 
   it('destroys the loading task even when parsing fails', async () => {
