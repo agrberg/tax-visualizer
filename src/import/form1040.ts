@@ -26,7 +26,10 @@ function pageContaining(rows: Row[], phrase: string): number | null {
 // page carrying "form 1040" ahead of the face would mislocate it. In practice the title prints on every
 // real 1040 face, so the fallback rarely fires.
 const FACE_TITLE = 'u.s. individual income tax return';
-const FACE_MARKERS = [FACE_TITLE, 'form 1040'] as const;
+// Exported alongside SCHEDULE_D_HEADER so the fixture builder (`fixtures/anonymize.ts`) partitions a
+// return into face vs Schedule D pages the same way this parser does — a fixture must keep the same
+// structural rows the reader locates fields by.
+export const FACE_MARKERS = [FACE_TITLE, 'form 1040'] as const;
 
 // A page that begins a 1040 schedule, e.g. "SCHEDULE D (Form 1040)". The trailing "(Form 1040)" is what
 // distinguishes a real schedule header from the face's own line-label references to schedules (e.g.
@@ -38,7 +41,7 @@ const SCHEDULE_HEADER = /schedule\s+\w+\s*\(form\s+1040\)/i;
 // the loose "Capital Gains and Losses" title, which a brokerage 1099-B supplement or the Schedule D
 // instructions page can also carry — matching the phrase could truncate extraction early or read the
 // gains from the wrong page. https://regexper.com/#%2Fschedule%5Cs%2Bd%5Cs*%5C%28form%5Cs%2B1040%5C%29%2Fi
-const SCHEDULE_D_HEADER = /schedule\s+d\s*\(form\s+1040\)/i;
+export const SCHEDULE_D_HEADER = /schedule\s+d\s*\(form\s+1040\)/i;
 
 const pageIsFace = (pageRows: Row[]): boolean => pageContaining(pageRows, FACE_TITLE) !== null;
 const pageStartsSchedule = (pageRows: Row[]): boolean => pageRows.some((row) => SCHEDULE_HEADER.test(row.text));

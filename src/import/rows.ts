@@ -22,6 +22,41 @@ export interface TextItem {
   page: number;
 }
 
+/** A pdf.js text item: the string plus a 6-number transform (x = [4], y = [5]). Typed structurally so
+ *  the raw `content.items` from either pdf.js build (browser or Node `legacy`) can be mapped without
+ *  importing pdf.js here — this module stays pdf.js-free. */
+export interface RawPositionedItem {
+  str: string;
+  transform: number[];
+  width: number;
+}
+
+/**
+ * Map one page's raw pdf.js text items to the normalized `TextItem` shape the extractor consumes:
+ * `text` trimmed and lower-cased, the raw string kept in `originalText`. Marked-content items (no
+ * `str`) and empty items are skipped. Shared by the browser read path (`pdfText.ts`) and the Node
+ * fixture read path (`fixtures/readPdfInNode.ts`) so both produce identical items — the fixtures a
+ * build emits are then read back exactly as a dropped file would be.
+ */
+export function mapPageItems(rawItems: Iterable<unknown>, page: number): TextItem[] {
+  const items: TextItem[] = [];
+  for (const raw of rawItems) {
+    if (!raw || typeof raw !== 'object' || !('str' in raw)) continue;
+    const item = raw as RawPositionedItem;
+    const trimmed = item.str.trim();
+    if (trimmed === '') continue;
+    items.push({
+      text: trimmed.toLowerCase(),
+      originalText: item.str,
+      x: item.transform[4],
+      y: item.transform[5],
+      width: item.width,
+      page,
+    });
+  }
+  return items;
+}
+
 /** A reconstructed line of the form: items sharing a baseline, left-to-right. `text`/`originalText`
  *  carry the same normalized/raw split as the items they're joined from. */
 export interface Row {
