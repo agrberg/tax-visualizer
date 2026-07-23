@@ -1,5 +1,5 @@
 import { ALL_SOURCES, coerceDeduction, type IncomeSource } from '../tax/types';
-import { isTaxYear, taxTablesFor } from '../tax/years';
+import { isSupportedTaxYear, taxTablesFor } from '../tax/years';
 import { formatCurrency } from '../tax/format';
 import type { ParsedReturn } from './parsedReturn';
 import { ilog, setImportStep } from './importLog';
@@ -262,7 +262,7 @@ function readDeduction(form: Form1040, draft: Draft, year: number | null): void 
   const detectedYear = draft.fields.taxYear;
   const detectedStatus = draft.fields.filingStatus;
   const tableStandard =
-    detectedYear && isTaxYear(detectedYear) && detectedStatus
+    detectedYear && isSupportedTaxYear(detectedYear) && detectedStatus
       ? taxTablesFor(detectedYear).standardDeduction[detectedStatus]
       : null;
   draft.fields.deduction = tableStandard !== null && coerced === tableStandard ? null : coerced;
@@ -274,7 +274,7 @@ function readDeduction(form: Form1040, draft: Draft, year: number | null): void 
  * Detect the filing status and tax year from the face, recording provenance and any warnings.
  * Returns the raw detected year (a `20xx` on the form, whether or not the app has tax tables for it)
  * so the income readers can resolve per-year line ids; `fields.taxYear` is set only for a year the
- * app actually supports (`isTaxYear`).
+ * app actually supports (`isSupportedTaxYear`).
  */
 function detectHeader(form: Form1040, draft: Draft): number | null {
   // "Couldn't detect" for filing status / tax year is surfaced inline under those controls in the
@@ -289,7 +289,7 @@ function detectHeader(form: Form1040, draft: Draft): number | null {
   const taxYear = form.taxYear;
   if (taxYear === null) return null;
 
-  if (isTaxYear(taxYear)) {
+  if (isSupportedTaxYear(taxYear)) {
     draft.fields.taxYear = taxYear;
     draft.provenance.taxYear = '1040 form header';
     ilog(`matched taxYear = ${taxYear}`);

@@ -490,7 +490,7 @@ describe('extract1040Fields', () => {
 
   it('routes a future 4-digit year to the unsupported-year warning, not "not found"', () => {
     // 2030 is past the old hard-coded 20[12]x range, so this also guards that the
-    // detector recognizes any 20xx token and lets isTaxYear() decide apply-vs-warn.
+    // detector recognizes any 20xx token and lets isSupportedTaxYear() decide apply-vs-warn.
     const items = line(1, 720, [
       ['Form', 60],
       ['1040', 90],

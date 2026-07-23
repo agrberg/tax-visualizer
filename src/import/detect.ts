@@ -86,7 +86,7 @@ export function detectFilingStatus(rows: Row[]): FilingStatus | null {
 
 /**
  * A plausible 4-digit tax year on the 1040 face. Whether it's one the app actually supports is
- * left to `isTaxYear` at the call site, so a newly filed year still reaches the "unsupported
+ * left to `isSupportedTaxYear` at the call site, so a newly filed year still reaches the "unsupported
  * year" warning rather than looking undetected.
  *
  * Anchors on the "Form 1040 (YYYY)" catalog-line boilerplate first (see `FORM_1040_FOOTER_YEAR`):
