@@ -18,7 +18,7 @@ describe('parse1040', () => {
 
     const result = await parse1040(file);
 
-    expect(extractTextItems).toHaveBeenCalledWith(file);
+    expect(extractTextItems).toHaveBeenCalledWith(file, expect.any(Function));
     expect(result.fields.wages).toBe(118000);
     expect(result.provenance.wages).toBe('1040 line 1z');
   });
