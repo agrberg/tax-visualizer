@@ -7,46 +7,59 @@
 /**
  * A single positioned piece of text from the PDF, in PDF user-space coordinates
  * (origin bottom-left, y increases upward).
+ *
+ * `text` is normalized — trimmed and lower-cased at ingestion (see `pdfText.ts`) — because almost
+ * every consumer matches case/whitespace-insensitively. `originalText` preserves the raw extracted
+ * text for the few spots that need it back (debug tracing, unrecognized-glyph diagnostics), so it's
+ * the explicit, less-common choice.
  */
 export interface TextItem {
   text: string;
+  originalText: string;
   x: number;
   y: number;
   width: number;
   page: number;
 }
 
-/** A reconstructed line of the form: items sharing a baseline, left-to-right. */
+/** A reconstructed line of the form: items sharing a baseline, left-to-right. `text`/`originalText`
+ *  carry the same normalized/raw split as the items they're joined from. */
 export interface Row {
   page: number;
   y: number;
   items: TextItem[];
   text: string;
+  originalText: string;
 }
 
 // Items whose baselines fall within this many units are treated as one row.
 const ROW_TOLERANCE = 4;
 
-/** Group loose text items into rows (top-to-bottom, then left-to-right within a row). */
+const joinItemText = (items: TextItem[], key: 'text' | 'originalText'): string =>
+  items
+    .map((i) => i[key])
+    .join(' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+/** Group loose text items into rows (top-to-bottom, then left-to-right within a row). Items arrive
+ *  already normalized (see `TextItem`); this only groups by baseline and joins each row's text. */
 export function groupRows(items: TextItem[]): Row[] {
   const sorted = [...items].sort((a, b) => a.page - b.page || b.y - a.y || a.x - b.x);
   const rows: Row[] = [];
   for (const item of sorted) {
-    if (item.text.trim() === '') continue;
+    if (item.text === '') continue;
     const row = rows[rows.length - 1];
     if (row && row.page === item.page && Math.abs(row.y - item.y) <= ROW_TOLERANCE) {
       row.items.push(item);
     } else {
-      rows.push({ page: item.page, y: item.y, items: [item], text: '' });
+      rows.push({ page: item.page, y: item.y, items: [item], text: '', originalText: '' });
     }
   }
   for (const row of rows) {
     row.items.sort((a, b) => a.x - b.x);
-    row.text = row.items
-      .map((i) => i.text)
-      .join(' ')
-      .replace(/\s+/g, ' ')
-      .trim();
+    row.originalText = joinItemText(row.items, 'originalText');
+    row.text = joinItemText(row.items, 'text');
   }
   return rows;
 }

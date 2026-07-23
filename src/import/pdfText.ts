@@ -15,8 +15,9 @@ interface PdfTextItem {
 
 /**
  * Pull positioned text items out of a (text-layer) PDF, page by page, flattened into the
- * layout-agnostic `TextItem` shape the extractor consumes. Marked-content items (no `str`) are
- * skipped. Runs entirely in the browser.
+ * layout-agnostic `TextItem` shape the extractor consumes. Each item's `text` is normalized here —
+ * trimmed and lower-cased once at ingestion — with the raw string kept in `originalText`; empty
+ * items and marked-content items (no `str`) are skipped. Runs entirely in the browser.
  *
  * `shouldStopAfterPage`, if given, is called with each page's items right after they're collected;
  * returning `true` stops extraction after that page, leaving the rest of the document unread. The
@@ -44,9 +45,11 @@ export async function extractTextItems(
       for (const raw of content.items) {
         if (!('str' in raw)) continue;
         const item = raw as PdfTextItem;
-        if (item.str.trim() === '') continue;
+        const trimmed = item.str.trim();
+        if (trimmed === '') continue;
         pageItems.push({
-          text: item.str,
+          text: trimmed.toLowerCase(),
+          originalText: item.str,
           x: item.transform[4],
           y: item.transform[5],
           width: item.width,

@@ -53,8 +53,23 @@ describe('extractTextItems', () => {
 
     const items = await extractTextItems(pdfFile());
 
-    expect(items).toEqual([{ text: 'hi', x: 10, y: 20, width: 5, page: 1 }]);
+    expect(items).toEqual([{ text: 'hi', originalText: 'hi', x: 10, y: 20, width: 5, page: 1 }]);
     expect(destroy).toHaveBeenCalledOnce();
+  });
+
+  it('normalizes text (trim + lower-case) at ingestion, keeping the raw string in originalText', async () => {
+    const destroy = vi.fn().mockResolvedValue(undefined);
+    getDocument.mockReturnValue({
+      promise: Promise.resolve(
+        fakePdf([{ str: '  Wages, Salaries, Tips  ', transform: [0, 0, 0, 0, 10, 20], width: 5 }]),
+      ),
+      destroy,
+    });
+
+    const items = await extractTextItems(pdfFile());
+
+    expect(items[0].text).toBe('wages, salaries, tips');
+    expect(items[0].originalText).toBe('  Wages, Salaries, Tips  ');
   });
 
   it('stops extracting after the first page the predicate flags, leaving later pages unread', async () => {
@@ -62,9 +77,9 @@ describe('extractTextItems', () => {
     const pdf = fakeMultiPagePdf([[item('page one')], [item('STOP')], [item('page three')]]);
     getDocument.mockReturnValue({ promise: Promise.resolve(pdf), destroy });
 
-    const items = await extractTextItems(pdfFile(), (pageItems) => pageItems.some((i) => i.text === 'STOP'));
+    const items = await extractTextItems(pdfFile(), (pageItems) => pageItems.some((i) => i.text === 'stop'));
 
-    expect(items.map((i) => i.text)).toEqual(['page one', 'STOP']);
+    expect(items.map((i) => i.text)).toEqual(['page one', 'stop']);
     expect(pdf.getPage).toHaveBeenCalledTimes(2); // page three is never fetched
   });
 
