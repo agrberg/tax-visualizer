@@ -14,11 +14,20 @@ interface PdfTextItem {
 }
 
 /**
- * Pull every positioned text item out of a (text-layer) PDF, flattened across
- * pages into the layout-agnostic `TextItem` shape the extractor consumes. Marked-
- * content items (no `str`) are skipped. Runs entirely in the browser.
+ * Pull positioned text items out of a (text-layer) PDF, page by page, flattened into the
+ * layout-agnostic `TextItem` shape the extractor consumes. Marked-content items (no `str`) are
+ * skipped. Runs entirely in the browser.
+ *
+ * `shouldStopAfterPage`, if given, is called with each page's items right after they're collected;
+ * returning `true` stops extraction after that page, leaving the rest of the document unread. The
+ * 1040 importer uses this to stop once it has everything it needs (see `haveEverythingNeeded`), so the
+ * state returns, worksheets, and K-1s padding a filed bundle are never parsed. This module stays
+ * layout-agnostic — it only knows "a predicate decides when we've read enough."
  */
-export async function extractTextItems(file: File): Promise<TextItem[]> {
+export async function extractTextItems(
+  file: File,
+  shouldStopAfterPage?: (pageItems: TextItem[]) => boolean,
+): Promise<TextItem[]> {
   const data = new Uint8Array(await file.arrayBuffer());
   // Hold the loading task so its worker/document resources are released whether
   // extraction succeeds or throws — otherwise importing several PDFs in one
@@ -31,17 +40,23 @@ export async function extractTextItems(file: File): Promise<TextItem[]> {
     const items: TextItem[] = [];
     for (let page = 1; page <= pdf.numPages; page++) {
       const content = await (await pdf.getPage(page)).getTextContent();
+      const pageItems: TextItem[] = [];
       for (const raw of content.items) {
         if (!('str' in raw)) continue;
         const item = raw as PdfTextItem;
         if (item.str.trim() === '') continue;
-        items.push({
+        pageItems.push({
           text: item.str,
           x: item.transform[4],
           y: item.transform[5],
           width: item.width,
           page,
         });
+      }
+      items.push(...pageItems);
+      if (shouldStopAfterPage?.(pageItems)) {
+        ilog(`stopping after page ${page} — the stop predicate is satisfied`);
+        break;
       }
     }
     ilog(`extracted ${items.length} text items`);

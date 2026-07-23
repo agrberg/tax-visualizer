@@ -6,8 +6,7 @@
 
 /**
  * A single positioned piece of text from the PDF, in PDF user-space coordinates
- * (origin bottom-left, y increases upward). Deliberately independent of pdf.js so
- * the mapping downstream is a pure function we can unit-test with synthetic layouts.
+ * (origin bottom-left, y increases upward).
  */
 export interface TextItem {
   text: string;
