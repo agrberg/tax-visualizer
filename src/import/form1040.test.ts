@@ -2,20 +2,9 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { Form1040, haveEverythingNeeded } from './form1040';
 import type { TextItem } from './rows';
 import { setImportLogging } from './importLog';
+import { line } from '../test/importFixtures';
 
 beforeAll(() => setImportLogging(false));
-
-/** Build a row of text items at baseline `y` on `page` from [text, x] cells. */
-function line(page: number, y: number, cells: [string, number][]): TextItem[] {
-  return cells.map(([text, x]) => ({
-    text: text.trim().toLowerCase(),
-    originalText: text,
-    x,
-    y,
-    width: text.length * 6,
-    page,
-  }));
-}
 
 /** The masthead that marks a page as the 1040 face. */
 function faceHeader(page = 1, year?: string): TextItem[] {
@@ -68,12 +57,11 @@ describe('Form1040.from', () => {
         ['9,000', 340],
       ]),
     ]);
-    expect(form.scheduleD).not.toBeNull();
-    expect(form.scheduleD?.amountForId('7', ['7', '15'])).toBe(4000);
-    expect(form.scheduleD?.amountForId('15', ['7', '15'])).toBe(9000);
+    expect(form.scheduleDAmountForId('7', ['7', '15'])).toBe(4000);
+    expect(form.scheduleDAmountForId('15', ['7', '15'])).toBe(9000);
   });
 
-  it('has a null Schedule D when the return carries none', () => {
+  it('reads no Schedule D amounts when the return carries none', () => {
     const form = Form1040.from([
       ...faceHeader(),
       ...line(1, 360, [
@@ -83,7 +71,7 @@ describe('Form1040.from', () => {
         ['15,000', 340],
       ]),
     ]);
-    expect(form.scheduleD).toBeNull();
+    expect(form.scheduleDAmountForId('7', ['7', '15'])).toBeNull();
     expect(form.amountForId('7a')).toBe(15000);
   });
 
@@ -145,7 +133,7 @@ describe('Form1040.from', () => {
       ]),
     ]);
     expect(form.amountAndIdForLabel('pensions and annuities')?.value).toBe(40000);
-    expect(form.amountAndIdForLabelNear('pensions and annuities', 'taxable amount')?.value).toBe(30000);
+    expect(form.amountForLabelNear('pensions and annuities', 'taxable amount')).toBe(30000);
   });
 });
 
