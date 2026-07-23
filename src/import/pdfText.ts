@@ -1,23 +1,15 @@
 import * as pdfjs from 'pdfjs-dist';
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
-import type { TextItem } from './rows';
+import { mapPageItems, type TextItem } from './rows';
 import { ilog } from './importLog';
 
 // pdf.js runs its parser in a web worker; point it at the bundled worker asset.
 pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
 
-/** A pdf.js text item carries the string and a 6-number transform (x = [4], y = [5]). */
-interface PdfTextItem {
-  str: string;
-  transform: number[];
-  width: number;
-}
-
 /**
  * Pull positioned text items out of a (text-layer) PDF, page by page, flattened into the
- * layout-agnostic `TextItem` shape the extractor consumes. Each item's `text` is normalized here —
- * trimmed and lower-cased once at ingestion — with the raw string kept in `originalText`; empty
- * items and marked-content items (no `str`) are skipped. Runs entirely in the browser.
+ * layout-agnostic `TextItem` shape the extractor consumes (normalization and item mapping live in
+ * `mapPageItems`, shared with the Node fixture read path). Runs entirely in the browser.
  *
  * `shouldStopAfterPage`, if given, is called with each page's items right after they're collected;
  * returning `true` stops extraction after that page, leaving the rest of the document unread. The
@@ -41,21 +33,7 @@ export async function extractTextItems(
     const items: TextItem[] = [];
     for (let page = 1; page <= pdf.numPages; page++) {
       const content = await (await pdf.getPage(page)).getTextContent();
-      const pageItems: TextItem[] = [];
-      for (const raw of content.items) {
-        if (!('str' in raw)) continue;
-        const item = raw as PdfTextItem;
-        const trimmed = item.str.trim();
-        if (trimmed === '') continue;
-        pageItems.push({
-          text: trimmed.toLowerCase(),
-          originalText: item.str,
-          x: item.transform[4],
-          y: item.transform[5],
-          width: item.width,
-          page,
-        });
-      }
+      const pageItems = mapPageItems(content.items, page);
       items.push(...pageItems);
       if (shouldStopAfterPage?.(pageItems)) {
         ilog(`stopping after page ${page} — the stop predicate is satisfied`);
