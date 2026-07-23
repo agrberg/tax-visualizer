@@ -464,14 +464,16 @@ describe('extract1040Fields', () => {
   });
 
   it('warns instead of setting an unsupported detected tax year', () => {
+    // 2027 is newer than the mapped layout window but has no tax tables yet, so it warns
+    // rather than being set (unlike 2019–2026, which the app now computes).
     const items = line(1, 720, [
       ['Form', 60],
       ['1040', 90],
-      ['2024', 300],
+      ['2027', 300],
     ]);
     const { fields, warnings } = extract1040Fields(items);
     expect(fields.taxYear).toBeUndefined();
-    expect(warnings.some((w) => w.includes('2024') && w.includes('supported'))).toBe(true);
+    expect(warnings.some((w) => w.includes('2027') && w.includes('supported'))).toBe(true);
   });
 
   it('combines the unsupported-year and older-than-mapped-layout warnings into one for a pre-2019 return', () => {
@@ -967,8 +969,9 @@ describe('extract1040Fields — multi-year layouts (label-anchored)', () => {
       // a confident read every year — never flagged assumed. (The assumed path is the label fallback,
       // used only when the year is undetected/pre-window; see the older-form test below.)
       expect(assumed?.wages).toBeUndefined();
-      // 2025's 15,750 matches the single standard (tables exist) → standard mode (null);
-      // pre-2025 years have no tables here, so the value imports as a custom deduction.
+      // 2025's 15,750 matches its single standard deduction → standard mode (null). The other
+      // tested years all have tables too now, but 13,850 isn't any of their single standard
+      // amounts (2023's is, but 2023 isn't in this list), so it imports as a custom deduction.
       expect(fields.deduction).toBe(l.year === 2025 ? null : 13850);
     });
   }
