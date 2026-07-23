@@ -62,7 +62,9 @@ export function decodeInput(encoded: string): TaxInput | null {
     input[field] = valid ? n : 0;
   }
   const dedParam = params.get('ded');
-  input.deduction = dedParam === null ? null : coerceDeduction(Number(dedParam));
+  // A present-but-blank `ded=` (or whitespace) falls back to standard, not a custom $0: Number('')
+  // is 0, which would otherwise slip past coerceDeduction. A real `ded=0` stays a custom zero.
+  input.deduction = dedParam === null || dedParam.trim() === '' ? null : coerceDeduction(Number(dedParam));
   return input;
 }
 

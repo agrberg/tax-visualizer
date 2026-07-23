@@ -144,4 +144,14 @@ describe('deduction encoding', () => {
     const decoded = decodeInput(`v=1&filing=single&ded=-500`);
     expect(decoded?.deduction).toBeNull();
   });
+
+  it('decodes a present-but-blank ded param to null (standard), not a custom $0', () => {
+    // Number('') is 0, which would otherwise slip past coerceDeduction as a valid custom zero.
+    expect(decodeInput(`v=1&filing=single&ded=`)?.deduction).toBeNull();
+    expect(decodeInput(`v=1&filing=single&ded=%20`)?.deduction).toBeNull();
+  });
+
+  it('preserves a real custom $0 deduction (ded=0)', () => {
+    expect(decodeInput(`v=1&filing=single&ded=0`)?.deduction).toBe(0);
+  });
 });
