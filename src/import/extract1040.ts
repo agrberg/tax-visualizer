@@ -287,20 +287,22 @@ function detectHeader(form: Form1040, draft: Draft): number | null {
   }
 
   const taxYear = form.taxYear;
-  if (taxYear !== null && isTaxYear(taxYear)) {
+  if (taxYear === null) return null;
+
+  if (isTaxYear(taxYear)) {
     draft.fields.taxYear = taxYear;
     draft.provenance.taxYear = '1040 form header';
     ilog(`matched taxYear = ${taxYear}`);
-  } else if (taxYear !== null) {
-    draft.warnings.push(`Detected tax year ${taxYear} isn't supported yet — please choose it below.`);
-  }
-
-  // The per-year id map starts at EARLIEST_MAPPED_YEAR. An older form may be numbered/labeled
-  // differently enough that values land in the wrong field, so flag it (reads fall back to
-  // label-anchoring for it).
-  if (taxYear !== null && taxYear < EARLIEST_MAPPED_YEAR) {
+  } else if (taxYear < EARLIEST_MAPPED_YEAR) {
+    // Below EARLIEST_MAPPED_YEAR the per-year field-id map has nothing for this year either, so
+    // one combined warning replaces what would otherwise be two near-duplicate ones ("not
+    // supported" + "older than the layout").
     draft.warnings.push(
-      `This looks like a ${taxYear} return — older than the ${EARLIEST_MAPPED_YEAR} layout this importer was built against. Double-check every value below.`,
+      `Detected tax year ${taxYear} — older than the ${EARLIEST_MAPPED_YEAR} layout this importer was built against, and not a year this app computes tax for. Double-check every value below, then pick a supported year to see these figures under its brackets.`,
+    );
+  } else {
+    draft.warnings.push(
+      `Detected tax year ${taxYear}, which this app doesn't compute tax for yet. Pick a supported year below to see these figures under its brackets.`,
     );
   }
   return taxYear;

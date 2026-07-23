@@ -344,6 +344,45 @@ describe('extract1040Fields', () => {
     expect(fields.taxYear).toBe(2025);
   });
 
+  it('prefers the "Form 1040 (YYYY)" footer anchor over an unrelated year elsewhere on the face', () => {
+    const items = [
+      // Masthead year box split into two text runs (as real IRS PDFs often render "20"/"25" in
+      // different weights), so it can't be read as a single "2025" token.
+      ...line(1, 720, [
+        ['Form', 60],
+        ['1040', 90],
+        ['20', 300],
+        ['25', 320],
+      ]),
+      // A decoy standalone year token that isn't the tax year itself — if the footer anchor didn't
+      // take priority, the old loose scan would latch onto this one instead of the real 2025.
+      ...line(1, 680, [['(2020)', 40]]),
+      ...line(1, 660, [['2022 estimated tax payments and amount applied from 2021 return', 40]]),
+      // The catalog-line footer boilerplate, reprinted on every page.
+      ...line(1, 40, [
+        ['Form 1040 (2025)', 500],
+        ['Created 9/5/25', 600],
+      ]),
+    ];
+    const { fields } = extract1040Fields(items);
+    expect(fields.taxYear).toBe(2025);
+  });
+
+  it('anchors on the "Form 1040-SR (YYYY)" footer for the seniors variant (same line layout as the 1040)', () => {
+    const items = [
+      // A decoy standalone year higher up — the loose fallback scan would latch onto this if the
+      // "-SR" footer didn't match the anchor.
+      ...line(1, 680, [['(2020)', 40]]),
+      // The 1040-SR catalog-line footer: identical to the 1040's but for the "-SR" suffix.
+      ...line(1, 40, [
+        ['Form 1040-SR (2025)', 500],
+        ['Created 9/5/25', 600],
+      ]),
+    ];
+    const { fields } = extract1040Fields(items);
+    expect(fields.taxYear).toBe(2025);
+  });
+
   it('detects the other filing statuses from the checked box', () => {
     const cases: [string, string][] = [
       ['Married filing jointly', 'mfj'],
@@ -433,6 +472,20 @@ describe('extract1040Fields', () => {
     const { fields, warnings } = extract1040Fields(items);
     expect(fields.taxYear).toBeUndefined();
     expect(warnings.some((w) => w.includes('2024') && w.includes('supported'))).toBe(true);
+  });
+
+  it('combines the unsupported-year and older-than-mapped-layout warnings into one for a pre-2019 return', () => {
+    const items = line(1, 720, [
+      ['Form', 60],
+      ['1040', 90],
+      ['2012', 300],
+    ]);
+    const { fields, warnings } = extract1040Fields(items);
+    expect(fields.taxYear).toBeUndefined();
+    const yearWarnings = warnings.filter((w) => w.includes('2012'));
+    expect(yearWarnings).toHaveLength(1);
+    expect(yearWarnings[0]).toMatch(/older/i);
+    expect(yearWarnings[0]).toMatch(/supported/i);
   });
 
   it('routes a future 4-digit year to the unsupported-year warning, not "not found"', () => {
