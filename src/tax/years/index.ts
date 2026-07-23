@@ -8,7 +8,7 @@ import { TAX_YEAR_2026 } from './2026';
  *
  * Typed as a total `Record<number, …>` even though only a sparse set of years exists:
  * every read goes through `taxTablesFor`, which falls back to the default year, and every
- * externally-supplied year is validated by `isTaxYear` at the storage / share-link boundary.
+ * externally-supplied year is validated by `isSupportedTaxYear` at the storage / share-link boundary.
  * A precise key union would buy no real safety — an out-of-range year can only arrive by
  * hand-editing storage or the URL, and those paths are already guarded — so the looser type
  * is kept for the simpler call sites.
@@ -29,7 +29,7 @@ export const AVAILABLE_YEARS = [2026, 2025] as const;
 export const DEFAULT_TAX_YEAR = 2026;
 
 /** Runtime guard for a supported tax year. Own-property check mirrors isFilingStatus. */
-export function isTaxYear(value: unknown): value is number {
+export function isSupportedTaxYear(value: unknown): value is number {
   return typeof value === 'number' && Object.hasOwn(TAX_YEARS, value);
 }
 

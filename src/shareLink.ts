@@ -1,6 +1,6 @@
 import { allowsNegativeAmount, coerceDeduction, type TaxInput } from './tax/types';
 import { isFilingStatus } from './tax/filingStatus';
-import { DEFAULT_TAX_YEAR, isTaxYear } from './tax/years';
+import { DEFAULT_TAX_YEAR, isSupportedTaxYear } from './tax/years';
 
 const SHARE_VERSION = '1';
 
@@ -55,7 +55,7 @@ export function decodeInput(encoded: string): TaxInput | null {
   const filingStatus = params.get('filing');
   if (!isFilingStatus(filingStatus)) return null;
   const year = Number(params.get('y'));
-  const input = { filingStatus, taxYear: isTaxYear(year) ? year : DEFAULT_TAX_YEAR } as TaxInput;
+  const input = { filingStatus, taxYear: isSupportedTaxYear(year) ? year : DEFAULT_TAX_YEAR } as TaxInput;
   for (const field of Object.keys(FIELD_ALIAS) as NumericField[]) {
     const n = Number(params.get(FIELD_ALIAS[field]));
     const valid = allowsNegativeAmount(field) ? Number.isFinite(n) : Number.isFinite(n) && n > 0;

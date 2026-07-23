@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { calculateTax, marginalNextDollar } from './calculate';
-import { taxTablesFor, isTaxYear, DEFAULT_TAX_YEAR } from './years';
+import { taxTablesFor, isSupportedTaxYear, DEFAULT_TAX_YEAR } from './years';
 import type { TaxInput } from './types';
 
 import { makeInput } from './testUtils';
@@ -19,13 +19,13 @@ describe('taxTablesFor', () => {
   });
 });
 
-describe('isTaxYear', () => {
+describe('isSupportedTaxYear', () => {
   it('accepts supported years and rejects everything else', () => {
-    expect(isTaxYear(2025)).toBe(true);
-    expect(isTaxYear(2026)).toBe(true);
-    expect(isTaxYear(1999)).toBe(false);
-    expect(isTaxYear('2025')).toBe(false);
-    expect(isTaxYear(undefined)).toBe(false);
+    expect(isSupportedTaxYear(2025)).toBe(true);
+    expect(isSupportedTaxYear(2026)).toBe(true);
+    expect(isSupportedTaxYear(1999)).toBe(false);
+    expect(isSupportedTaxYear('2025')).toBe(false);
+    expect(isSupportedTaxYear(undefined)).toBe(false);
   });
 });
 

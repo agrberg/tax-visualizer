@@ -1,6 +1,6 @@
 import { ALL_SOURCES, allowsNegativeAmount, coerceDeduction, type TaxInput } from './tax/types';
 import { isFilingStatus } from './tax/filingStatus';
-import { DEFAULT_TAX_YEAR, isTaxYear } from './tax/years';
+import { DEFAULT_TAX_YEAR, isSupportedTaxYear } from './tax/years';
 import type { Scenarios } from './scenarios';
 
 const KEY = 'tax-visualizer:input:v1';
@@ -30,7 +30,7 @@ export function normalizeInput(input: TaxInput): TaxInput {
   if (!isFilingStatus(normalized.filingStatus)) {
     normalized.filingStatus = 'single';
   }
-  if (!isTaxYear(normalized.taxYear)) {
+  if (!isSupportedTaxYear(normalized.taxYear)) {
     normalized.taxYear = DEFAULT_TAX_YEAR;
   }
   // Old saved data won't have this field; treat missing/invalid as null (standard deduction).
