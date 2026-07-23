@@ -1,18 +1,5 @@
 import type { TaxYearTables } from '../types';
 
-const INF = Number.POSITIVE_INFINITY;
-
-/**
- * 2026 federal tax tables.
- *
- * Sources (verified 2026-07):
- * - Ordinary brackets, standard deduction, LTCG breakpoints: IRS Rev. Proc. 2025-32
- *   (2026 inflation adjustments, incl. OBBBA), cross-checked against Tax Foundation.
- * - NIIT (§1411) and Additional Medicare Tax (§3101(b)(2)) thresholds are set by statute
- *   and are NOT inflation-adjusted.
- * - Social Security wage base ($184,500 for 2026) is inflation-indexed and set annually
- *   by the SSA (Contribution and Benefit Base); SS 6.2% and Medicare 1.45% rates are statutory.
- */
 export const TAX_YEAR_2026: TaxYearTables = {
   year: 2026,
   source: 'IRS Rev. Proc. 2025-32',
@@ -24,7 +11,7 @@ export const TAX_YEAR_2026: TaxYearTables = {
       { rate: 0.24, min: 105700, max: 201775 },
       { rate: 0.32, min: 201775, max: 256225 },
       { rate: 0.35, min: 256225, max: 640600 },
-      { rate: 0.37, min: 640600, max: INF },
+      { rate: 0.37, min: 640600, max: Infinity },
     ],
     mfj: [
       { rate: 0.1, min: 0, max: 24800 },
@@ -33,7 +20,7 @@ export const TAX_YEAR_2026: TaxYearTables = {
       { rate: 0.24, min: 211400, max: 403550 },
       { rate: 0.32, min: 403550, max: 512450 },
       { rate: 0.35, min: 512450, max: 768700 },
-      { rate: 0.37, min: 768700, max: INF },
+      { rate: 0.37, min: 768700, max: Infinity },
     ],
     hoh: [
       { rate: 0.1, min: 0, max: 17700 },
@@ -42,7 +29,7 @@ export const TAX_YEAR_2026: TaxYearTables = {
       { rate: 0.24, min: 105700, max: 201775 },
       { rate: 0.32, min: 201775, max: 256200 },
       { rate: 0.35, min: 256200, max: 640600 },
-      { rate: 0.37, min: 640600, max: INF },
+      { rate: 0.37, min: 640600, max: Infinity },
     ],
     mfs: [
       { rate: 0.1, min: 0, max: 12400 },
@@ -51,7 +38,7 @@ export const TAX_YEAR_2026: TaxYearTables = {
       { rate: 0.24, min: 105700, max: 201775 },
       { rate: 0.32, min: 201775, max: 256225 },
       { rate: 0.35, min: 256225, max: 384350 },
-      { rate: 0.37, min: 384350, max: INF },
+      { rate: 0.37, min: 384350, max: Infinity },
     ],
   },
   standardDeduction: {

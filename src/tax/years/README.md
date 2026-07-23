@@ -21,19 +21,19 @@ ships verified numbers only.
 
 ## Where each field comes from
 
-| Field                                                               | Source                                                                                                    |
-| ------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| `ordinaryBrackets` (min/max)                                        | that year's IRS Revenue Procedure (rate schedule)                                                         |
-| `standardDeduction`                                                 | same Revenue Procedure — but watch for legislation: OBBBA (P.L. 119-21) overrode 2025's published amounts |
-| `capitalGains.breakpoints`                                          | same Revenue Procedure (maximum-capital-gains-rate amounts)                                               |
-| `socialSecurity.wageBase`                                           | SSA Contribution and Benefit Base                                                                         |
-| all `rate` fields, `niit.threshold`, `additionalMedicare.threshold` | **statutory** — carry forward unchanged, but re-confirm no new law moved them for this year               |
+| Field                                                               | Source                                                                                               |
+| ------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `ordinaryBrackets` (min/max)                                        | that year's IRS Revenue Procedure (rate schedule)                                                    |
+| `standardDeduction`                                                 | same Revenue Procedure — but watch for legislation that can override the published amount for a year |
+| `capitalGains.breakpoints`                                          | same Revenue Procedure (maximum-capital-gains-rate amounts)                                          |
+| `socialSecurity.wageBase`                                           | SSA Contribution and Benefit Base                                                                    |
+| all `rate` fields, `niit.threshold`, `additionalMedicare.threshold` | **statutory** — carry forward unchanged, but re-confirm no new law moved them for this year          |
 
 Notes:
 
 - `mfs` ordinary brackets mirror `single` except the **top** bracket, which starts at half of
   the `mfj` threshold. `mfs` cap-gains breakpoints are the IRS's published `mfs` figures —
-  only _approximately_ half of `mfj` (e.g. 2025's 15% ceiling is $300,000, not $600,050 / 2).
+  only _approximately_ half of `mfj` (IRS rounding can put a breakpoint a few dollars off exact).
 - The `rate` fields (ordinary 10–37%, cap-gains 0/15/20%, SS 6.2%, Medicare 1.45%, Additional
   Medicare 0.9%, NIIT 3.8%) and the statutory NIIT / Additional-Medicare thresholds
   ($200k single·hoh / $250k mfj / $125k mfs) haven't changed in years — the template below
@@ -46,24 +46,15 @@ Copy this into `<year>.ts`, rename `TAX_YEAR_<year>`, set `year` / `source`, and
 them unless the year's guidance says otherwise. (This is a Markdown code block on purpose: no
 half-filled `.ts` file exists to break the build or leak into the picker.)
 
+The year files carry no comments — this doc is the single source for how they're sourced and
+filled. Record the provenance in the `source` string (Rev. Proc., plus any overriding legislation).
+
 ```ts
 import type { TaxYearTables } from '../types'
 
-const INF = Number.POSITIVE_INFINITY
-
-/**
- * <YEAR> federal tax tables.
- *
- * Sources (verify on entry):
- * - Ordinary brackets, standard deduction, LTCG breakpoints: IRS Rev. Proc. <FILL>.
- * - NIIT (§1411) and Additional Medicare Tax (§3101(b)(2)) thresholds are statutory.
- * - Social Security wage base per the SSA; SS/Medicare rates are statutory.
- * - mfs: ordinary brackets mirror single except the top (half of mfj); cap-gains are the
- *   IRS's published mfs figures (≈, not exactly, half of mfj).
- */
 export const TAX_YEAR_<YEAR>: TaxYearTables = {
   year: FILL,
-  source: 'IRS Rev. Proc. FILL', // + any overriding legislation, e.g. OBBBA
+  source: 'IRS Rev. Proc. FILL',
   ordinaryBrackets: {
     single: [
       { rate: 0.1, min: 0, max: FILL },
@@ -72,7 +63,7 @@ export const TAX_YEAR_<YEAR>: TaxYearTables = {
       { rate: 0.24, min: FILL, max: FILL },
       { rate: 0.32, min: FILL, max: FILL },
       { rate: 0.35, min: FILL, max: FILL },
-      { rate: 0.37, min: FILL, max: INF },
+      { rate: 0.37, min: FILL, max: Infinity },
     ],
     mfj: [
       { rate: 0.1, min: 0, max: FILL },
@@ -81,7 +72,7 @@ export const TAX_YEAR_<YEAR>: TaxYearTables = {
       { rate: 0.24, min: FILL, max: FILL },
       { rate: 0.32, min: FILL, max: FILL },
       { rate: 0.35, min: FILL, max: FILL },
-      { rate: 0.37, min: FILL, max: INF },
+      { rate: 0.37, min: FILL, max: Infinity },
     ],
     hoh: [
       { rate: 0.1, min: 0, max: FILL },
@@ -90,7 +81,7 @@ export const TAX_YEAR_<YEAR>: TaxYearTables = {
       { rate: 0.24, min: FILL, max: FILL },
       { rate: 0.32, min: FILL, max: FILL },
       { rate: 0.35, min: FILL, max: FILL },
-      { rate: 0.37, min: FILL, max: INF },
+      { rate: 0.37, min: FILL, max: Infinity },
     ],
     mfs: [
       { rate: 0.1, min: 0, max: FILL },
@@ -98,8 +89,8 @@ export const TAX_YEAR_<YEAR>: TaxYearTables = {
       { rate: 0.22, min: FILL, max: FILL },
       { rate: 0.24, min: FILL, max: FILL },
       { rate: 0.32, min: FILL, max: FILL },
-      { rate: 0.35, min: FILL, max: FILL }, // top starts at mfj's 37% threshold / 2
-      { rate: 0.37, min: FILL, max: INF },
+      { rate: 0.35, min: FILL, max: FILL },
+      { rate: 0.37, min: FILL, max: Infinity },
     ],
   },
   standardDeduction: {
@@ -136,12 +127,14 @@ export const TAX_YEAR_<YEAR>: TaxYearTables = {
    from the sources above.
 2. **Register it** in `index.ts`:
    - `import { TAX_YEAR_<year> } from './<year>'`
-   - add `<year>: TAX_YEAR_<year>` to `TAX_YEARS`
-   - prepend `<year>` to `AVAILABLE_YEARS` (newest first — this is what surfaces it in the picker)
+   - add `<year>: TAX_YEAR_<year>` to `TAX_YEARS` — `AVAILABLE_YEARS` is derived from these keys
+     (sorted newest-first), so this alone surfaces it in the picker
 3. **Default year** — decide whether to bump `DEFAULT_TAX_YEAR` to the new year (do this when
    it becomes the current filing-year context; it's a deliberate choice, not automatic).
-4. **Tests** — in `../years.test.ts`, mirror the existing 2025 block for the new year: assert
-   the standard deduction, the top of the 10% bracket, and the SS wage-base cap, plus a
-   year-switch assertion against an adjacent year.
+4. **Tests** — in `../calculate.test.ts`, add a row to the `perYear` array: the standard
+   deduction, top of the 10% bracket, SS wage base, and the precomputed `$1M` total tax (capture
+   it by running `calculateTax` on that block's fixed scenario for the new year). The data-driven
+   `it.each` and the "covers every selectable year" guard pick it up automatically. `years.test.ts`
+   only covers registry lookup, so it needs no per-year edit.
 5. **Verify** — `npm test`, `npx tsc -b`, `npm run lint`; run `npm run dev` and confirm the
    new year appears in the picker and the figures move when you select it.

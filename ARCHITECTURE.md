@@ -91,7 +91,7 @@ flowchart LR
     attr["buildBreakdown()<br/>(attribution.ts)<br/>per-source tax + eff. rate"]
     result["TaxResult"]
 
-    tables[("tax/years/<br/>per-year tables (2025, 2026)<br/>via taxTablesFor(taxYear)")]
+    tables[("tax/years/<br/>per-year tables (2019–2026)<br/>via taxTablesFor(taxYear)")]
 
     input --> ci
     ci -->|ClassifiedIncome| compute

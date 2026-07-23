@@ -1,24 +1,5 @@
 import type { TaxYearTables } from '../types';
 
-const INF = Number.POSITIVE_INFINITY;
-
-/**
- * 2025 federal tax tables.
- *
- * Sources (verified 2026-07):
- * - Ordinary brackets and LTCG breakpoints: IRS Rev. Proc. 2024-40 (2025 inflation
- *   adjustments), cross-checked against Tax Foundation.
- * - Standard deduction: raised for 2025 by the One Big Beautiful Bill Act (P.L. 119-21),
- *   which superseded the lower Rev. Proc. 2024-40 amounts ($15,000 / $30,000 / $22,500).
- * - NIIT (§1411) and Additional Medicare Tax (§3101(b)(2)) thresholds are statutory and
- *   unchanged.
- * - Social Security wage base ($176,100 for 2025) per the SSA; SS 6.2% and Medicare 1.45%
- *   rates are statutory.
- * - mfs ordinary brackets mirror single except the top bracket, which starts at half of
- *   the mfj threshold ($375,800). The cap-gains breakpoints are the IRS's published mfs
- *   figures — roughly, but not exactly, half of mfj (e.g. the 15% ceiling is $300,000,
- *   not mfj's $600,050 / 2).
- */
 export const TAX_YEAR_2025: TaxYearTables = {
   year: 2025,
   source: 'IRS Rev. Proc. 2024-40; standard deduction per OBBBA (P.L. 119-21)',
@@ -30,7 +11,7 @@ export const TAX_YEAR_2025: TaxYearTables = {
       { rate: 0.24, min: 103350, max: 197300 },
       { rate: 0.32, min: 197300, max: 250525 },
       { rate: 0.35, min: 250525, max: 626350 },
-      { rate: 0.37, min: 626350, max: INF },
+      { rate: 0.37, min: 626350, max: Infinity },
     ],
     mfj: [
       { rate: 0.1, min: 0, max: 23850 },
@@ -39,7 +20,7 @@ export const TAX_YEAR_2025: TaxYearTables = {
       { rate: 0.24, min: 206700, max: 394600 },
       { rate: 0.32, min: 394600, max: 501050 },
       { rate: 0.35, min: 501050, max: 751600 },
-      { rate: 0.37, min: 751600, max: INF },
+      { rate: 0.37, min: 751600, max: Infinity },
     ],
     hoh: [
       { rate: 0.1, min: 0, max: 17000 },
@@ -48,7 +29,7 @@ export const TAX_YEAR_2025: TaxYearTables = {
       { rate: 0.24, min: 103350, max: 197300 },
       { rate: 0.32, min: 197300, max: 250500 },
       { rate: 0.35, min: 250500, max: 626350 },
-      { rate: 0.37, min: 626350, max: INF },
+      { rate: 0.37, min: 626350, max: Infinity },
     ],
     mfs: [
       { rate: 0.1, min: 0, max: 11925 },
@@ -57,7 +38,7 @@ export const TAX_YEAR_2025: TaxYearTables = {
       { rate: 0.24, min: 103350, max: 197300 },
       { rate: 0.32, min: 197300, max: 250525 },
       { rate: 0.35, min: 250525, max: 375800 },
-      { rate: 0.37, min: 375800, max: INF },
+      { rate: 0.37, min: 375800, max: Infinity },
     ],
   },
   standardDeduction: {
