@@ -34,21 +34,20 @@ const YEAR_TOKEN = /^\(?(20\d{2})\)?$/;
 export function detectFilingStatus(rows: Row[]): FilingStatus | null {
   ilog(`detectFilingStatus: scanning ${rows.length} rows`);
   for (const row of rows) {
-    const itemIndex = row.items.findIndex((i) => CHECK_TOKENS.has(i.text.trim().toLowerCase()));
+    const itemIndex = row.items.findIndex((i) => CHECK_TOKENS.has(i.text));
     if (itemIndex === -1) {
       // Surface items that look like they could be unrecognized checkbox glyphs so we
       // can identify what character the PDF is using (logged as Unicode code points).
       // Cheapest tests first; the regex (the costly part) only runs on short, non-empty tokens.
-      const candidates = row.items.filter((i) => {
-        const text = i.text.trim();
-        return text !== '' && text.length <= 2 && !PLAIN_TEXT_TOKEN.test(text);
-      });
+      const candidates = row.items.filter((i) => i.text !== '' && i.text.length <= 2 && !PLAIN_TEXT_TOKEN.test(i.text));
       if (candidates.length > 0) {
         ilog(
-          `detectFilingStatus: row "${row.text}" — no known CHECK_TOKEN but suspicious items: ${JSON.stringify(
+          `detectFilingStatus: row "${row.originalText}" — no known CHECK_TOKEN but suspicious items: ${JSON.stringify(
             candidates.map((c) => ({
-              text: c.text,
-              codePoints: [...c.text].map((ch) => 'U+' + (ch.codePointAt(0) ?? 0).toString(16).padStart(4, '0')),
+              text: c.originalText,
+              codePoints: [...c.originalText].map(
+                (ch) => 'U+' + (ch.codePointAt(0) ?? 0).toString(16).padStart(4, '0'),
+              ),
             })),
           )}`,
         );
@@ -57,13 +56,12 @@ export function detectFilingStatus(rows: Row[]): FilingStatus | null {
     }
     const checkToken = row.items[itemIndex];
     ilog(
-      `detectFilingStatus: check token "${checkToken.text}" (${[...checkToken.text].map((ch) => 'U+' + (ch.codePointAt(0) ?? 0).toString(16).padStart(4, '0')).join(' ')}) in row "${row.text}"`,
+      `detectFilingStatus: check token "${checkToken.originalText}" (${[...checkToken.originalText].map((ch) => 'U+' + (ch.codePointAt(0) ?? 0).toString(16).padStart(4, '0')).join(' ')}) in row "${row.originalText}"`,
     );
     const after = row.items
       .slice(itemIndex + 1)
       .map((i) => i.text)
       .join(' ')
-      .toLowerCase()
       .replace(/\s+/g, ' ')
       .trim();
     ilog(`detectFilingStatus: text after check token: "${after}"`);
@@ -91,7 +89,7 @@ export function detectTaxYear(faceRows: Row[]): number | null {
   ilog(`detectTaxYear: scanning ${faceRows.length} rows`);
   for (const row of faceRows) {
     for (const item of row.items) {
-      const t = item.text.trim();
+      const t = item.text;
       if (YEAR_LIKE.test(t)) {
         ilog(`detectTaxYear: year-like token "${t}" full-match=${YEAR_TOKEN.test(t)}`);
       }

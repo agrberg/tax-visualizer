@@ -7,7 +7,14 @@ beforeAll(() => setImportLogging(false));
 
 /** Build a row of text items at baseline `y` on `page` from [text, x] cells. */
 function line(page: number, y: number, cells: [string, number][]): TextItem[] {
-  return cells.map(([text, x]) => ({ text, x, y, width: text.length * 6, page }));
+  return cells.map(([text, x]) => ({
+    text: text.trim().toLowerCase(),
+    originalText: text,
+    x,
+    y,
+    width: text.length * 6,
+    page,
+  }));
 }
 
 // A stripped-down but structurally faithful page-1 1040: line number on the left,
@@ -99,6 +106,12 @@ describe('groupRows', () => {
       ...line(1, 200, [['top', 50]]),
     ]);
     expect(rows.map((r) => r.text)).toEqual(['top', 'a b']);
+  });
+
+  it('joins a row from its items, preserving the normalized/original split', () => {
+    const rows = groupRows(line(1, 100, [['Wages, Salaries, Tips', 40]]));
+    expect(rows[0].text).toBe('wages, salaries, tips');
+    expect(rows[0].originalText).toBe('Wages, Salaries, Tips');
   });
 });
 

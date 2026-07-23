@@ -7,7 +7,14 @@ beforeAll(() => setImportLogging(false));
 
 /** Build a row of text items at baseline `y` on `page` from [text, x] cells. */
 function line(page: number, y: number, cells: [string, number][]): TextItem[] {
-  return cells.map(([text, x]) => ({ text, x, y, width: text.length * 6, page }));
+  return cells.map(([text, x]) => ({
+    text: text.trim().toLowerCase(),
+    originalText: text,
+    x,
+    y,
+    width: text.length * 6,
+    page,
+  }));
 }
 
 /** The masthead that marks a page as the 1040 face. */

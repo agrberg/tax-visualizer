@@ -12,10 +12,10 @@ import { detectFilingStatus, detectTaxYear } from './detect';
 import type { FilingStatus } from '../tax/types';
 import { ilog } from './importLog';
 
-/** The page of the first row whose text contains `phrase` (case-insensitive), or null. */
+/** The page of the first row whose text contains `phrase`, or null. `phrase` must already be
+ *  lower-case — every call below passes a lower-case literal — since `row.text` is too. */
 function pageContaining(rows: Row[], phrase: string): number | null {
-  const phraseLowercase = phrase.toLowerCase();
-  return rows.find((row) => row.text.toLowerCase().includes(phraseLowercase))?.page ?? null;
+  return rows.find((row) => row.text.includes(phrase))?.page ?? null;
 }
 
 // The 1040 face is its own physical pages; Schedule D (when attached) always follows them.

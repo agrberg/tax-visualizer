@@ -7,7 +7,14 @@ beforeAll(() => setImportLogging(false));
 
 /** Build a row of text items at baseline `y` on `page` from [text, x] cells. */
 function line(page: number, y: number, cells: [string, number][]): TextItem[] {
-  return cells.map(([text, x]) => ({ text, x, y, width: text.length * 6, page }));
+  return cells.map(([text, x]) => ({
+    text: text.trim().toLowerCase(),
+    originalText: text,
+    x,
+    y,
+    width: text.length * 6,
+    page,
+  }));
 }
 
 /** A `Section` over the rows reconstructed from the given text items. */
@@ -103,6 +110,35 @@ describe('Section.amountAndIdForLabelInSegment', () => {
       ]),
     );
     expect(s.amountAndIdForLabelInSegment('pensions and annuities', [])).toBeNull();
+  });
+
+  it("preserves the row's original line-id casing in the returned lineId", () => {
+    const s = section(
+      line(1, 300, [
+        ['12E', 40],
+        ['Standard deduction or itemized deductions', 70],
+        ['12E', 300],
+        ['21,900', 340],
+      ]),
+    );
+    expect(s.amountAndIdForLabelInSegment('standard deduction or itemized deductions', [], '12e')).toEqual({
+      value: 21900,
+      lineId: '12E',
+    });
+  });
+});
+
+describe('Section.amountAndIdForLabel', () => {
+  it("preserves the row's original line-id casing in the returned lineId", () => {
+    const s = section(
+      line(1, 600, [
+        ['1Z', 40],
+        ['Wages, salaries, tips', 70],
+        ['1Z', 480],
+        ['118,000', 520],
+      ]),
+    );
+    expect(s.amountAndIdForLabel('wages, salaries, tips')).toEqual({ value: 118000, lineId: '1Z' });
   });
 });
 
