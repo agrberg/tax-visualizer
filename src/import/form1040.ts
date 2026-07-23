@@ -4,7 +4,7 @@
  * pages, wherever a line drifted to) and *Schedule D* (when attached) — and detects the header (filing
  * status, tax year). The rows are **private**: callers don't pass `Row[]` around, they ask the form for
  * a line's amount by id or by printed label. How a page is classified and where the face ends stay
- * private here too. `extract1040` uses this to read fields and owns the tax logic over them.
+ * private here too. `ReturnExtractor` (extract1040.ts) uses this to read fields and owns the tax logic over them.
  */
 import { groupRows, type Row, type TextItem } from './rows';
 import { Section, type LabelRead, type LabelSegment } from './section';
