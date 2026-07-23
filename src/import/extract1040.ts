@@ -52,6 +52,15 @@ function warnOnMismatch(draft: Draft, description: string, id: string, idValue: 
   );
 }
 
+/** A capital-loss warning: the caller's lead (which line, how much) plus the shared tail on how a net
+ *  loss is treated — kept in one place so both the Schedule D and 1040-line reads word it identically. */
+function netCapitalLossWarning(lead: string): string {
+  return `${lead} It's shown below as a negative and netted against your gains; up to $3,000 of a net loss ($1,500 if married filing separately) offsets other income.`;
+}
+
+const ASSUMED_LONG_TERM_WARNING =
+  'Capital gains from the 1040 were treated as long-term (no Schedule D found to split them). Adjust below if some were short-term.';
+
 // ── Income readers ──────────────────────────────────────────────────────────────────────────
 // Where each value is read comes from fieldLocations.ts: STABLE_FIELD_IDS for fields on a
 // never-drifting line id, and the per-year DRIFTING_FIELD_IDS map for the movers. Given a detected
@@ -95,8 +104,7 @@ function readDividends(form: Form1040, draft: Draft): void {
 }
 
 function readWages(form: Form1040, draft: Draft, year: number | null): void {
-  // Wages total: line 1z (2022+, "Add lines 1a through 1h") or bare line 1 (2019–2021), read by the
-  // year's id when we know it.
+  // The wages *total* (not the 1a W-2 subset), read by the year's mapped id.
   const id = lineIdFor('wages', year);
   if (id) {
     const byId = form.amountForId(id, SHARED_LINE_IDS);
@@ -105,10 +113,9 @@ function readWages(form: Form1040, draft: Draft, year: number | null): void {
       return;
     }
   }
-  // The id read came up empty (or the year is unknown). Recover the wages total on its modern
-  // (newest-mapped) line — its meaning is stable across recent years — unless that's the id we just
-  // tried. Recovers wages on a recent form whose year was missed. The line (`1z` today) lives in the
-  // field map, not here.
+  // Id read empty or year unknown: recover the total on its modern (newest-mapped) line — its meaning
+  // is stable across recent years — so a recent form whose year we missed still reads. Skip if that's
+  // the id we already tried.
   const modernWagesLineId = currentLineId('wages');
   if (id !== modernWagesLineId) {
     const modernWagesTotal = form.amountForId(modernWagesLineId, SHARED_LINE_IDS);
@@ -129,9 +136,9 @@ function readWages(form: Form1040, draft: Draft, year: number | null): void {
 
 function readRetirement(form: Form1040, draft: Draft, year: number | null): void {
   // Retirement = taxable IRA + taxable pensions. IRA is stable line 4b (id only — its "IRA
-  // distributions" label names the gross 4a, not the taxable 4b). The taxable-pensions line drifts
-  // (4d in 2019, 5b in 2020+) — and "5b" is *Social Security* on the 2019 form — so reading it by the
-  // year's id reads the right cell and sidesteps that trap by construction.
+  // distributions" label names the gross 4a, not the taxable 4b). The pensions line drifts, and "5b"
+  // is *Social Security* on the 2019 form — reading pensions by the year's id reads the right cell and
+  // sidesteps that trap by construction.
   const ira = form.amountForId(STABLE_FIELD_IDS.iraDistributions, SHARED_LINE_IDS);
   const pensions = readPensions(form, draft, year);
   if (ira !== null || pensions !== null) {
@@ -144,10 +151,9 @@ function readRetirement(form: Form1040, draft: Draft, year: number | null): void
   }
 }
 
-/** Taxable pensions for the year: by the located id, cross-checked against (and falling back to) the
- *  "Pensions and annuities" / "Taxable amount" label. The gross ("c Pensions and annuities") and
- *  taxable ("d Taxable amount") sub-lines can split across two rows, so the label read is windowed to
- *  the pensions line and the one after it (see `amountAndIdForLabelNear`). Returns the amount or null. */
+/** Taxable pensions for the year. The gross ("Pensions and annuities") and taxable ("Taxable amount")
+ *  sub-lines can split across two rows, so the label read is windowed to the pensions line and the one
+ *  after it (see `amountAndIdForLabelNear`). Returns the amount or null. */
 function readPensions(form: Form1040, draft: Draft, year: number | null): number | null {
   const byLabel = form.amountAndIdForLabelNear('pensions and annuities', 'taxable amount');
   const id = lineIdFor('pensions', year);
@@ -169,7 +175,7 @@ function readCapitalGains(form: Form1040, draft: Draft, year: number | null): vo
   const setCapitalGain = (field: 'shortTermGains' | 'longTermGains', value: number, source: string, label: string) => {
     if (value < 0) {
       draft.warnings.push(
-        `Schedule D shows a net ${label} capital loss of $${Math.abs(value).toLocaleString()}. It's shown below as a negative and netted against your gains; up to $3,000 of a net loss ($1,500 if married filing separately) offsets other income.`,
+        netCapitalLossWarning(`Schedule D shows a net ${label} capital loss of $${Math.abs(value).toLocaleString()}.`),
       );
     }
     setFieldAndSource(draft, field, value, source);
@@ -185,9 +191,9 @@ function readCapitalGains(form: Form1040, draft: Draft, year: number | null): vo
     return;
   }
 
-  // No Schedule D — the single 1040 capital-gain line (id drifts: 6 in 2019, 7 in 2020–2024, 7a in
-  // 2025). Read by the year's id; cross-check against, and fall back to, the "Capital gain or (loss)"
-  // label. It can't be split short/long, so it's always an assumed long-term value pending review.
+  // No Schedule D — read the single 1040 capital-gain line by the year's id (fallback: the "Capital
+  // gain or (loss)" label). It can't be split short/long, so it's always an assumed long-term value
+  // pending review.
   const id = lineIdFor('capitalGain', year);
   const byLabel = form.amountAndIdForLabelInSegment('capital gain or (loss)', SHARED_LINE_IDS, id ?? undefined);
   let value: number | null = null;
@@ -210,24 +216,20 @@ function readCapitalGains(form: Form1040, draft: Draft, year: number | null): vo
   if (value < 0) {
     setFieldAndSource(draft, 'longTermGains', value, `${lineRef} (capital gain or loss)`);
     draft.warnings.push(
-      `The 1040 capital-gain line is a loss of $${Math.abs(value).toLocaleString()}. It's shown below as a negative and netted against your gains; up to $3,000 of a net loss ($1,500 if married filing separately) offsets other income.`,
+      netCapitalLossWarning(`The 1040 capital-gain line is a loss of $${Math.abs(value).toLocaleString()}.`),
     );
   } else {
     setFieldAndSource(draft, 'longTermGains', value, `${lineRef} (assumed long-term)`);
-    draft.warnings.push(
-      'Capital gains from the 1040 were treated as long-term (no Schedule D found to split them). Adjust below if some were short-term.',
-    );
+    draft.warnings.push(ASSUMED_LONG_TERM_WARNING);
   }
 }
 
 function readDeduction(form: Form1040, draft: Draft, year: number | null): void {
-  // Deduction ("Standard deduction or itemized deductions"): the id drifts — line 9 (2019), 12 (2020,
-  // 2022–2024), 12a (2021), 12e on the 2025 redesign (which moved it to page 2; the face spans both
-  // pages so first-occurrence finds it). Read by year id (segment-bounded at the line-12 sub-line
-  // siblings in SHARED_LINE_IDS, so a merged 12a/12b/12c row stops at 12b rather than reading 12c's
-  // total), cross-checked against and falling back to the printed label — read in the same segment, so
-  // the merged-row case reads 12a's amount, not 12c's. The label is distinct from the left-margin
-  // "Standard Deduction for—" heading, so that won't false-match.
+  // Deduction ("Standard deduction or itemized deductions"), read by the year's id. It can share a row
+  // with its line-12 siblings, so the read is segment-bounded at those (SHARED_LINE_IDS) — a merged
+  // 12a/12b/12c row stops at 12b rather than reading 12c's total — and the label cross-check is read in
+  // the same segment, so the merged-row case reads 12a's amount, not 12c's. The label is distinct from
+  // the left-margin "Standard Deduction for—" heading, so that won't false-match.
   const id = lineIdFor('deduction', year);
   const byLabel = form.amountAndIdForLabelInSegment(
     'standard deduction or itemized deductions',

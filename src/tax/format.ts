@@ -239,7 +239,6 @@ export function blendBackground(
   };
 }
 
-/** Color for a capital-gains rate band. */
 export function capitalGainsRateColor(rate: number): string {
   if (rate === 0) return 'bg-green-500';
   if (rate === 0.15) return 'bg-amber-500';
