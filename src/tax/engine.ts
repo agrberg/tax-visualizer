@@ -7,7 +7,7 @@ export interface Band {
   max: number;
 }
 
-/** Convert ordinary brackets to bands (same shape; a type bridge). */
+/** Same shape as an ordinary bracket; a pure type bridge. */
 export function bracketsToBands(brackets: OrdinaryBracket[]): Band[] {
   return brackets.map((b) => ({ rate: b.rate, min: b.min, max: b.max }));
 }
