@@ -119,6 +119,77 @@ describe('extract1040Fields', () => {
     expect(provenance.nonQualifiedDividends).toBe('1040 line 3b − 3a');
   });
 
+  it('cross-checks interest against its label and warns on disagreement', () => {
+    const items = [
+      ...line(1, 738, [
+        ['Form', 40],
+        ['1040', 70],
+        ['U.S. Individual Income Tax Return', 120],
+      ]),
+      // 2b on its own row reads 1,111; a separate "Taxable interest" line lower down reads 9,999.
+      ...line(1, 560, [
+        ['2b', 40],
+        ['2b', 300],
+        ['1,111', 340],
+      ]),
+      ...line(1, 540, [
+        ['Taxable interest', 70],
+        ['9,999', 520],
+      ]),
+    ];
+    const { fields, warnings } = extract1040Fields(items);
+    expect(fields.interest).toBe(1111); // id 2b wins
+    expect(warnings.some((w) => /interest/i.test(w) && /verify/i.test(w))).toBe(true);
+  });
+
+  it('does not false-warn on the shared 3a/3b dividends row (segment-aware cross-check)', () => {
+    const items = [
+      ...line(1, 738, [
+        ['Form', 40],
+        ['1040', 70],
+        ['U.S. Individual Income Tax Return', 120],
+      ]),
+      ...line(1, 520, [
+        ['3a', 60],
+        ['Qualified', 80],
+        ['dividends', 120],
+        ['3a', 300],
+        ['1,000.', 340],
+        ['b', 380],
+        ['Ordinary', 400],
+        ['dividends', 440],
+        ['3b', 560],
+        ['3,000.', 600],
+      ]),
+    ];
+    const { fields, warnings } = extract1040Fields(items);
+    expect(fields.qualifiedDividends).toBe(1000);
+    expect(fields.nonQualifiedDividends).toBe(2000);
+    expect(warnings.some((w) => /dividends/i.test(w) && /verify/i.test(w))).toBe(false);
+  });
+
+  it('recovers wages from the modern line id when the year is undetected (confident, not assumed)', () => {
+    // No year token → lineIdFor('wages', null) is null, but the modern wages line (currentLineId,
+    // 1z today) is read straight by id, so wages is recovered confidently — not flagged `assumed`,
+    // which is reserved for the lower-confidence label fallback.
+    const items = [
+      ...line(1, 738, [
+        ['Form', 40],
+        ['1040', 70],
+        ['U.S. Individual Income Tax Return', 120],
+      ]),
+      ...line(1, 600, [
+        ['1z', 40],
+        ['Add lines 1a through 1h', 70],
+        ['80,000', 520],
+      ]),
+    ];
+    const { fields, provenance, assumed } = extract1040Fields(items);
+    expect(fields.wages).toBe(80000);
+    expect(provenance.wages).toBe('1040 line 1z');
+    expect(assumed?.wages).toBeUndefined();
+  });
+
   it('reads each amount when 3a and 3b share a baseline', () => {
     // Real forms print the 3a and 3b amount boxes side by side, so our row grouping
     // yields one row with both. The value must come from each line's own segment, not
@@ -193,6 +264,7 @@ describe('extract1040Fields', () => {
       ]),
       ...line(3, 750, [
         ['SCHEDULE D', 40],
+        ['(Form 1040)', 130],
         ['Capital Gains and Losses', 220],
       ]),
       ...line(3, 400, [
@@ -292,7 +364,7 @@ describe('extract1040Fields', () => {
 
   it('reads IRA (4b) from its own segment when it shares a baseline with pensions (4c/4d) — 2019 layout', () => {
     // On the 2019 form, "b Taxable amount 4b" and "d Taxable amount 4d" can land on the same
-    // physical row. 4c/4d are in SEGMENT_BOUNDARY_IDS precisely so they bound 4b's segment here:
+    // physical row. 4c/4d are in SHARED_LINE_IDS precisely so they bound 4b's segment here:
     // without them, 4b's segment would bleed past its own amount into the pension columns and read
     // 4d's amount instead of 4b's — retirementIncome would then double-count pensions and drop IRA.
     const items = line(1, 460, [
@@ -319,7 +391,7 @@ describe('extract1040Fields', () => {
 
   it('reads the taxable pension amount, not the gross amount, when the gross/taxable sub-lines land on separate rows', () => {
     // "c Pensions and annuities" (gross) and "d Taxable amount" (taxable) usually merge into one
-    // row, but a layout could split them — amountForLabel must follow to the taxable sub-line's
+    // row, but a layout could split them — amountAndIdForLabel must follow to the taxable sub-line's
     // own row rather than reading the gross line's rightmost amount.
     const items = [
       ...line(1, 420, [
@@ -411,7 +483,7 @@ describe('extract1040Fields', () => {
   it('reads a label-anchored amount that is itself 1-2 digits, without mistaking the reprinted id for it', () => {
     // The real form reprints the line id immediately before the amount box (see the page-12e/2025
     // deduction fixture below). A 1-2 digit dollar amount is shaped just like a line id, so
-    // amountForLabel used to skip it as the reprint and return null instead of the real value.
+    // amountAndIdForLabel used to skip it as the reprint and return null instead of the real value.
     const items = line(1, 360, [
       ['6', 40],
       ['Capital gain or (loss)', 70],
@@ -470,6 +542,111 @@ describe('extract1040Fields', () => {
     const { fields, warnings } = extract1040Fields(items);
     expect(fields.filingStatus).toBe('single');
     expect(warnings[0]).toContain("Couldn't read any income values");
+  });
+});
+
+describe('extract1040Fields — face region bounded by the next schedule header', () => {
+  it('reads the deduction from a third face page (not capped at two pages)', () => {
+    // A hypothetical 3-page 1040 face: header + income on p1, the deduction (12e) on p3, then the
+    // Schedule D header on p4. The face region must extend to p3 — bounded by the p4 schedule — rather
+    // than stop at a fixed two pages.
+    const items = [
+      ...line(1, 760, [
+        ['Form', 40],
+        ['1040', 70],
+        ['U.S. Individual Income Tax Return', 120],
+        ['2025', 400],
+      ]),
+      ...line(1, 700, [
+        ['Filing Status', 20],
+        ['X', 60],
+        ['Single', 90],
+      ]),
+      ...line(1, 600, [
+        ['1z', 40],
+        ['Add lines 1a through 1h', 70],
+        ['80,000', 520],
+      ]),
+      ...line(3, 700, [
+        ['12e', 40],
+        ['Standard deduction or itemized deductions', 70],
+        ['12e', 500],
+        ['30,000', 560],
+      ]),
+      ...line(4, 750, [
+        ['SCHEDULE D', 40],
+        ['(Form 1040)', 130],
+        ['Capital Gains and Losses', 220],
+      ]),
+    ];
+    const { fields, provenance } = extract1040Fields(items);
+    expect(fields.deduction).toBe(30000);
+    expect(provenance.deduction).toBe('1040 line 12e');
+  });
+
+  it('bounds the face at the next schedule header so a schedule line id is not read as a 1040 field', () => {
+    // 2025 form (capital-gain id 7a). No capital-gain line on the face, but Schedule 1 (p2) carries a
+    // colliding 7a. The face must be bounded at the "SCHEDULE 1 (Form 1040)" header so the schedule's
+    // amount isn't pulled into the 1040 capital-gain field.
+    const items = [
+      ...line(1, 760, [
+        ['Form', 40],
+        ['1040', 70],
+        ['U.S. Individual Income Tax Return', 120],
+        ['2025', 400],
+      ]),
+      ...line(1, 600, [
+        ['1z', 40],
+        ['Add lines 1a through 1h', 70],
+        ['80,000', 520],
+      ]),
+      ...line(2, 760, [
+        ['SCHEDULE 1', 40],
+        ['(Form 1040)', 130],
+        ['Additional Income and Adjustments to Income', 220],
+      ]),
+      ...line(2, 500, [
+        ['7a', 40],
+        ['Some schedule line', 70],
+        ['9,999', 520],
+      ]),
+    ];
+    const { fields } = extract1040Fields(items);
+    expect(fields.wages).toBe(80000);
+    expect(fields.longTermGains).toBeUndefined(); // the Schedule 1 "7a" is not the 1040 capital gain
+  });
+
+  it('falls back to a conservative span (no schedule header found) so an appended page cannot leak in', () => {
+    // No Schedule D → extraction reads to the end. A state return / worksheet appended after the face
+    // carries no "(Form 1040)" schedule header, so the face must fall back to its conservative span
+    // rather than extend across those pages — otherwise a colliding "7a" on the appended page would be
+    // pulled into the 1040 capital-gain field (amountForId keeps scanning past a blank/absent face line).
+    const items = [
+      ...line(1, 760, [
+        ['Form', 40],
+        ['1040', 70],
+        ['U.S. Individual Income Tax Return', 120],
+        ['2025', 400],
+      ]),
+      ...line(1, 600, [
+        ['1z', 40],
+        ['Add lines 1a through 1h', 70],
+        ['80,000', 520],
+      ]),
+      ...line(2, 700, [
+        ['16', 40],
+        ['Tax', 70],
+        ['1,000', 520],
+      ]),
+      ...line(3, 700, [
+        ['7a', 40],
+        ['State wages or similar', 70],
+        ['5,555', 520],
+      ]),
+    ];
+    const { fields } = extract1040Fields(items);
+    expect(fields.wages).toBe(80000);
+    expect(fields.longTermGains).toBeUndefined(); // the appended page's "7a" must not leak in
   });
 });
 
@@ -564,6 +741,42 @@ describe('extract1040Fields — line 12 deduction', () => {
     const { fields, provenance } = extract1040Fields(items);
     expect(fields.deduction).toBe(15750);
     expect(provenance.deduction).toBe('1040 line 12');
+  });
+
+  it('reads the 2021 deduction from 12a, not 12c, when 12a/12b/12c merge onto one row', () => {
+    // The 2021 line 12 has sub-lines 12a (deduction), 12b (charitable), 12c (add 12a+12b) — verified
+    // against the IRS 2021 Form 1040. If row grouping merges them onto one baseline (like the 2019
+    // 4a–4d case), reading 12a without sibling boundaries would grab 12c's total. The deduction read
+    // must bound 12a's segment at 12b/12c.
+    const items = [
+      ...line(1, 760, [
+        ['Form', 40],
+        ['1040', 70],
+        ['U.S. Individual Income Tax Return', 120],
+        ['2021', 400],
+      ]),
+      ...line(1, 600, [
+        ['1', 40],
+        ['Wages, salaries, tips, etc.', 70],
+        ['70,000', 520],
+      ]),
+      ...line(1, 300, [
+        ['12a', 40],
+        ['Standard deduction or itemized deductions', 70],
+        ['12a', 400],
+        ['13,850', 440],
+        ['b', 480],
+        ['Charitable contributions if you take the standard deduction', 500],
+        ['12b', 680],
+        ['300', 720],
+        ['c', 760],
+        ['Add lines 12a and 12b', 780],
+        ['12c', 960],
+        ['14,150', 1000],
+      ]),
+    ];
+    const { fields } = extract1040Fields(items);
+    expect(fields.deduction).toBe(13850); // 12a's amount, not 12c's 14,150 total
   });
 
   it('leaves the deduction undetected on a blank line whose id is preceded by a merged heading', () => {
@@ -684,15 +897,17 @@ describe('extract1040Fields — multi-year layouts (label-anchored)', () => {
       expect(fields.longTermGains).toBe(8000);
       expect(fields.shortTermGains).toBeUndefined();
       expect(assumed?.longTermGains).toBe(true);
-      // Wages via the older single-line-1 label is a lower-confidence read; 1z is confident.
-      expect(assumed?.wages).toBe(l.wagesId === '1z' ? undefined : true);
+      // Wages is read by the detected year's exact line id (1 for 2019–2021, 1z for 2022+), so it's
+      // a confident read every year — never flagged assumed. (The assumed path is the label fallback,
+      // used only when the year is undetected/pre-window; see the older-form test below.)
+      expect(assumed?.wages).toBeUndefined();
       // 2025's 15,750 matches the single standard (tables exist) → standard mode (null);
       // pre-2025 years have no tables here, so the value imports as a custom deduction.
       expect(fields.deduction).toBe(l.year === 2025 ? null : 13850);
     });
   }
 
-  it('flags a form older than the supported window for full verification', () => {
+  it('falls back to label reads (and flags) for a form older than the mapped window', () => {
     const l: YearLayout = {
       year: 2017,
       wagesId: '1',
@@ -702,7 +917,136 @@ describe('extract1040Fields — multi-year layouts (label-anchored)', () => {
       deductionId: '9',
       deductionPage: 1,
     };
-    const { warnings } = extract1040Fields(buildForm(l));
+    // 2017 predates the id map, so every drifting field must resolve via its stable printed label.
+    const { fields, assumed, warnings } = extract1040Fields(buildForm(l));
+    expect(fields.wages).toBe(70000);
+    expect(assumed?.wages).toBe(true); // label-anchored wages is the lower-confidence path
+    expect(fields.interest).toBe(1000);
+    expect(fields.nonQualifiedDividends).toBe(1000);
+    expect(fields.retirementIncome).toBe(9000); // pensions via label, NOT the 9,999 Social Security line
+    expect(fields.longTermGains).toBe(8000);
     expect(warnings.some((w) => w.includes('2017') && /older/i.test(w))).toBe(true);
+  });
+});
+
+describe('extract1040Fields — map-driven reads', () => {
+  it('reads 2019 taxable pensions from line 4d, never the 5b Social-Security line', () => {
+    // The map's whole reason for existing on the pension line: on the 2019 form 5b is Social
+    // Security, so reading pensions by the year's id (4d) sidesteps that trap by construction.
+    const items = [
+      ...line(1, 760, [
+        ['Form', 40],
+        ['1040', 70],
+        ['U.S. Individual Income Tax Return', 120],
+        ['2019', 400],
+      ]),
+      ...line(1, 460, [
+        ['4b', 40],
+        ['IRA distributions', 70],
+        ['5,000', 520],
+      ]),
+      ...line(1, 440, [
+        ['4d', 40],
+        ['Pensions and annuities Taxable amount', 70],
+        ['4,000', 520],
+      ]),
+      ...line(1, 420, [
+        ['5b', 40],
+        ['Social security benefits Taxable amount', 70],
+        ['9,999', 520],
+      ]),
+    ];
+    const { fields } = extract1040Fields(items);
+    expect(fields.retirementIncome).toBe(9000); // 5,000 IRA + 4,000 pensions (4d), never 9,999 (5b)
+  });
+
+  it('warns when a line-id read disagrees with its label cross-check, and keeps the id value', () => {
+    // A 2025 form where line 7a (the year's capital-gain id) and the "Capital gain or (loss)" label
+    // point at different amounts — the id value wins, with a verify warning.
+    const items = [
+      ...line(1, 760, [
+        ['Form', 40],
+        ['1040', 70],
+        ['U.S. Individual Income Tax Return', 120],
+        ['2025', 400],
+      ]),
+      ...line(1, 360, [
+        ['7a', 40],
+        ['Net capital gain', 70],
+        ['8,000', 520],
+      ]),
+      ...line(1, 320, [
+        ['21', 40],
+        ['Capital gain or (loss)', 70],
+        ['9,000', 520],
+      ]),
+    ];
+    const { fields, warnings } = extract1040Fields(items);
+    expect(fields.longTermGains).toBe(8000); // line 7a value wins over the divergent label
+    expect(warnings.some((w) => /line 7a/.test(w) && /verify/i.test(w))).toBe(true);
+  });
+
+  it('reads Schedule D by its "SCHEDULE D (Form 1040)" header, not a loose "Capital Gains and Losses" supplement', () => {
+    // A brokerage 1099-B "Capital Gains and Losses" supplement (p3) precedes the real Schedule D (p4).
+    // Keying off the form-identity header — not the loose title — reads lines 7/15 from the real
+    // Schedule D, not the supplement's colliding figures.
+    const items = [
+      ...line(1, 738, [
+        ['Form', 40],
+        ['1040', 70],
+        ['U.S. Individual Income Tax Return', 120],
+        ['2025', 400],
+      ]),
+      ...line(3, 750, [['Capital Gains and Losses', 40]]), // brokerage supplement — no schedule header
+      ...line(3, 400, [
+        ['7', 40],
+        ['Proceeds', 70],
+        ['999', 520],
+      ]),
+      ...line(3, 200, [
+        ['15', 40],
+        ['Total', 70],
+        ['888', 520],
+      ]),
+      ...line(4, 750, [
+        ['SCHEDULE D', 40],
+        ['(Form 1040)', 130],
+        ['Capital Gains and Losses', 220],
+      ]),
+      ...line(4, 400, [
+        ['7', 40],
+        ['Net short-term capital gain or (loss)', 70],
+        ['3,000', 520],
+      ]),
+      ...line(4, 200, [
+        ['15', 40],
+        ['Net long-term capital gain or (loss)', 70],
+        ['17,000', 520],
+      ]),
+    ];
+    const { fields } = extract1040Fields(items);
+    expect(fields.shortTermGains).toBe(3000); // from the real Schedule D (p4), not the p3 supplement
+    expect(fields.longTermGains).toBe(17000);
+  });
+
+  it('reads a future year by inheriting the latest mapped layout (no per-year entry needed)', () => {
+    // 2027 has no entry; newest-first resolution inherits 2025's ids (wages 1z, deduction 12e/p2).
+    const items = [
+      ...line(1, 760, [
+        ['Form', 40],
+        ['1040', 70],
+        ['U.S. Individual Income Tax Return', 120],
+        ['2027', 400],
+      ]),
+      ...line(1, 600, [
+        ['1z', 40],
+        ['Add lines 1a through 1h', 70],
+        ['80,000', 520],
+      ]),
+    ];
+    const { fields, warnings } = extract1040Fields(items);
+    expect(fields.wages).toBe(80000);
+    // 2027 has no tax tables yet, so it isn't applied as the taxYear, but it's not "older" either.
+    expect(warnings.some((w) => /older/i.test(w))).toBe(false);
   });
 });
