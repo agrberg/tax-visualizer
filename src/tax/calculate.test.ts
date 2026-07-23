@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { calculateTax, marginalNextDollar } from './calculate';
+import { taxTablesFor, AVAILABLE_YEARS } from './years';
 import type { TaxInput, IncomeSource, MarginalScenario } from './types';
 
 import { makeInput as input } from './testUtils';
@@ -650,4 +651,49 @@ describe('custom deduction', () => {
     expect(r.capitalGains.lossDeduction).toBe(0);
     expect(r.capitalGains.carryover.longTerm).toBe(5000);
   });
+});
+
+describe('every supported year is wired correctly and taxes a fixed $1M consistently', () => {
+  // One high-income scenario ($1,000,000 total) run through calculateTax for each supported year,
+  // locked to a precomputed total. This is where cross-year calculation lives — years.test.ts only
+  // proves the registry resolves; the arithmetic is calculate's job, and adding more years exercises
+  // the same engine, so we verify each year's tables thread through rather than re-testing brackets.
+  // Each row also pins that year's IRS-verified anchors (single standard deduction, top of the 10%
+  // ordinary bracket, SS wage base), so a data-entry typo in a year file fails here with a readable
+  // cause instead of only nudging the golden total. Totals fall year over year as the standard
+  // deduction and brackets widen. Marginal-cost year-threading isn't re-tested per year: it reads
+  // the same tables through the same path, and marginalNextDollar is covered at the default year.
+  const MILLION = { wages: 700000, longTermGains: 250000, interest: 50000 } as const;
+
+  const perYear = [
+    { year: 2019, stdSingle: 12200, tenPctTopSingle: 9700, wageBase: 132900, totalTax: 322263.3 },
+    { year: 2020, stdSingle: 12400, tenPctTopSingle: 9875, wageBase: 137700, totalTax: 321926.4 },
+    { year: 2021, stdSingle: 12550, tenPctTopSingle: 9950, wageBase: 142800, totalTax: 321832.35 },
+    { year: 2022, stdSingle: 12950, tenPctTopSingle: 10275, wageBase: 147000, totalTax: 320827.5 },
+    { year: 2023, stdSingle: 13850, tenPctTopSingle: 11000, wageBase: 160200, totalTax: 318689.9 },
+    { year: 2024, stdSingle: 14600, tenPctTopSingle: 11600, wageBase: 168600, totalTax: 316788.95 },
+    { year: 2025, stdSingle: 15750, tenPctTopSingle: 11925, wageBase: 176100, totalTax: 315660.95 },
+    { year: 2026, stdSingle: 16100, tenPctTopSingle: 12400, wageBase: 184500, totalTax: 314989.25 },
+  ] as const;
+
+  it('covers every selectable year', () => {
+    const covered = perYear.map((y) => y.year).sort((a, b) => a - b);
+    const selectable = [...AVAILABLE_YEARS].sort((a, b) => a - b);
+    expect(covered).toEqual(selectable);
+  });
+
+  it.each(perYear)(
+    '$year: table anchors match and $1M is taxed to the precomputed total',
+    ({ year, stdSingle, tenPctTopSingle, wageBase, totalTax }) => {
+      const t = taxTablesFor(year);
+      expect(t.standardDeduction.single).toBe(stdSingle);
+      expect(t.ordinaryBrackets.single[0].max).toBe(tenPctTopSingle);
+      expect(t.socialSecurity.wageBase).toBe(wageBase);
+
+      const r = calculateTax(input({ ...MILLION, taxYear: year }));
+      // Deduction is applied on top of the anchor check: $1M income less that year's standard.
+      expect(r.federal.taxableIncome).toBe(1_000_000 - stdSingle);
+      expect(r.totalTax).toBeCloseTo(totalTax, 2);
+    },
+  );
 });
