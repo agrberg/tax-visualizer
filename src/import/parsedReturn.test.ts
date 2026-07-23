@@ -50,7 +50,7 @@ describe('mergeParsedInput', () => {
   });
 
   it('falls back to the default year for an unsupported tax year', () => {
-    const merged = mergeParsedInput(CURRENT, { taxYear: 2019 });
+    const merged = mergeParsedInput(CURRENT, { taxYear: 1999 });
     expect(merged.taxYear).toBe(2026);
   });
 
