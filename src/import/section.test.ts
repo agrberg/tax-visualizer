@@ -2,27 +2,16 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { Section } from './section';
 import { groupRows, type TextItem } from './rows';
 import { setImportLogging } from './importLog';
+import { line } from '../test/importFixtures';
 
 beforeAll(() => setImportLogging(false));
-
-/** Build a row of text items at baseline `y` on `page` from [text, x] cells. */
-function line(page: number, y: number, cells: [string, number][]): TextItem[] {
-  return cells.map(([text, x]) => ({
-    text: text.trim().toLowerCase(),
-    originalText: text,
-    x,
-    y,
-    width: text.length * 6,
-    page,
-  }));
-}
 
 /** A `Section` over the rows reconstructed from the given text items. */
 function section(items: TextItem[]): Section {
   return new Section(groupRows(items));
 }
 
-describe('Section.amountAndIdForLabelInSegment', () => {
+describe('Section.amountAndIdForLabel (segment-bounded)', () => {
   it('reads the amount right after the label on a single-field row', () => {
     const s = section(
       line(1, 560, [
@@ -31,7 +20,7 @@ describe('Section.amountAndIdForLabelInSegment', () => {
         ['2,100', 520],
       ]),
     );
-    expect(s.amountAndIdForLabelInSegment('taxable interest', ['3a', '3b', '4b'], '2b')).toEqual({
+    expect(s.amountAndIdForLabel('taxable interest', { boundaries: ['3a', '3b', '4b'], ownId: '2b' })).toEqual({
       value: 2100,
       lineId: '2b',
     });
@@ -53,8 +42,12 @@ describe('Section.amountAndIdForLabelInSegment', () => {
         ['3,000.', 600],
       ]),
     );
-    expect(s.amountAndIdForLabelInSegment('qualified dividends', ['3a', '3b', '4b'], '3a')?.value).toBe(1000);
-    expect(s.amountAndIdForLabelInSegment('ordinary dividends', ['3a', '3b', '4b'], '3b')?.value).toBe(3000);
+    expect(s.amountAndIdForLabel('qualified dividends', { boundaries: ['3a', '3b', '4b'], ownId: '3a' })?.value).toBe(
+      1000,
+    );
+    expect(s.amountAndIdForLabel('ordinary dividends', { boundaries: ['3a', '3b', '4b'], ownId: '3b' })?.value).toBe(
+      3000,
+    );
   });
 
   it('returns null when the labeled line has no amount in its segment', () => {
@@ -65,7 +58,9 @@ describe('Section.amountAndIdForLabelInSegment', () => {
         ['9', 460],
       ]),
     );
-    expect(s.amountAndIdForLabelInSegment('standard deduction or itemized deductions', [], '9')).toBeNull();
+    expect(
+      s.amountAndIdForLabel('standard deduction or itemized deductions', { boundaries: [], ownId: '9' }),
+    ).toBeNull();
   });
 
   it('reads a 1-2 digit amount without mistaking a reprinted id for it', () => {
@@ -78,7 +73,7 @@ describe('Section.amountAndIdForLabelInSegment', () => {
       ]),
     );
     // '6' is the reprinted leading id; the real value is '7'.
-    expect(s.amountAndIdForLabelInSegment('capital gain or (loss)', [])?.value).toBe(7);
+    expect(s.amountAndIdForLabel('capital gain or (loss)', { boundaries: [] })?.value).toBe(7);
   });
 
   it('reads the deduction on a merged 12a/12b/12c row when ownId is omitted', () => {
@@ -97,7 +92,7 @@ describe('Section.amountAndIdForLabelInSegment', () => {
       ]),
     );
     expect(
-      s.amountAndIdForLabelInSegment('standard deduction or itemized deductions', ['12a', '12b', '12c'])?.value,
+      s.amountAndIdForLabel('standard deduction or itemized deductions', { boundaries: ['12a', '12b', '12c'] })?.value,
     ).toBe(13850);
   });
 
@@ -109,7 +104,7 @@ describe('Section.amountAndIdForLabelInSegment', () => {
         ['2,100', 520],
       ]),
     );
-    expect(s.amountAndIdForLabelInSegment('pensions and annuities', [])).toBeNull();
+    expect(s.amountAndIdForLabel('pensions and annuities', { boundaries: [] })).toBeNull();
   });
 
   it("preserves the row's original line-id casing in the returned lineId", () => {
@@ -121,7 +116,9 @@ describe('Section.amountAndIdForLabelInSegment', () => {
         ['21,900', 340],
       ]),
     );
-    expect(s.amountAndIdForLabelInSegment('standard deduction or itemized deductions', [], '12e')).toEqual({
+    expect(
+      s.amountAndIdForLabel('standard deduction or itemized deductions', { boundaries: [], ownId: '12e' }),
+    ).toEqual({
       value: 21900,
       lineId: '12E',
     });
@@ -139,6 +136,39 @@ describe('Section.amountAndIdForLabel', () => {
       ]),
     );
     expect(s.amountAndIdForLabel('wages, salaries, tips')).toEqual({ value: 118000, lineId: '1Z' });
+  });
+
+  it('reads the rightmost amount on the whole row (no segment bounding)', () => {
+    // Wages fallback path: a lone line-1 row on 2019–2021 forms.
+    const s = section(
+      line(1, 600, [
+        ['1', 40],
+        ['Wages, salaries, tips', 70],
+        ['1', 480],
+        ['118,000', 520],
+      ]),
+    );
+    expect(s.amountAndIdForLabel('wages, salaries, tips')).toEqual({ value: 118000, lineId: '1' });
+  });
+
+  it('returns null when the labeled row carries no amount', () => {
+    const s = section(
+      line(1, 600, [
+        ['1', 40],
+        ['Wages, salaries, tips', 70],
+      ]),
+    );
+    expect(s.amountAndIdForLabel('wages, salaries, tips')).toBeNull();
+  });
+
+  it('returns lineId "" when the matched row has no id-shaped leading token', () => {
+    const s = section(
+      line(1, 600, [
+        ['Total wages, salaries, tips', 70],
+        ['5,000', 520],
+      ]),
+    );
+    expect(s.amountAndIdForLabel('wages, salaries, tips')).toEqual({ value: 5000, lineId: '' });
   });
 });
 
@@ -170,7 +200,7 @@ describe('Section.amountForId', () => {
   });
 });
 
-describe('Section.amountAndIdForLabelNear', () => {
+describe('Section.amountForLabelNear', () => {
   it('prefers the taxable amount in the row after the anchor, else the anchor row', () => {
     // Gross "Pensions and annuities" on one row, "Taxable amount" on the next.
     const s = section([
@@ -185,7 +215,7 @@ describe('Section.amountAndIdForLabelNear', () => {
         ['30,000', 520],
       ]),
     ]);
-    expect(s.amountAndIdForLabelNear('pensions and annuities', 'taxable amount')?.value).toBe(30000);
+    expect(s.amountForLabelNear('pensions and annuities', 'taxable amount')?.value).toBe(30000);
   });
 
   it('returns null when the anchor label is absent', () => {
@@ -196,6 +226,6 @@ describe('Section.amountAndIdForLabelNear', () => {
         ['2,100', 520],
       ]),
     );
-    expect(s.amountAndIdForLabelNear('pensions and annuities', 'taxable amount')).toBeNull();
+    expect(s.amountForLabelNear('pensions and annuities', 'taxable amount')).toBeNull();
   });
 });

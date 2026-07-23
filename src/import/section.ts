@@ -1,9 +1,10 @@
 /**
  * A `Section` is a contiguous group of a form's reconstructed rows (the 1040 face, or Schedule D) that
  * answers dollar-amount lookups **without exposing its rows**: by *line id* (`amountForId`, for ids
- * stable across form years), by *printed label* (`amountAndIdForLabel` / `amountAndIdForLabelInSegment`, for
- * lines whose id drifts year to year), or by a windowed label read (`amountAndIdForLabelNear`). Pure over
- * row geometry (`./rows`) and the dev logger; unit-tested through its public interface (`section.test.ts`).
+ * stable across form years), by *printed label* (`amountAndIdForLabel`, whole-row or segment-bounded via
+ * `opts`, for lines whose id drifts year to year), or by a windowed label read (`amountForLabelNear`).
+ * Pure over row geometry (`./rows`) and the dev logger; unit-tested through its public interface
+ * (`section.test.ts`).
  *
  * Both sides of every comparison are already normalized, so `Section` never re-normalizes: the
  * `id`/`label`/`boundaries`/`ownId` arguments are lower-case literals at every call site
@@ -83,6 +84,16 @@ function labelSpan(items: TextItem[], label: string): { start: number; end: numb
   return null;
 }
 
+/**
+ * The row's leading line-id token (leftmost token matching `LINE_ID`), searched left-to-right so a
+ * merged left-margin heading sitting left of the id doesn't hide it. Returns the normalized id (for
+ * comparison) and the original-cased text (for user-facing provenance), or nulls when the row has none.
+ */
+function leadingLineId(items: TextItem[]): { id: string | null; original: string } {
+  const token = items.find((item) => LINE_ID.test(item.text));
+  return { id: token ? token.text : null, original: token ? token.originalText.trim() : '' };
+}
+
 export class Section {
   private readonly rows: Row[];
 
@@ -110,79 +121,52 @@ export class Section {
   }
 
   /**
-   * The rightmost dollar amount on the first row whose text contains `label` (must already be
-   * lower-case, per the class doc), plus the id reprinted beside the amount box, for provenance.
-   * Locates a line by its *printed description*
-   * rather than its line number — labels ("Standard deduction or itemized deductions", "Pensions and
-   * annuities", "Capital gain or (loss)") are byte-stable across form years, while the numbers drift
-   * and even get reused for different lines. Skips that reprinted id so it isn't mistaken for the
-   * value; the real amount is the rightmost money token.
+   * The dollar amount and reprinted line id for the first row whose text contains `label` (already
+   * lower-case). Locates a line by its byte-stable printed description rather than its drifting number.
    *
-   * The returned `lineId` is the row's leading id whenever one is present (the scan matches the leading
-   * token itself, not only a reprint), and is `''` only when the matched row has no id-shaped token at
-   * all — so callers that put it in user-visible provenance should supply a fallback label for that case.
+   * Without `opts`, scans the whole row right-to-left for the rightmost amount (skipping the row's own
+   * leading-id reprint) — the fallback used when a field's id is unknown. With `opts`, bounds the read to
+   * the labeled line's own segment (delimited by `opts.boundaries`, minus `opts.ownId`) so a neighbor on
+   * a shared row (3a/3b, 4b/4c/4d, 12a/12b/12c) can't bleed in. `boundaries` is required in `opts` so the
+   * segment mode is always fully specified — `ownId` alone can't silently fall through to whole-row.
+   *
+   * `lineId` is the row's line-id token in original casing — the leading id, though the whole-row path
+   * captures it from that id's reprint beside the amount (the same token, scanning right-to-left) — or
+   * `''` when the row has none.
    */
-  amountAndIdForLabel(label: string): { value: number; lineId: string } | null {
-    for (const row of this.rows) {
-      if (!row.text.includes(label)) continue;
-      // The row's own line id always leads it (leftmost token) and may be reprinted again just
-      // left of the amount box. Skip only tokens matching that specific id — not any id-shaped
-      // token — so a 1-2 digit amount (e.g. "$7"), which is shaped just like a line id, is still
-      // read as the value rather than mistaken for the reprint. The left-margin instruction column
-      // (its text, and on the deduction line its "Standard Deduction for—" heading) sits at much
-      // lower x on merged rows, so it is never the rightmost money token on a filled line; a blank
-      // line yields no money token and is correctly skipped. (Verified against IRS PDFs 2019–2025.)
-      // Search left-to-right, not just row.items[0]: a merged left-margin heading (e.g. the
-      // deduction line's "Standard Deduction for—" text) can sit left of the id itself.
-      const leadingToken = row.items.find((item) => LINE_ID.test(item.text));
-      const leadingId = leadingToken ? leadingToken.text : null;
-      let value: number | null = null;
-      let lineId = '';
-      for (let i = row.items.length - 1; i >= 0; i--) {
-        const item = row.items[i];
-        if (leadingId !== null && item.text === leadingId) {
-          lineId = item.originalText.trim();
-          continue;
-        }
-        if (value === null) value = parseAmount(item.text);
-        if (value !== null && lineId) break;
-      }
-      if (value !== null) {
-        ilog(`matched label "${label}" on line "${lineId}" page ${row.page}: ${value}`);
-        return { value, lineId };
-      }
-    }
-    return null;
-  }
-
-  /**
-   * Like `amountAndIdForLabel`, but bounds the read to the labeled line's own **segment** so a neighbor on a
-   * shared row can't bleed in (see `lineSegment` for why 3a/3b and 4b/4c/4d need this). Finds the first
-   * row containing `label`, locates the label's token span, then reads the rightmost parseable amount
-   * from just after the span up to the next boundary id (`boundaries`, with `ownId` removed so a reprint
-   * of the field's own id doesn't prematurely bound) or the row's end. Skips `ownId` and the row's
-   * leading line-id reprints so a line number isn't read as a value. `lineId` is the row's leading
-   * line-id token, or `''` when the row has none.
-   */
-  amountAndIdForLabelInSegment(
+  amountAndIdForLabel(
     label: string,
-    boundaries: string[] = [],
-    ownId?: string,
+    opts?: { boundaries: string[]; ownId?: string },
   ): { value: number; lineId: string } | null {
     for (const row of this.rows) {
       if (!row.text.includes(label)) continue;
+      const { id: leadingId, original: leadingOriginal } = leadingLineId(row.items);
+
+      if (!opts) {
+        // Whole-row path: rightmost amount, skipping only the leading-id reprint.
+        let value: number | null = null;
+        let lineId = '';
+        for (let i = row.items.length - 1; i >= 0; i--) {
+          const item = row.items[i];
+          if (leadingId !== null && item.text === leadingId) {
+            lineId = item.originalText.trim();
+            continue;
+          }
+          if (value === null) value = parseAmount(item.text);
+          if (value !== null && lineId) break;
+        }
+        if (value !== null) {
+          ilog(`matched label "${label}" on line "${lineId}" page ${row.page}: ${value}`);
+          return { value, lineId };
+        }
+        continue;
+      }
+
+      // Segment path: read from just after the label span to the next boundary id (or row end).
       const span = labelSpan(row.items, label);
       if (!span) continue;
-      const leadingToken = row.items.find((item) => LINE_ID.test(item.text));
-      const leadingId = leadingToken ? leadingToken.text : null;
-      // The returned `lineId` is user-facing provenance, so take it from the original casing — the
-      // normalized `leadingId` is for comparison only (matching `7a`/`12e` etc. case-insensitively).
-      const leadingLineId = leadingToken ? leadingToken.originalText.trim() : '';
-      // Without an explicit `ownId`, the row's own leading line id is the effective own id: its reprint
-      // beside the amount must not bound the segment, or the scan stops at it before reaching the amount
-      // (e.g. a merged `12a`/`12b`/`12c` deduction row read with no year detected).
-      const effectiveOwn = ownId || leadingId;
-      const bounds = new Set(boundaries.filter((b) => b !== effectiveOwn));
+      const effectiveOwn = opts.ownId || leadingId;
+      const bounds = new Set(opts.boundaries.filter((b) => b !== effectiveOwn));
       let end = span.end;
       while (end < row.items.length && !bounds.has(row.items[end].text)) end++;
       for (let i = end - 1; i >= span.end; i--) {
@@ -190,8 +174,8 @@ export class Section {
         if (token === effectiveOwn || token === leadingId) continue;
         const value = parseAmount(row.items[i].text);
         if (value !== null) {
-          ilog(`matched label "${label}" in segment on line "${leadingLineId}" page ${row.page}: ${value}`);
-          return { value, lineId: leadingLineId };
+          ilog(`matched label "${label}" in segment on line "${leadingOriginal}" page ${row.page}: ${value}`);
+          return { value, lineId: leadingOriginal };
         }
       }
     }
@@ -200,7 +184,7 @@ export class Section {
 
   /** The amount for `label` read in the row anchored by `anchorLabel` and the row after it — the pension
    *  gross/taxable sub-lines can split across two rows — falling back to `anchorLabel`'s own amount. */
-  amountAndIdForLabelNear(anchorLabel: string, label: string): { value: number; lineId: string } | null {
+  amountForLabelNear(anchorLabel: string, label: string): { value: number; lineId: string } | null {
     const anchor = this.rows.findIndex((row) => row.text.includes(anchorLabel));
     if (anchor === -1) return null;
     const window = new Section(this.rows.slice(anchor, anchor + 2));
