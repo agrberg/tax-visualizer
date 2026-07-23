@@ -16,9 +16,10 @@ import { parseAmount } from './rows';
 import { ilog } from './importLog';
 
 /** A token shaped like a 1040 line id — 1–2 digits with an optional trailing letter (e.g. "12e",
- * "5b", "7a", "9"). Used to skip a reprinted line id so it isn't read as a dollar amount. Tested
+ * "5b", "7a", "9"). Used to skip a reprinted line id so it isn't read as a dollar amount, and by the
+ * fixture builder (`fixtures/anonymize.ts`) to tell a line id apart from a stampable amount. Tested
  * against `text`, which is already lower-cased. */
-const LINE_ID = /^\d{1,2}[a-z]?$/;
+export const LINE_ID = /^\d{1,2}[a-z]?$/;
 
 /**
  * Dump a matched line and its raw token pieces so we can eyeball how pdf.js split the
@@ -43,8 +44,12 @@ function logMatchedLine(id: string, row: Row, start: number, end: number): void 
  * no such token. Sibling lines often share a baseline (e.g. 3a and 3b print side by side, grouping
  * into one row `"3a … 3a 58,986 b … 3b 84,388"`), so the segment stops one line's amount from
  * bleeding into its neighbour's.
+ *
+ * Exported so the fixture builder (`fixtures/anonymize.ts`) locates a line's amount with the *same*
+ * segmentation the extractor reads it by — the synthetic amount it stamps must land in the exact
+ * token the reader will pick up, or the fixture wouldn't read back the way a real return does.
  */
-function lineSegment(items: TextItem[], id: string, bounds: Set<string>): { start: number; end: number } | null {
+export function lineSegment(items: TextItem[], id: string, bounds: Set<string>): { start: number; end: number } | null {
   const start = items.findIndex((item) => item.text === id);
   if (start === -1) return null;
   let end = start + 1;
@@ -53,17 +58,27 @@ function lineSegment(items: TextItem[], id: string, bounds: Set<string>): { star
 }
 
 /**
+ * Index of the rightmost parseable-dollar-amount token in `items[start+1, end)`, or -1. Skips any
+ * token equal to `id`: a line number is often reprinted beside its own amount, and e.g. "7" must not
+ * be read as $7. Exported so the fixture builder can find the exact token to overwrite with a
+ * synthetic amount (see `lineSegment`); `rightmostAmount` reads the value off it.
+ */
+export function indexOfRightmostAmount(items: TextItem[], start: number, end: number, id: string): number {
+  for (let i = end - 1; i > start; i--) {
+    if (items[i].text === id) continue;
+    if (parseAmount(items[i].text) !== null) return i;
+  }
+  return -1;
+}
+
+/**
  * The rightmost parseable dollar amount in `items[start+1, end)`, or null. Skips any token equal
  * to `id`: a line number is often reprinted beside its own amount, and e.g. "7" must not
  * be read as $7.
  */
 function rightmostAmount(items: TextItem[], start: number, end: number, id: string): number | null {
-  for (let i = end - 1; i > start; i--) {
-    if (items[i].text === id) continue;
-    const value = parseAmount(items[i].text);
-    if (value !== null) return value;
-  }
-  return null;
+  const i = indexOfRightmostAmount(items, start, end, id);
+  return i === -1 ? null : parseAmount(items[i].text);
 }
 
 /**
