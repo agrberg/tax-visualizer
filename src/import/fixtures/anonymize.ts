@@ -1,7 +1,7 @@
 import type { FilingStatus } from '../../tax/types';
 import { groupRows, parseAmount, type Row, type TextItem } from '../rows';
 import { lineSegment, indexOfRightmostAmount, LINE_ID } from '../section';
-import { FACE_MARKERS, SCHEDULE_D_HEADER } from '../form1040';
+import { FACE_MARKERS, SCHEDULE_D_HEADER, faceEndPage } from '../form1040';
 import type { FixtureLine, FixtureProfile } from './profiles';
 
 /**
@@ -18,10 +18,21 @@ import type { FixtureLine, FixtureProfile } from './profiles';
  */
 export function anonymize(items: TextItem[], profile: FixtureProfile): TextItem[] {
   const rows = groupRows(items);
-  const maxPage = rows.length ? rows[rows.length - 1].page : 1;
-  const facePage = firstPageMatching(rows, (r) => FACE_MARKERS.some((m) => r.text.toLowerCase().includes(m))) ?? 1;
+  // Mirrors form1040.ts's own fallback order: prefer the precise FACE_TITLE, and only fall back to the
+  // loose "form 1040" (which a cover letter or filing-instructions page ahead of the real face can also
+  // carry) if the title is nowhere in the document.
+  const facePage =
+    firstPageMatching(rows, (r) => r.text.toLowerCase().includes(FACE_MARKERS[0])) ??
+    firstPageMatching(rows, (r) => r.text.toLowerCase().includes(FACE_MARKERS[1])) ??
+    1;
   const scheduleDPage = firstPageMatching(rows, (r) => SCHEDULE_D_HEADER.test(r.text));
-  const faceLastPage = scheduleDPage ?? maxPage + 1; // faces run up to (not including) Schedule D
+  // Reuses the real parser's own face-bounding logic rather than a local approximation: the face ends
+  // at the first *any* schedule header, not just Schedule D, so an attached Schedule 1/2/3/B/C/etc.
+  // whose own line numbering happens to collide with a face id can't be scanned as part of the face.
+  const lastFacePage = faceEndPage(
+    Map.groupBy(rows, (row) => row.page),
+    facePage,
+  );
 
   const keep = new Set<Row>();
   const stamped = new Set<Row>();
@@ -31,14 +42,21 @@ export function anonymize(items: TextItem[], profile: FixtureProfile): TextItem[
     const scope =
       line.where === 'scheduleD'
         ? rows.filter((r) => scheduleDPage !== null && r.page === scheduleDPage)
-        : rows.filter((r) => r.page >= facePage && r.page < faceLastPage);
+        : rows.filter((r) => r.page >= facePage && r.page <= lastFacePage);
     stampLine(scope, line, keep, stamped, written);
   }
 
+  const structuralItems = new Set<TextItem>();
   for (const row of rows) {
-    if (isStructural(row, profile.filingStatus)) keep.add(row);
+    for (const marker of FACE_MARKERS) {
+      itemsSatisfying(row, marker.length + 20, (joined) => joined.toLowerCase().includes(marker))?.forEach((i) =>
+        structuralItems.add(i),
+      );
+    }
+    itemsSatisfying(row, 40, (joined) => SCHEDULE_D_HEADER.test(joined))?.forEach((i) => structuralItems.add(i));
   }
 
+  keep.add(syntheticFilingStatusRow(rows, facePage, profile.filingStatus));
   ensureYearToken(rows, facePage, keep);
 
   // Belt-and-suspenders: on the income rows we stamped, strip any *other* money token — a real leftover
@@ -48,7 +66,7 @@ export function anonymize(items: TextItem[], profile: FixtureProfile): TextItem[
     row.items = row.items.filter((item) => written.has(item) || !isMoney(item.text) || LINE_ID.test(item.text.trim()));
   }
 
-  return [...keep].flatMap((row) => row.items);
+  return [...keep].flatMap((row) => row.items).concat([...structuralItems]);
 }
 
 const STATUS_LABELS: Record<FilingStatus, string> = {
@@ -79,13 +97,55 @@ function firstPageMatching(rows: Row[], predicate: (r: Row) => boolean): number 
   return row ? row.page : null;
 }
 
-/** A row worth keeping for its structure alone (no amounts read from it): the form header, the checked
- *  filing-status row, or the Schedule D header. */
-function isStructural(row: Row, filingStatus: FilingStatus): boolean {
-  const text = row.text.toLowerCase();
-  if (FACE_MARKERS.some((marker) => text.includes(marker))) return true;
-  if (SCHEDULE_D_HEADER.test(row.text)) return true;
-  return text.includes(STATUS_LABELS[filingStatus]);
+/**
+ * The shortest contiguous run of `row`'s items whose joined text satisfies `matches`, or null if none
+ * does. Used to keep a structural marker (the form header, the Schedule D header) without keeping the
+ * *whole* row it sits on: some preparer software stamps a running footer as one baseline — "Form 1040
+ * (2020) <Name> <SSN> Page 2" — so keeping the row wholesale would leak the name and SSN glued onto it.
+ * `maxJoinedLength` bounds the search (a couple of matcher-lengths' slack for whitespace) so it doesn't
+ * keep growing the run past where the phrase could still be forming.
+ */
+function itemsSatisfying(row: Row, maxJoinedLength: number, matches: (joined: string) => boolean): TextItem[] | null {
+  for (let start = 0; start < row.items.length; start++) {
+    let joined = '';
+    for (let end = start; end < row.items.length; end++) {
+      joined = joined ? `${joined} ${row.items[end].text}` : row.items[end].text;
+      if (matches(joined)) return row.items.slice(start, end + 1);
+      if (joined.length > maxJoinedLength) break;
+    }
+  }
+  return null;
+}
+
+/**
+ * Build a fresh filing-status checkbox row — a check mark immediately followed by the profile's
+ * status label, on its own baseline — rather than carrying over the real form's checkbox. Real
+ * preparer software renders it inconsistently: some draw an unchecked box as pure vector art with no
+ * extractable text at all (so a real return can show *no* check token anywhere), others place a
+ * checked mark on a baseline that doesn't line up with any label's row within `ROW_TOLERANCE`. Either
+ * way there's no reliable real row to reuse, and reusing one would leak the real filer's actual status
+ * on returns where it differs from the profile's synthetic one. `detectFilingStatus` only needs a
+ * check-token item followed by the label text on the same row, so this row is exactly that.
+ */
+function syntheticFilingStatusRow(rows: Row[], facePage: number, filingStatus: FilingStatus): Row {
+  const anchor = rows.find((r) => r.page === facePage && r.text.includes('filing status'));
+  const y = anchor?.y ?? 700;
+  const x = anchor ? Math.min(...anchor.items.map((i) => i.x)) : 50;
+  const mark: TextItem = { text: 'x', originalText: 'X', x, y, width: 6, page: facePage };
+  const label = STATUS_LABELS[filingStatus];
+  // originalText mirrors how the IRS actually prints the label (first letter capitalized) — detection
+  // itself is case-insensitive, but this keeps a rebuilt fixture visually indistinguishable from a real
+  // one, and matches what `originalText` means everywhere else (the raw, as-printed text).
+  const printedLabel = label[0].toUpperCase() + label.slice(1);
+  const labelItem: TextItem = {
+    text: label,
+    originalText: printedLabel,
+    x: x + 10,
+    y,
+    width: label.length * 5,
+    page: facePage,
+  };
+  return { page: facePage, y, items: [mark, labelItem], text: `x ${label}`, originalText: `X ${printedLabel}` };
 }
 
 /**
