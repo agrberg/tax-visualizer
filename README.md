@@ -94,6 +94,9 @@ Change it to `/` if you deploy to a custom domain or a `user.github.io` root.
   `localStorage` persistence.
 - `src/import/` — the Form 1040 PDF import pipeline (`parse1040.ts` entry point)
   and `src/components/ImportReturn.tsx`, the drop-zone + review-modal UI.
+- `src/import/fixtures/` — anonymized per-year (2019–2025) 1040 test fixtures and
+  the machinery to build them from real returns (`scripts/build-1040-fixtures.ts`,
+  `npm run build:fixtures`); validate the line-id map and back the dev sample loader.
 
 See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the data flow and module map, with
 diagrams.

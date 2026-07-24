@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { FileUp, Upload, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -14,6 +14,11 @@ import { mergeParsedInput, type ParsedReturn } from '@/import/parsedReturn';
 import { DeductionControl } from '@/components/DeductionControl';
 
 const MAX_BYTES = 10 * 1024 * 1024;
+
+// Dev-only sample returns, loaded through a dynamic import gated on import.meta.env.DEV so Rollup drops
+// the fixture module — and the PDFs it references — from production builds (a static import or module-
+// scope glob would ship them). Typed structurally to avoid importing the dev module's types eagerly.
+type SampleReturn = { year: string; load: () => Promise<string> };
 
 interface ImportReturnProps {
   current: TaxInput;
@@ -38,6 +43,14 @@ export function ImportReturn({ current, onApply }: ImportReturnProps) {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [review, setReview] = useState<Review | null>(null);
+  const [samples, setSamples] = useState<SampleReturn[]>([]);
+
+  useEffect(() => {
+    // Guarded so the whole branch (and its dynamic import) is dead code in production and gets dropped.
+    if (import.meta.env.DEV) {
+      void import('@/import/fixtures/devSamples').then((m) => setSamples(m.SAMPLE_RETURNS));
+    }
+  }, []);
 
   async function handleFile(file: File) {
     if (parsing) return;
@@ -94,6 +107,17 @@ export function ImportReturn({ current, onApply }: ImportReturnProps) {
     setDragging(false);
     const file = e.dataTransfer.files?.[0];
     if (file) void handleFile(file);
+  }
+
+  // Fetch a canned sample fixture and run it through the same handleFile path a dropped file takes.
+  async function loadSample(load: () => Promise<string>, name: string) {
+    try {
+      const blob = await (await fetch(await load())).blob();
+      await handleFile(new File([blob], name, { type: 'application/pdf' }));
+    } catch (err) {
+      console.error('[1040 import] sample load failed:', err);
+      setError("Couldn't load that sample return.");
+    }
   }
 
   function setField(patch: Partial<TaxInput>) {
@@ -161,6 +185,23 @@ export function ImportReturn({ current, onApply }: ImportReturnProps) {
           Reads income figures only, in your browser — nothing is uploaded. You'll confirm the values before they're
           applied.
         </p>
+        {import.meta.env.DEV && samples.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5 pt-1">
+            <span className="text-xs text-muted-foreground">Dev samples:</span>
+            {samples.map(({ year, load }) => (
+              <Button
+                key={year}
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={parsing}
+                onClick={() => void loadSample(load, `1040-${year}.pdf`)}
+              >
+                {year}
+              </Button>
+            ))}
+          </div>
+        )}
       </div>
 
       <Modal
