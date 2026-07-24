@@ -136,7 +136,7 @@ describe('anonymize', () => {
     const text = out.map((i) => i.text).join(' ');
     expect(text).toContain('1040');
     expect(text).toContain('2024');
-    expect(text).toContain('Single');
+    expect(text).toContain('single');
     expect(text).toContain('Taxable interest');
   });
 
