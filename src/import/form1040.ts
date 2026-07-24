@@ -62,7 +62,11 @@ const DEFAULT_FACE_PAGES = 2;
  * rather than extend to the document's end: `amountForId` keeps scanning past a blank/absent face line,
  * so an unbounded face would let a colliding line id on an appended page leak into a 1040 field.
  */
-function faceEndPage(byPage: Map<number, Row[]>, facePage: number): number {
+// Exported so the fixture builder (`fixtures/anonymize.ts`) bounds a rebuilt fixture's face the same
+// way this parser does — otherwise a schedule other than D (1, 2, 3, B, C, …) attached before Schedule D
+// would fall inside a reimplemented "face runs up to Schedule D" bound, and a line id it happens to
+// reuse (a plain "7", say) could be mistaken for a 1040 face value.
+export function faceEndPage(byPage: Map<number, Row[]>, facePage: number): number {
   const maxPage = Math.max(facePage, ...byPage.keys());
   for (let page = facePage + 1; page <= maxPage; page++) {
     const pageRows = byPage.get(page);
