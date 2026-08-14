@@ -264,6 +264,34 @@ capital gain taken from the 1040 face with no Schedule D to split it) are flagge
 `assumed` and shown as "assumed — verify" there. Nothing is applied to
 `TaxInput` until the user confirms in the review modal.
 
+### Scope decisions, and what the 1040 cannot tell us
+
+The import feature was scoped deliberately, and two options were rejected:
+
+- **Client-side only.** No upload, no backend. This preserves the app's
+  zero-backend privacy model, which matters more here than anywhere else in the
+  app — the input is a tax return.
+- **Text-layer PDFs only. No OCR of scans.** Third-party preparer exports carry
+  a text layer, so positional text heuristics are enough. AcroForm fields are a
+  bonus fast path, not the mechanism, because those exports arrive flattened.
+
+Three gaps are properties of the form itself, not extraction bugs, so no amount
+of parser work closes them:
+
+- **Short- versus long-term capital gains.** Line 7 of the face is the net
+  figure only; the split lives on Schedule D. Without a Schedule D the import
+  lands as one bucket and is flagged `assumed`.
+- **Taxable Social Security.** Line 6b has no corresponding app field.
+- **Qualified Surviving Spouse.** Unsupported filing status.
+
+A further mismatch is temporal: the most recent return someone holds is
+typically two years older than the tax years this app ships tables for. So the
+feature is framed as **seeding inputs**, never as loading a return.
+
+The mandatory editable review step is what makes the whole thing safe. With it,
+a mis-parse is a UX nuisance the user corrects; without it, a mis-parse would be
+a silent correctness hazard.
+
 ## The jurisdiction abstraction
 
 The federal computation is modeled as one **`Jurisdiction`** — data describing
@@ -322,3 +350,24 @@ income into ordinary when there's no ladder already exists for that path.
   on nothing in `src/components/`. The `@/` alias points at `src/`.
 - **Federal only.** No state tax, credits, phase-outs, or AMT — by design (see
   the disclaimer in `README.md`).
+- **`SIGNED_SOURCES` is the allowlist for income fields that may go negative.**
+  It lives in `src/tax/types.ts` and holds exactly the two capital-gains fields.
+  `IncomeForm`, `ImportReturn`, `shareLink`, and `mergeParsedInput` all read it
+  rather than each deciding for themselves — every other income source stays at
+  or above zero. Add a signed field here or it gets clamped somewhere
+  downstream.
+- **Extend an existing set rather than adding a parallel one.** When a new case
+  is the same concept as an existing collection, widen that collection and its
+  doc comment. The deduction sub-lines `12a`/`12b`/`12c` are the same "ids that
+  share a printed row with a neighbour" problem as the income clusters already
+  in `SHARED_LINE_IDS`, so they went in there rather than into a second
+  `DEDUCTION_SIBLING_IDS`. Prefer deriving a value from the map over mirroring
+  it into a new constant.
+- **Test through the smallest public entry point, and never add a test-only
+  export.** `extract1040Fields(items)` reaches the private per-field readers,
+  `Form1040.from(items)` reaches face and Schedule-D scoping plus detection, and
+  `new Section(rows)` reaches the amount lookups. Widening a module's API so a
+  test can call an internal pins the test to implementation detail, so a
+  behaviour-preserving refactor breaks it. If something genuinely cannot be
+  reached through a public interface, that is a design signal, not a reason to
+  export it.
