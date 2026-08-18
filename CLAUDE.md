@@ -2,6 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Repository visibility
+
+This repo (`agrberg/tax-visualizer`) is public. Avoid personal or sensitive tax specifics in filed issues, commit messages, and committed docs — use synthetic figures in examples.
+
 ## Commands
 
 ```bash
