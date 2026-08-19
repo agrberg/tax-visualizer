@@ -119,18 +119,14 @@ export class Form1040 {
   amountForId(id: string, boundaries?: string[]): number | null {
     return this.faceSection.amountForId(id, boundaries);
   }
-  amountAndIdForLabel(label: string): { value: number; lineId: string } | null {
-    return this.faceSection.amountAndIdForLabel(label);
-  }
-  amountAndIdForLabelInSegment(
+  amountAndIdForLabel(
     label: string,
-    boundaries?: string[],
-    ownId?: string,
+    opts?: { boundaries: string[]; ownId?: string },
   ): { value: number; lineId: string } | null {
-    return this.faceSection.amountAndIdForLabelInSegment(label, boundaries, ownId);
+    return this.faceSection.amountAndIdForLabel(label, opts);
   }
-  amountAndIdForLabelNear(anchorLabel: string, label: string): { value: number; lineId: string } | null {
-    return this.faceSection.amountAndIdForLabelNear(anchorLabel, label);
+  amountForLabelNear(anchorLabel: string, label: string): { value: number; lineId: string } | null {
+    return this.faceSection.amountForLabelNear(anchorLabel, label);
   }
 }
 

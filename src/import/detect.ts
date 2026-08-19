@@ -4,7 +4,7 @@
  * the user to confirm what these return.
  */
 import type { FilingStatus } from '../tax/types';
-import type { Row } from './rows';
+import type { Row, TextItem } from './rows';
 import { ilog } from './importLog';
 
 const STATUS_KEYWORDS: { status: FilingStatus; labels: string[] }[] = [
@@ -33,6 +33,32 @@ const YEAR_TOKEN = /^\(?(20\d{2})\)?$/;
 // reliably land in a single token. https://regexper.com/#%2Fform%201040%28%3F%3A-sr%29%3F%5Cs*%5C%28%3F%2820%5Cd%7B2%7D%29%5C%29%3F%2F
 const FORM_1040_FOOTER_YEAR = /form 1040(?:-sr)?\s*\(?(20\d{2})\)?/;
 
+const codePoints = (text: string): string =>
+  [...text].map((ch) => 'U+' + (ch.codePointAt(0) ?? 0).toString(16).padStart(4, '0')).join(' ');
+
+/** Log short non-plain tokens on a checkmark-less row — candidates for an unrecognized checkbox
+ *  glyph, surfaced as Unicode code points so we can identify what character the PDF is using. */
+function logSuspiciousGlyphs(row: Row): void {
+  // Cheapest tests first; the regex (the costly part) only runs on short, non-empty tokens.
+  const candidates = row.items.filter((i) => i.text !== '' && i.text.length <= 2 && !PLAIN_TEXT_TOKEN.test(i.text));
+  if (candidates.length === 0) return;
+  ilog(
+    `detectFilingStatus: row "${row.originalText}" — no known CHECK_TOKEN but suspicious items: ${JSON.stringify(
+      candidates.map((c) => ({
+        text: c.originalText,
+        codePoints: [...c.originalText].map((ch) => 'U+' + (ch.codePointAt(0) ?? 0).toString(16).padStart(4, '0')),
+      })),
+    )}`,
+  );
+}
+
+/** Log the matched check-token glyph (as Unicode code points) and the row it was found on. */
+function logCheckToken(checkToken: TextItem, row: Row): void {
+  ilog(
+    `detectFilingStatus: check token "${checkToken.originalText}" (${codePoints(checkToken.originalText)}) in row "${row.originalText}"`,
+  );
+}
+
 /**
  * Best-effort: on a 1040 the checkbox mark sits just left of its status label, so
  * match the label that immediately follows a checkmark on the same row. Still
@@ -43,28 +69,11 @@ export function detectFilingStatus(rows: Row[]): FilingStatus | null {
   for (const row of rows) {
     const itemIndex = row.items.findIndex((i) => CHECK_TOKENS.has(i.text));
     if (itemIndex === -1) {
-      // Surface items that look like they could be unrecognized checkbox glyphs so we
-      // can identify what character the PDF is using (logged as Unicode code points).
-      // Cheapest tests first; the regex (the costly part) only runs on short, non-empty tokens.
-      const candidates = row.items.filter((i) => i.text !== '' && i.text.length <= 2 && !PLAIN_TEXT_TOKEN.test(i.text));
-      if (candidates.length > 0) {
-        ilog(
-          `detectFilingStatus: row "${row.originalText}" — no known CHECK_TOKEN but suspicious items: ${JSON.stringify(
-            candidates.map((c) => ({
-              text: c.originalText,
-              codePoints: [...c.originalText].map(
-                (ch) => 'U+' + (ch.codePointAt(0) ?? 0).toString(16).padStart(4, '0'),
-              ),
-            })),
-          )}`,
-        );
-      }
+      logSuspiciousGlyphs(row);
       continue;
     }
     const checkToken = row.items[itemIndex];
-    ilog(
-      `detectFilingStatus: check token "${checkToken.originalText}" (${[...checkToken.originalText].map((ch) => 'U+' + (ch.codePointAt(0) ?? 0).toString(16).padStart(4, '0')).join(' ')}) in row "${row.originalText}"`,
-    );
+    logCheckToken(checkToken, row);
     const after = row.items
       .slice(itemIndex + 1)
       .map((i) => i.text)

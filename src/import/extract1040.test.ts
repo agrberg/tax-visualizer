@@ -1,21 +1,14 @@
 import { describe, it, expect, beforeAll } from 'vitest';
-import { extract1040Fields } from './extract1040';
-import { groupRows, parseAmount, type TextItem } from './rows';
+import { ReturnExtractor } from './extract1040';
+import { Form1040 } from './form1040';
+import type { TextItem } from './rows';
 import { setImportLogging } from './importLog';
+import { line } from '../test/importFixtures';
 
 beforeAll(() => setImportLogging(false));
 
-/** Build a row of text items at baseline `y` on `page` from [text, x] cells. */
-function line(page: number, y: number, cells: [string, number][]): TextItem[] {
-  return cells.map(([text, x]) => ({
-    text: text.trim().toLowerCase(),
-    originalText: text,
-    x,
-    y,
-    width: text.length * 6,
-    page,
-  }));
-}
+/** Build a ParsedReturn the way parse1040 does — TextItems → Form1040 → extractor. */
+const extract = (items: TextItem[]) => ReturnExtractor.extract(Form1040.from(items));
 
 // A stripped-down but structurally faithful page-1 1040: line number on the left,
 // label in the middle, amount in the right column.
@@ -71,53 +64,9 @@ function sample1040(): TextItem[] {
   ];
 }
 
-describe('parseAmount', () => {
-  it('parses commas and a dollar sign', () => {
-    expect(parseAmount('$1,234')).toBe(1234);
-    expect(parseAmount('118,000')).toBe(118000);
-  });
-  it('treats parentheses as negative', () => {
-    expect(parseAmount('(500)')).toBe(-500);
-  });
-  it('treats a leading minus as negative', () => {
-    expect(parseAmount('-4,000')).toBe(-4000);
-  });
-  it('drops trailing cents rather than inflating the value', () => {
-    expect(parseAmount('2,100.00')).toBe(2100);
-    expect(parseAmount('1,234.56')).toBe(1234);
-  });
-  it('returns null for non-numeric text', () => {
-    expect(parseAmount('Taxable interest')).toBeNull();
-    expect(parseAmount('')).toBeNull();
-  });
-  it('returns null for text with letters mixed with digits (label tokens)', () => {
-    expect(parseAmount('Add lines 1a through 1h')).toBeNull();
-    expect(parseAmount('1z')).toBeNull();
-  });
-});
-
-describe('groupRows', () => {
-  it('groups items sharing a baseline and orders them left-to-right, top-to-bottom', () => {
-    const rows = groupRows([
-      ...line(1, 100, [
-        ['b', 200],
-        ['a', 50],
-      ]),
-      ...line(1, 200, [['top', 50]]),
-    ]);
-    expect(rows.map((r) => r.text)).toEqual(['top', 'a b']);
-  });
-
-  it('joins a row from its items, preserving the normalized/original split', () => {
-    const rows = groupRows(line(1, 100, [['Wages, Salaries, Tips', 40]]));
-    expect(rows[0].text).toBe('wages, salaries, tips');
-    expect(rows[0].originalText).toBe('Wages, Salaries, Tips');
-  });
-});
-
-describe('extract1040Fields', () => {
+describe('ReturnExtractor.extract', () => {
   it('maps the standard income lines', () => {
-    const { fields } = extract1040Fields(sample1040());
+    const { fields } = extract(sample1040());
     expect(fields.wages).toBe(118000);
     expect(fields.interest).toBe(2100);
     expect(fields.qualifiedDividends).toBe(8000);
@@ -127,7 +76,7 @@ describe('extract1040Fields', () => {
   });
 
   it('records provenance for detected fields', () => {
-    const { provenance } = extract1040Fields(sample1040());
+    const { provenance } = extract(sample1040());
     expect(provenance.wages).toBe('1040 line 1z');
     expect(provenance.nonQualifiedDividends).toBe('1040 line 3b − 3a');
   });
@@ -150,9 +99,29 @@ describe('extract1040Fields', () => {
         ['9,999', 520],
       ]),
     ];
-    const { fields, warnings } = extract1040Fields(items);
+    const { fields, warnings } = extract(items);
     expect(fields.interest).toBe(1111); // id 2b wins
     expect(warnings.some((w) => /interest/i.test(w) && /verify/i.test(w))).toBe(true);
+  });
+
+  it('never sets interest from the "Taxable interest" label alone — id 2b is required', () => {
+    // readInterest is guarded (`if (read && !read.fromLabelOnly)`) to set the field only from the 2b
+    // id read, never from a label-only fallback. This fixture has a "Taxable interest" label with an
+    // amount but no 2b token anywhere on the face, so a label fallback would (incorrectly) produce a
+    // value if the guard regressed — regression coverage for that guard.
+    const items = [
+      ...line(1, 738, [
+        ['Form', 40],
+        ['1040', 70],
+        ['U.S. Individual Income Tax Return', 120],
+      ]),
+      ...line(1, 560, [
+        ['Taxable interest', 70],
+        ['2,100', 520],
+      ]),
+    ];
+    const { fields } = extract(items);
+    expect(fields.interest).toBeUndefined();
   });
 
   it('does not false-warn on the shared 3a/3b dividends row (segment-aware cross-check)', () => {
@@ -175,7 +144,7 @@ describe('extract1040Fields', () => {
         ['3,000.', 600],
       ]),
     ];
-    const { fields, warnings } = extract1040Fields(items);
+    const { fields, warnings } = extract(items);
     expect(fields.qualifiedDividends).toBe(1000);
     expect(fields.nonQualifiedDividends).toBe(2000);
     expect(warnings.some((w) => /dividends/i.test(w) && /verify/i.test(w))).toBe(false);
@@ -197,7 +166,7 @@ describe('extract1040Fields', () => {
         ['80,000', 520],
       ]),
     ];
-    const { fields, provenance, assumed } = extract1040Fields(items);
+    const { fields, provenance, assumed } = extract(items);
     expect(fields.wages).toBe(80000);
     expect(provenance.wages).toBe('1040 line 1z');
     expect(assumed?.wages).toBeUndefined();
@@ -228,7 +197,7 @@ describe('extract1040Fields', () => {
         ['3,000.', 600],
       ]),
     ];
-    const { fields } = extract1040Fields(items);
+    const { fields } = extract(items);
     expect(fields.qualifiedDividends).toBe(1000);
     expect(fields.nonQualifiedDividends).toBe(2000); // 3b 3,000 − 3a 1,000
   });
@@ -261,7 +230,7 @@ describe('extract1040Fields', () => {
         ['17,000', 520],
       ]),
     ];
-    const { fields, provenance } = extract1040Fields(items);
+    const { fields, provenance } = extract(items);
     expect(fields.shortTermGains).toBe(3000);
     expect(fields.longTermGains).toBe(17000); // not the 20,000 from 1040 line 7a
     expect(provenance.shortTermGains).toBe('Schedule D line 7 (net short-term)');
@@ -291,7 +260,7 @@ describe('extract1040Fields', () => {
         ['9,000', 520],
       ]),
     ];
-    const { fields, warnings } = extract1040Fields(items);
+    const { fields, warnings } = extract(items);
     // The reader keeps the sign; clamping to $0 happens later at the merge boundary.
     expect(fields.shortTermGains).toBe(-2500);
     expect(fields.longTermGains).toBe(9000);
@@ -322,14 +291,14 @@ describe('extract1040Fields', () => {
         ['7', 900],
       ]),
     ];
-    const { fields } = extract1040Fields(items);
+    const { fields } = extract(items);
     expect(fields.wages).toBe(50000);
     expect(fields.longTermGains).toBeUndefined();
     expect(fields.shortTermGains).toBeUndefined();
   });
 
   it('detects filing status and tax year', () => {
-    const { fields } = extract1040Fields(sample1040());
+    const { fields } = extract(sample1040());
     expect(fields.filingStatus).toBe('single');
     expect(fields.taxYear).toBe(2025);
   });
@@ -340,7 +309,7 @@ describe('extract1040Fields', () => {
       ['1040', 90],
       ['(2025)', 300],
     ]);
-    const { fields } = extract1040Fields(items);
+    const { fields } = extract(items);
     expect(fields.taxYear).toBe(2025);
   });
 
@@ -364,7 +333,7 @@ describe('extract1040Fields', () => {
         ['Created 9/5/25', 600],
       ]),
     ];
-    const { fields } = extract1040Fields(items);
+    const { fields } = extract(items);
     expect(fields.taxYear).toBe(2025);
   });
 
@@ -379,7 +348,7 @@ describe('extract1040Fields', () => {
         ['Created 9/5/25', 600],
       ]),
     ];
-    const { fields } = extract1040Fields(items);
+    const { fields } = extract(items);
     expect(fields.taxYear).toBe(2025);
   });
 
@@ -395,7 +364,7 @@ describe('extract1040Fields', () => {
         ['X', 70],
         [label, 90],
       ]);
-      expect(extract1040Fields(items).fields.filingStatus).toBe(expected);
+      expect(extract(items).fields.filingStatus).toBe(expected);
     }
   });
 
@@ -405,13 +374,13 @@ describe('extract1040Fields', () => {
       ['IRA distributions', 70],
       ['5,000', 520],
     ]);
-    expect(extract1040Fields(iraOnly).fields.retirementIncome).toBe(5000);
+    expect(extract(iraOnly).fields.retirementIncome).toBe(5000);
     const pensionsOnly = line(1, 420, [
       ['5b', 40],
       ['Pensions and annuities', 70],
       ['3,000', 520],
     ]);
-    expect(extract1040Fields(pensionsOnly).fields.retirementIncome).toBe(3000);
+    expect(extract(pensionsOnly).fields.retirementIncome).toBe(3000);
   });
 
   it('reads IRA (4b) from its own segment when it shares a baseline with pensions (4c/4d) — 2019 layout', () => {
@@ -437,7 +406,7 @@ describe('extract1040Fields', () => {
       ['4d', 800],
       ['4,000.', 830],
     ]);
-    const { fields } = extract1040Fields(items);
+    const { fields } = extract(items);
     expect(fields.retirementIncome).toBe(9000); // IRA 5,000 + pensions 4,000
   });
 
@@ -459,7 +428,7 @@ describe('extract1040Fields', () => {
         ['4,000.', 500],
       ]),
     ];
-    const { fields } = extract1040Fields(items);
+    const { fields } = extract(items);
     expect(fields.retirementIncome).toBe(4000); // taxable 4,000, not gross 9,000
   });
 
@@ -471,7 +440,7 @@ describe('extract1040Fields', () => {
       ['1040', 90],
       ['2027', 300],
     ]);
-    const { fields, warnings } = extract1040Fields(items);
+    const { fields, warnings } = extract(items);
     expect(fields.taxYear).toBeUndefined();
     expect(warnings.some((w) => w.includes('2027') && w.includes('supported'))).toBe(true);
   });
@@ -482,7 +451,7 @@ describe('extract1040Fields', () => {
       ['1040', 90],
       ['2012', 300],
     ]);
-    const { fields, warnings } = extract1040Fields(items);
+    const { fields, warnings } = extract(items);
     expect(fields.taxYear).toBeUndefined();
     const yearWarnings = warnings.filter((w) => w.includes('2012'));
     expect(yearWarnings).toHaveLength(1);
@@ -498,13 +467,13 @@ describe('extract1040Fields', () => {
       ['1040', 90],
       ['2030', 300],
     ]);
-    const { fields, warnings } = extract1040Fields(items);
+    const { fields, warnings } = extract(items);
     expect(fields.taxYear).toBeUndefined();
     expect(warnings.some((w) => w.includes('2030') && w.includes('supported'))).toBe(true);
   });
 
   it('warns that line 7 was treated as long-term', () => {
-    const { warnings } = extract1040Fields(sample1040());
+    const { warnings } = extract(sample1040());
     expect(warnings.some((w) => w.includes('long-term'))).toBe(true);
   });
 
@@ -514,7 +483,7 @@ describe('extract1040Fields', () => {
       ['Capital gain or (loss)', 70],
       ['(4,000)', 520],
     ]);
-    const { fields, warnings } = extract1040Fields(items);
+    const { fields, warnings } = extract(items);
     expect(fields.longTermGains).toBe(-4000);
     expect(warnings.some((w) => w.toLowerCase().includes('loss'))).toBe(true);
   });
@@ -532,7 +501,7 @@ describe('extract1040Fields', () => {
         ['8,000', 520],
       ]),
     ];
-    const { fields, warnings } = extract1040Fields(items);
+    const { fields, warnings } = extract(items);
     expect(fields.nonQualifiedDividends).toBe(0);
     expect(warnings.some((w) => w.includes('exceeded'))).toBe(true);
   });
@@ -544,7 +513,7 @@ describe('extract1040Fields', () => {
       ['7a', 40],
       ['Capital gain or (loss)', 70],
     ]);
-    const { fields } = extract1040Fields(items);
+    const { fields } = extract(items);
     expect(fields.longTermGains).toBeUndefined();
   });
 
@@ -558,7 +527,7 @@ describe('extract1040Fields', () => {
       ['6', 460],
       ['7', 500],
     ]);
-    const { fields } = extract1040Fields(items);
+    const { fields } = extract(items);
     expect(fields.longTermGains).toBe(7);
   });
 
@@ -570,7 +539,7 @@ describe('extract1040Fields', () => {
       ['Capital gain or (loss)', 70],
       ['6', 460],
     ]);
-    const { fields } = extract1040Fields(items);
+    const { fields } = extract(items);
     expect(fields.longTermGains).toBeUndefined();
   });
 
@@ -582,12 +551,12 @@ describe('extract1040Fields', () => {
       ['Capital gain or (loss)', 70],
       ['7', 500],
     ]);
-    const { fields } = extract1040Fields(items);
+    const { fields } = extract(items);
     expect(fields.longTermGains).toBe(7);
   });
 
   it('warns and detects nothing on an empty/unreadable dump', () => {
-    const { fields, warnings } = extract1040Fields([]);
+    const { fields, warnings } = extract([]);
     expect(Object.keys(fields)).toHaveLength(0);
     expect(warnings[0]).toContain("Couldn't read any income values");
   });
@@ -607,13 +576,13 @@ describe('extract1040Fields', () => {
         ['Single', 90],
       ]),
     ];
-    const { fields, warnings } = extract1040Fields(items);
+    const { fields, warnings } = extract(items);
     expect(fields.filingStatus).toBe('single');
     expect(warnings[0]).toContain("Couldn't read any income values");
   });
 });
 
-describe('extract1040Fields — face region bounded by the next schedule header', () => {
+describe('ReturnExtractor.extract — face region bounded by the next schedule header', () => {
   it('reads the deduction from a third face page (not capped at two pages)', () => {
     // A hypothetical 3-page 1040 face: header + income on p1, the deduction (12e) on p3, then the
     // Schedule D header on p4. The face region must extend to p3 — bounded by the p4 schedule — rather
@@ -647,7 +616,7 @@ describe('extract1040Fields — face region bounded by the next schedule header'
         ['Capital Gains and Losses', 220],
       ]),
     ];
-    const { fields, provenance } = extract1040Fields(items);
+    const { fields, provenance } = extract(items);
     expect(fields.deduction).toBe(30000);
     expect(provenance.deduction).toBe('1040 line 12e');
   });
@@ -679,7 +648,7 @@ describe('extract1040Fields — face region bounded by the next schedule header'
         ['9,999', 520],
       ]),
     ];
-    const { fields } = extract1040Fields(items);
+    const { fields } = extract(items);
     expect(fields.wages).toBe(80000);
     expect(fields.longTermGains).toBeUndefined(); // the Schedule 1 "7a" is not the 1040 capital gain
   });
@@ -712,13 +681,13 @@ describe('extract1040Fields — face region bounded by the next schedule header'
         ['5,555', 520],
       ]),
     ];
-    const { fields } = extract1040Fields(items);
+    const { fields } = extract(items);
     expect(fields.wages).toBe(80000);
     expect(fields.longTermGains).toBeUndefined(); // the appended page's "7a" must not leak in
   });
 });
 
-describe('extract1040Fields — line 12 deduction', () => {
+describe('ReturnExtractor.extract — line 12 deduction', () => {
   // sample1040() detects Single + 2025. The 2025 single standard deduction is $15,750.
   const STANDARD_2025_SINGLE = 15750;
 
@@ -734,13 +703,13 @@ describe('extract1040Fields — line 12 deduction', () => {
   }
 
   it('treats a line 12 that matches the standard deduction as standard mode (null)', () => {
-    const { fields, provenance } = extract1040Fields(with12(STANDARD_2025_SINGLE.toLocaleString()));
+    const { fields, provenance } = extract(with12(STANDARD_2025_SINGLE.toLocaleString()));
     expect(fields.deduction).toBeNull();
     expect(provenance.deduction).toBe('1040 line 12');
   });
 
   it('imports a line 12 above the standard as a custom deduction', () => {
-    const { fields, provenance } = extract1040Fields(with12('28,500'));
+    const { fields, provenance } = extract(with12('28,500'));
     expect(fields.deduction).toBe(28500);
     expect(provenance.deduction).toBe('1040 line 12');
   });
@@ -748,20 +717,20 @@ describe('extract1040Fields — line 12 deduction', () => {
   it('imports a line 12 below the standard as custom too', () => {
     // 10,000 < the 2025 single standard (15,750): still a custom amount — only an exact match
     // stays in standard mode. Doesn't occur on a rational return, but the branch exists.
-    const { fields, provenance } = extract1040Fields(with12('10,000'));
+    const { fields, provenance } = extract(with12('10,000'));
     expect(fields.deduction).toBe(10000);
     expect(provenance.deduction).toBe('1040 line 12');
   });
 
   it('leaves the deduction undetected when line 12 is absent', () => {
-    const { fields } = extract1040Fields(sample1040());
+    const { fields } = extract(sample1040());
     expect(fields.deduction).toBeUndefined();
   });
 
   it('still reads line 7a when line 12 is present (segment-boundary regression)', () => {
     // The deduction is read separately from the income lines (7a stays the last FACE_ID), so a
     // line 12 present on the same page must not narrow or steal the line-7a read.
-    const { fields } = extract1040Fields(with12('28,500'));
+    const { fields } = extract(with12('28,500'));
     expect(fields.longTermGains).toBe(15000); // 1040 line 7a, assumed long-term
     expect(fields.deduction).toBe(28500);
   });
@@ -780,13 +749,13 @@ describe('extract1040Fields — line 12 deduction', () => {
   }
 
   it('reads the deduction from line 12e on page 2 (2025+ layout)', () => {
-    const { fields, provenance } = extract1040Fields(with12eOnPage2(STANDARD_2025_SINGLE.toLocaleString()));
+    const { fields, provenance } = extract(with12eOnPage2(STANDARD_2025_SINGLE.toLocaleString()));
     expect(fields.deduction).toBeNull(); // 15,750 == 2025 single standard → standard mode
     expect(provenance.deduction).toBe('1040 line 12e');
   });
 
   it('imports a custom deduction from line 12e (2025+ layout)', () => {
-    const { fields, provenance } = extract1040Fields(with12eOnPage2('30,000'));
+    const { fields, provenance } = extract(with12eOnPage2('30,000'));
     expect(fields.deduction).toBe(30000);
     expect(provenance.deduction).toBe('1040 line 12e');
   });
@@ -806,7 +775,7 @@ describe('extract1040Fields — line 12 deduction', () => {
         ['15,750', 520],
       ]),
     ];
-    const { fields, provenance } = extract1040Fields(items);
+    const { fields, provenance } = extract(items);
     expect(fields.deduction).toBe(15750);
     expect(provenance.deduction).toBe('1040 line 12');
   });
@@ -843,7 +812,7 @@ describe('extract1040Fields — line 12 deduction', () => {
         ['14,150', 1000],
       ]),
     ];
-    const { fields } = extract1040Fields(items);
+    const { fields } = extract(items);
     expect(fields.deduction).toBe(13850); // 12a's amount, not 12c's 14,150 total
   });
 
@@ -858,12 +827,12 @@ describe('extract1040Fields — line 12 deduction', () => {
       ['Standard deduction or itemized deductions', 70],
       ['9', 460],
     ]);
-    const { fields } = extract1040Fields(items);
+    const { fields } = extract(items);
     expect(fields.deduction).toBeUndefined();
   });
 });
 
-describe('extract1040Fields — multi-year layouts (label-anchored)', () => {
+describe('ReturnExtractor.extract — multi-year layouts (label-anchored)', () => {
   // Faithful-enough page-1 (+ page-2 for 2025) layouts capturing the real line-id/page drift
   // across the supported window. No Schedule D attached, so capital gain comes from the 1040
   // line via label (assumed long-term). Each row carries its era's real line id AND the stable
@@ -954,7 +923,7 @@ describe('extract1040Fields — multi-year layouts (label-anchored)', () => {
 
   for (const l of YEARS) {
     it(`reads the ${l.year} layout (wages ${l.wagesId}, pensions ${l.pensionsId}, cap-gain ${l.capGainId}, deduction ${l.deductionId})`, () => {
-      const { fields, assumed } = extract1040Fields(buildForm(l));
+      const { fields, assumed } = extract(buildForm(l));
       expect(fields.wages).toBe(70000);
       expect(fields.interest).toBe(1000);
       expect(fields.qualifiedDividends).toBe(2000);
@@ -987,7 +956,7 @@ describe('extract1040Fields — multi-year layouts (label-anchored)', () => {
       deductionPage: 1,
     };
     // 2017 predates the id map, so every drifting field must resolve via its stable printed label.
-    const { fields, assumed, warnings } = extract1040Fields(buildForm(l));
+    const { fields, assumed, warnings } = extract(buildForm(l));
     expect(fields.wages).toBe(70000);
     expect(assumed?.wages).toBe(true); // label-anchored wages is the lower-confidence path
     expect(fields.interest).toBe(1000);
@@ -998,7 +967,7 @@ describe('extract1040Fields — multi-year layouts (label-anchored)', () => {
   });
 });
 
-describe('extract1040Fields — map-driven reads', () => {
+describe('ReturnExtractor.extract — map-driven reads', () => {
   it('reads 2019 taxable pensions from line 4d, never the 5b Social-Security line', () => {
     // The map's whole reason for existing on the pension line: on the 2019 form 5b is Social
     // Security, so reading pensions by the year's id (4d) sidesteps that trap by construction.
@@ -1025,7 +994,7 @@ describe('extract1040Fields — map-driven reads', () => {
         ['9,999', 520],
       ]),
     ];
-    const { fields } = extract1040Fields(items);
+    const { fields } = extract(items);
     expect(fields.retirementIncome).toBe(9000); // 5,000 IRA + 4,000 pensions (4d), never 9,999 (5b)
   });
 
@@ -1050,7 +1019,7 @@ describe('extract1040Fields — map-driven reads', () => {
         ['9,000', 520],
       ]),
     ];
-    const { fields, warnings } = extract1040Fields(items);
+    const { fields, warnings } = extract(items);
     expect(fields.longTermGains).toBe(8000); // line 7a value wins over the divergent label
     expect(warnings.some((w) => /line 7a/.test(w) && /verify/i.test(w))).toBe(true);
   });
@@ -1093,7 +1062,7 @@ describe('extract1040Fields — map-driven reads', () => {
         ['17,000', 520],
       ]),
     ];
-    const { fields } = extract1040Fields(items);
+    const { fields } = extract(items);
     expect(fields.shortTermGains).toBe(3000); // from the real Schedule D (p4), not the p3 supplement
     expect(fields.longTermGains).toBe(17000);
   });
@@ -1113,7 +1082,7 @@ describe('extract1040Fields — map-driven reads', () => {
         ['80,000', 520],
       ]),
     ];
-    const { fields, warnings } = extract1040Fields(items);
+    const { fields, warnings } = extract(items);
     expect(fields.wages).toBe(80000);
     // 2027 has no tax tables yet, so it isn't applied as the taxYear, but it's not "older" either.
     expect(warnings.some((w) => /older/i.test(w))).toBe(false);
