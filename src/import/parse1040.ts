@@ -1,6 +1,6 @@
 import type { ParsedReturn } from './parsedReturn';
-import { extract1040Fields } from './extract1040';
-import { haveEverythingNeeded } from './form1040';
+import { Form1040, haveEverythingNeeded } from './form1040';
+import { ReturnExtractor } from './extract1040';
 import { ilog } from './importLog';
 
 /**
@@ -20,5 +20,5 @@ export async function parse1040(file: File): Promise<ParsedReturn> {
   ilog('parsing', file.name);
   const { extractTextItems } = await import('./pdfText');
   const items = await extractTextItems(file, haveEverythingNeeded());
-  return extract1040Fields(items);
+  return ReturnExtractor.extract(Form1040.from(items));
 }

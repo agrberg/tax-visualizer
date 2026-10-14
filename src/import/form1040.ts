@@ -4,10 +4,10 @@
  * pages, wherever a line drifted to) and *Schedule D* (when attached) — and detects the header (filing
  * status, tax year). The rows are **private**: callers don't pass `Row[]` around, they ask the form for
  * a line's amount by id or by printed label. How a page is classified and where the face ends stay
- * private here too. `extract1040` uses this to read fields and owns the tax logic over them.
+ * private here too. `ReturnExtractor` (extract1040.ts) uses this to read fields and owns the tax logic over them.
  */
 import { groupRows, type Row, type TextItem } from './rows';
-import { Section } from './section';
+import { Section, type LabelRead, type LabelSegment } from './section';
 import { detectFilingStatus, detectTaxYear } from './detect';
 import type { FilingStatus } from '../tax/types';
 import { ilog } from './importLog';
@@ -72,19 +72,19 @@ function faceEndPage(byPage: Map<number, Row[]>, facePage: number): number {
 export class Form1040 {
   private readonly faceSection: Section;
   /** The Schedule D region, or null when the return has none (capital gains then read off the face). */
-  readonly scheduleD: Section | null;
+  private readonly scheduleDSection: Section | null;
   /** The filing status and tax year detected from the face header (heuristic; the caller confirms). */
   readonly filingStatus: FilingStatus | null;
   readonly taxYear: number | null;
 
   private constructor(
     faceSection: Section,
-    scheduleD: Section | null,
+    scheduleDSection: Section | null,
     filingStatus: FilingStatus | null,
     taxYear: number | null,
   ) {
     this.faceSection = faceSection;
-    this.scheduleD = scheduleD;
+    this.scheduleDSection = scheduleDSection;
     this.filingStatus = filingStatus;
     this.taxYear = taxYear;
   }
@@ -119,18 +119,16 @@ export class Form1040 {
   amountForId(id: string, boundaries?: string[]): number | null {
     return this.faceSection.amountForId(id, boundaries);
   }
-  amountAndIdForLabel(label: string): { value: number; lineId: string } | null {
-    return this.faceSection.amountAndIdForLabel(label);
+  amountAndIdForLabel(label: string, opts?: LabelSegment): LabelRead | null {
+    return this.faceSection.amountAndIdForLabel(label, opts);
   }
-  amountAndIdForLabelInSegment(
-    label: string,
-    boundaries?: string[],
-    ownId?: string,
-  ): { value: number; lineId: string } | null {
-    return this.faceSection.amountAndIdForLabelInSegment(label, boundaries, ownId);
+  amountForLabelNear(anchorLabel: string, label: string): number | null {
+    return this.faceSection.amountForLabelNear(anchorLabel, label);
   }
-  amountAndIdForLabelNear(anchorLabel: string, label: string): { value: number; lineId: string } | null {
-    return this.faceSection.amountAndIdForLabelNear(anchorLabel, label);
+
+  // ── Schedule D query (null when the return has no Schedule D) ──
+  scheduleDAmountForId(id: string, boundaries?: string[]): number | null {
+    return this.scheduleDSection?.amountForId(id, boundaries) ?? null;
   }
 }
 
