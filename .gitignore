@@ -12,6 +12,10 @@ dist
 dist-ssr
 *.local
 
+# Raw 1040 returns dropped in to build fixtures — real PII, never committed (see
+# src/import/fixtures/README.md). Only the anonymized rebuilds under src/import/fixtures/ are checked in.
+fixtures-src
+
 # Editor directories and files
 .claude
 .vscode/*

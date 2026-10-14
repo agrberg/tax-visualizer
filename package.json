@@ -11,6 +11,7 @@
     "format:check": "prettier --check .",
     "test": "vitest run",
     "test:watch": "vitest",
+    "build:fixtures": "vite-node scripts/build-1040-fixtures.ts",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -40,9 +41,11 @@
     "@vitejs/plugin-react": "^6.0.3",
     "jsdom": "^29.1.1",
     "oxlint": "^1.71.0",
+    "pdf-lib": "^1.17.1",
     "prettier": "^3.9.5",
     "typescript": "~6.0.2",
     "vite": "^8.1.1",
+    "vite-node": "^6.0.0",
     "vitest": "^4.1.9"
   }
 }
