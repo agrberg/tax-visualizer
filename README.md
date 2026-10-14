@@ -2,7 +2,7 @@
 
 A frontend-only app that shows how income flows through US federal tax brackets:
 
-- Pick the **tax year** (2025 or 2026) — brackets, deductions, thresholds, and
+- Pick the **tax year** (2019–2026) — brackets, deductions, thresholds, and
   rates all switch to that year's figures.
 - Take the **standard deduction** for your filing status, or switch to
   **itemized** and enter your own amount.
@@ -19,10 +19,11 @@ A frontend-only app that shows how income flows through US federal tax brackets:
   in the browser.
 - **Drag-and-drop import** of a filed Form 1040 PDF (2019–2025) to prefill income,
   filing status, tax year, and deduction — entirely client-side, with a review step
-  before anything is applied.
+  before anything is applied. 2026 import support follows once the IRS publishes
+  the 2026 Form 1040.
 
 Estimates for education, not tax advice. Federal only. Figures depend on the
-selected year — 2026 per IRS Rev. Proc. 2025-32; 2025 per IRS Rev. Proc. 2024-40
+selected year — for example, 2026 per IRS Rev. Proc. 2025-32 and 2025 per IRS Rev. Proc. 2024-40
 with the OBBBA standard deductions. NIIT / Additional Medicare thresholds are statutory.
 
 ## Stack
@@ -73,7 +74,7 @@ Change it to `/` if you deploy to a custom domain or a `user.github.io` root.
 
 ## Where things live
 
-- `src/tax/years/` — the per-year tax tables (`2025.ts`, `2026.ts`) plus the
+- `src/tax/years/` — the per-year tax tables (`2019.ts`…`2026.ts`) plus the
   registry `index.ts` (`taxTablesFor`, `AVAILABLE_YEARS`, `DEFAULT_TAX_YEAR`,
   `isSupportedTaxYear`). Adding a year is a new file registered here — see
   [`src/tax/years/README.md`](src/tax/years/README.md) for the step-by-step.
