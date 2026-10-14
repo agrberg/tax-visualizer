@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach, afterEach, vi, type MockInstance } from 'vitest';
 import { detectFilingStatus, detectTaxYear } from './detect';
 import { groupRows, type TextItem } from './rows';
 import { setImportLogging } from './importLog';
@@ -76,5 +76,80 @@ describe('detectTaxYear', () => {
         ),
       ),
     ).toBeNull();
+  });
+});
+
+describe('detectFilingStatus diagnostics', () => {
+  let logSpy: MockInstance<typeof console.log>;
+
+  beforeEach(() => {
+    setImportLogging(true);
+    logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    logSpy.mockRestore();
+    setImportLogging(false);
+  });
+
+  const logged = () => logSpy.mock.calls.map(([, message]) => message);
+
+  it('logs short non-plain tokens on a checkmark-less row as Unicode code points', () => {
+    const rows = groupRows(
+      rowItems(700, [
+        ['◉', 40],
+        ['Single', 70],
+      ]),
+    );
+    detectFilingStatus(rows);
+    expect(logged()).toContain(
+      'detectFilingStatus: row "◉ Single" — no known CHECK_TOKEN but suspicious items: [{"text":"◉","codePoints":["U+25c9"]}]',
+    );
+  });
+
+  it('logs the raw glyph, not its lowercased form, in the suspicious items', () => {
+    const rows = groupRows(
+      rowItems(700, [
+        ['Σ', 40],
+        ['Single', 70],
+      ]),
+    );
+    detectFilingStatus(rows);
+    expect(logged()).toContain(
+      'detectFilingStatus: row "Σ Single" — no known CHECK_TOKEN but suspicious items: [{"text":"Σ","codePoints":["U+03a3"]}]',
+    );
+  });
+
+  it('skips plain tokens when listing suspicious items', () => {
+    const rows = groupRows(
+      rowItems(700, [
+        ['ab', 40],
+        ['Single', 70],
+      ]),
+    );
+    detectFilingStatus(rows);
+    expect(logged().some((message) => String(message).includes('suspicious items'))).toBe(false);
+  });
+
+  it('skips non-plain tokens longer than two characters when listing suspicious items', () => {
+    const rows = groupRows(
+      rowItems(700, [
+        ['◉◉◉', 40],
+        ['Single', 70],
+      ]),
+    );
+    detectFilingStatus(rows);
+    expect(logged().some((message) => String(message).includes('suspicious items'))).toBe(false);
+  });
+
+  it('logs the matched check token as extracted, with zero-padded code points and the row it sits on', () => {
+    const rows = groupRows(
+      rowItems(700, [
+        ['X', 40],
+        ['Single', 70],
+      ]),
+    );
+    detectFilingStatus(rows);
+    expect(logged()).toContain('detectFilingStatus: check token "X" (U+0058) in row "X Single"');
   });
 });
