@@ -222,41 +222,50 @@ export class ReturnExtractor {
     return byLabel;
   }
 
+  /**
+   * Capital gains: prefer Schedule D for a real short/long-term split; fall back to the single 1040
+   * capital-gain line (assumed long-term) when it isn't attached. Losses keep their real sign; the
+   * engine nets short- against long-term and applies up to $3,000 of a net loss against other income
+   * (see nettedCapitalGains), so a loss is meaningful, not zeroed.
+   */
   private readCapitalGains(): void {
-    // Capital gains: prefer Schedule D for a real short/long-term split; fall back to the single 1040
-    // capital-gain line (assumed long-term) when it isn't attached. Losses keep their real sign; the
-    // engine nets short- against long-term and applies up to $3,000 of a net loss against other income
-    // (see nettedCapitalGains), so a loss is meaningful, not zeroed.
-    const setCapitalGain = (
-      field: 'shortTermGains' | 'longTermGains',
-      value: number,
-      source: string,
-      label: string,
-    ) => {
-      if (value < 0) {
-        this.draft.warnings.push(
-          netCapitalLossWarning(
-            `Schedule D shows a net ${label} capital loss of $${Math.abs(value).toLocaleString()}.`,
-          ),
-        );
-      }
-      this.setField(field, value, source);
-    };
+    if (!this.readScheduleDGains()) this.read1040CapitalGain();
+  }
 
+  /** Read Schedule D's net short-term (line 7) and long-term (line 15). Returns false when neither is present. */
+  private readScheduleDGains(): boolean {
     const shortTerm = this.form.scheduleDAmountForId('7', ['7', '15']);
     const longTerm = this.form.scheduleDAmountForId('15', ['7', '15']);
-    if (shortTerm !== null || longTerm !== null) {
-      ilog(`Schedule D: line 7 short-term ${shortTerm}, line 15 long-term ${longTerm}`);
-      if (shortTerm !== null)
-        setCapitalGain('shortTermGains', shortTerm, 'Schedule D line 7 (net short-term)', 'short-term');
-      if (longTerm !== null)
-        setCapitalGain('longTermGains', longTerm, 'Schedule D line 15 (net long-term)', 'long-term');
-      return;
-    }
+    if (shortTerm === null && longTerm === null) return false;
 
-    // No Schedule D — read the single 1040 capital-gain line by the year's id (fallback: the "Capital
-    // gain or (loss)" label). It can't be split short/long, so it's always an assumed long-term value
-    // pending review.
+    ilog(`Schedule D: line 7 short-term ${shortTerm}, line 15 long-term ${longTerm}`);
+    if (shortTerm !== null)
+      this.setScheduleDGain('shortTermGains', shortTerm, 'Schedule D line 7 (net short-term)', 'short-term');
+    if (longTerm !== null)
+      this.setScheduleDGain('longTermGains', longTerm, 'Schedule D line 15 (net long-term)', 'long-term');
+    return true;
+  }
+
+  private setScheduleDGain(
+    field: 'shortTermGains' | 'longTermGains',
+    value: number,
+    source: string,
+    label: string,
+  ): void {
+    if (value < 0) {
+      this.draft.warnings.push(
+        netCapitalLossWarning(`Schedule D shows a net ${label} capital loss of $${Math.abs(value).toLocaleString()}.`),
+      );
+    }
+    this.setField(field, value, source);
+  }
+
+  /**
+   * No Schedule D — read the single 1040 capital-gain line by the year's id (fallback: the "Capital
+   * gain or (loss)" label). It can't be split short/long, so it's always an assumed long-term value
+   * pending review.
+   */
+  private read1040CapitalGain(): void {
     const id = lineIdFor('capitalGain', this.form.taxYear);
     const read = this.readIdOrLabel(id, 'capital gain or (loss)', 'capital gain');
     if (read === null) return;

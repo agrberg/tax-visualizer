@@ -271,6 +271,35 @@ describe('ReturnExtractor.extract', () => {
     expect(provenance.longTermGains).toBe('Schedule D line 15 (net long-term)');
   });
 
+  it('keeps a Schedule D with only line 15 and skips the 1040 capital-gain fallback', () => {
+    const items = [
+      ...line(1, 738, [
+        ['Form', 40],
+        ['1040', 70],
+        ['U.S. Individual Income Tax Return', 120],
+      ]),
+      ...line(1, 300, [
+        ['7a', 40],
+        ['Capital gain or (loss)', 70],
+        ['20,000', 520],
+      ]),
+      ...line(3, 750, [
+        ['SCHEDULE D', 40],
+        ['(Form 1040)', 130],
+        ['Capital Gains and Losses', 220],
+      ]),
+      ...line(3, 200, [
+        ['15', 40],
+        ['Net long-term capital gain or (loss)', 70],
+        ['17,000', 520],
+      ]),
+    ];
+    const { fields, assumed } = extract(items);
+    expect(fields.shortTermGains).toBeUndefined();
+    expect(fields.longTermGains).toBe(17000); // not the 20,000 from 1040 line 7a
+    expect(assumed?.longTermGains).toBeUndefined();
+  });
+
   it('reports a Schedule D capital loss with its real sign and warns', () => {
     const items = [
       ...line(1, 738, [
@@ -873,6 +902,59 @@ describe('ReturnExtractor.extract — line 12 deduction', () => {
     ];
     const { fields } = extract(items);
     expect(fields.deduction).toBe(13850); // 12a's amount, not 12c's 14,150 total
+  });
+
+  it('warns when the line 12e id disagrees with its label cross-check, and keeps the id value', () => {
+    // 2025 puts the deduction on 12e. The id row carries no label; a separate labeled row lower down
+    // carries a different amount.
+    const items = [
+      ...sample1040(),
+      ...line(1, 300, [
+        ['12e', 40],
+        ['12e', 300],
+        ['20,000', 340],
+      ]),
+      ...line(1, 280, [
+        ['Standard deduction or itemized deductions', 70],
+        ['21,000', 520],
+      ]),
+    ];
+    const { fields, warnings } = extract(items);
+    expect(fields.deduction).toBe(20000);
+    expect(warnings.some((w) => /deduction on line 12e/.test(w) && /verify/i.test(w))).toBe(true);
+  });
+
+  it('does not read 12c as the deduction when 12a is blank on a merged 12a/12b/12c row', () => {
+    // 12a has an id but no amount, so the id read is empty and the label fallback runs. That fallback
+    // must stay bounded at 12a's segment; an unbounded row read would take 12c's 14,150 total.
+    const items = [
+      ...line(1, 760, [
+        ['Form', 40],
+        ['1040', 70],
+        ['U.S. Individual Income Tax Return', 120],
+        ['2021', 400],
+      ]),
+      ...line(1, 600, [
+        ['1', 40],
+        ['Wages, salaries, tips, etc.', 70],
+        ['70,000', 520],
+      ]),
+      ...line(1, 300, [
+        ['12a', 40],
+        ['Standard deduction or itemized deductions', 70],
+        ['12a', 400],
+        ['b', 480],
+        ['Charitable contributions if you take the standard deduction', 500],
+        ['12b', 680],
+        ['300', 720],
+        ['c', 760],
+        ['Add lines 12a and 12b', 780],
+        ['12c', 960],
+        ['14,150', 1000],
+      ]),
+    ];
+    const { fields } = extract(items);
+    expect(fields.deduction).toBeUndefined();
   });
 
   it('leaves the deduction undetected on a blank line whose id is preceded by a merged heading', () => {
