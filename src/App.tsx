@@ -40,9 +40,8 @@ const DEFAULT_INPUT: TaxInput = {
 
 function App() {
   // A shared link (#v=1&filing=…) wins over any locally-saved input on first load.
-  const [input, setInput] = useState<TaxInput>(
-    () => parseShareHash(window.location.hash) ?? loadInput() ?? DEFAULT_INPUT,
-  );
+  const [sharedInput] = useState(() => parseShareHash(window.location.hash));
+  const [input, setInput] = useState<TaxInput>(() => sharedInput ?? loadInput() ?? DEFAULT_INPUT);
   // The loaded scenario's name — set by ScenarioManager on load/save, cleared here on import.
   const [selectedName, setSelectedName] = useState<string | null>(null);
 
@@ -55,8 +54,10 @@ function App() {
   }, []);
 
   useEffect(() => {
+    // Viewing a share link must not replace the visitor's own saved input; the first edit persists.
+    if (input === sharedInput) return;
     saveInput(input);
-  }, [input]);
+  }, [input, sharedInput]);
 
   const result = useMemo(() => calculateTax(input), [input]);
   const axisMax = useMemo(() => axisMaxFor(result), [result]);
