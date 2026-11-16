@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { encodeInput, decodeInput, shareHash, parseShareHash } from './shareLink';
 import { makeInput } from './tax/testUtils';
+import { MAX_INPUT_AMOUNT } from './tax/input';
 
 const sample = makeInput({
   filingStatus: 'mfj',
@@ -30,6 +31,11 @@ describe('encodeInput / decodeInput', () => {
     const encoded = encodeInput(sample); // shortTermGains + longTermGains are 0
     expect(encoded).not.toContain('stcg=');
     expect(encoded).not.toContain('ltcg=');
+  });
+
+  it('normalizes fractional and out-of-range amounts from a hand-edited link', () => {
+    expect(decodeInput('v=1&filing=single&y=2025&wages=1.5')!.wages).toBe(2);
+    expect(decodeInput('v=1&filing=single&y=2025&wages=1e308')!.wages).toBe(MAX_INPUT_AMOUNT);
   });
 
   it('clamps a negative on the non-capital-gains fields to 0', () => {

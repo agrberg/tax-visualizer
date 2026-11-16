@@ -1,6 +1,6 @@
 import { allowsNegativeAmount, coerceDeduction, type TaxInput } from './tax/types';
 import { isFilingStatus } from './tax/filingStatus';
-import { DEFAULT_TAX_YEAR, isSupportedTaxYear } from './tax/years';
+import { normalizeInput } from './tax/input';
 
 const SHARE_VERSION = '1';
 
@@ -44,28 +44,26 @@ export function encodeInput(input: TaxInput): string {
  * Decode inputs from the share params. Requires the version marker to match the
  * current SHARE_VERSION (a missing or different version → null, so a link written by
  * a future format isn't silently mis-parsed under the old rules); unknown filing
- * status → null. For the capital-gains fields a finite negative is kept (a shared loss);
- * every other field takes negative / missing / non-numeric → 0 — so a hand-edited or
- * stale link can never inject a bad TaxInput. A missing or unsupported year falls back
- * to the default (older links have no `y`). Null if unusable.
+ * status → null. Everything else goes through `normalizeInput`, so a hand-edited or
+ * stale link can never inject a bad TaxInput: capital-gains fields keep a finite negative
+ * (a shared loss), every other field takes negative / missing / non-numeric → 0, amounts
+ * round to whole dollars and clamp to `MAX_INPUT_AMOUNT`, and a missing or unsupported
+ * year falls back to the default (older links have no `y`). Null if unusable.
  */
 export function decodeInput(encoded: string): TaxInput | null {
   const params = new URLSearchParams(encoded);
   if (params.get('v') !== SHARE_VERSION) return null;
   const filingStatus = params.get('filing');
   if (!isFilingStatus(filingStatus)) return null;
-  const year = Number(params.get('y'));
-  const input = { filingStatus, taxYear: isSupportedTaxYear(year) ? year : DEFAULT_TAX_YEAR } as TaxInput;
+  const input = { filingStatus, taxYear: Number(params.get('y')) } as TaxInput;
   for (const field of Object.keys(FIELD_ALIAS) as NumericField[]) {
-    const n = Number(params.get(FIELD_ALIAS[field]));
-    const valid = allowsNegativeAmount(field) ? Number.isFinite(n) : Number.isFinite(n) && n > 0;
-    input[field] = valid ? n : 0;
+    input[field] = Number(params.get(FIELD_ALIAS[field]));
   }
   const dedParam = params.get('ded');
   // A present-but-blank `ded=` (or whitespace) falls back to standard, not a custom $0: Number('')
   // is 0, which would otherwise slip past coerceDeduction. A real `ded=0` stays a custom zero.
-  input.deduction = dedParam === null || dedParam.trim() === '' ? null : coerceDeduction(Number(dedParam));
-  return input;
+  input.deduction = dedParam === null || dedParam.trim() === '' ? null : Number(dedParam);
+  return normalizeInput(input);
 }
 
 /** The URL hash fragment that carries a shared input, e.g. `#v=1&filing=mfj&…`. */
