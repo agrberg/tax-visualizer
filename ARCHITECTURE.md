@@ -137,9 +137,10 @@ flowchart LR
    - `ordinaryLayers` / `preferentialLayers` (`attribution.ts`) — slice each
      source into taxable layers positioned in the stack, for the towers.
    - surcharge rules (`surcharges.ts`) — each `SurchargeRule` (NIIT, Additional
-     Medicare) owns its `assess()`, its `marginalRate()`, and an `attribution`
-     descriptor, so next-dollar behavior and per-source attribution can't drift
-     from assessment.
+     Medicare) owns its `assess()` and an `attribution` descriptor, so
+     per-source attribution can't drift from assessment. Next-dollar surtaxes
+     come from recalculating the return (`marginal.ts`), so they can't drift
+     either.
 
 4. **`buildBreakdown`** (`attribution.ts`) — combines per-layer income tax with
    the surcharges, attaching each surcharge's dollars per its declared
@@ -325,9 +326,9 @@ income into ordinary when there's no ladder already exists for that path.
 | `tax/jurisdiction.ts`         | `computeJurisdiction` — run income through one jurisdiction                                                                                                                                                                                                                                                                 |
 | `tax/engine.ts`               | Band math: `fillBands`, `taxOverRange`, `marginalRateAt`                                                                                                                                                                                                                                                                    |
 | `tax/deduction.ts`            | Split a deduction across the two pools                                                                                                                                                                                                                                                                                      |
-| `tax/surcharges.ts`           | NIIT + Additional Medicare rules (assess + marginal)                                                                                                                                                                                                                                                                        |
+| `tax/surcharges.ts`           | NIIT + Additional Medicare rules (assess)                                                                                                                                                                                                                                                                                   |
 | `tax/attribution.ts`          | Per-source layers and the combined breakdown                                                                                                                                                                                                                                                                                |
-| `tax/marginal.ts`             | `marginalNextDollar` — cost of the next dollar by income type                                                                                                                                                                                                                                                               |
+| `tax/marginal.ts`             | `marginalNextDollar` — cost of the next dollar by income type, by one-dollar recalculation                                                                                                                                                                                                                                  |
 | `tax/calculate.ts`            | `calculateTax` orchestrator (the engine's entry point)                                                                                                                                                                                                                                                                      |
 | `tax/format.ts`               | Currency / percent formatting + composition segments                                                                                                                                                                                                                                                                        |
 | `App.tsx`                     | Input + scenario state, persistence, memoized compute, layout                                                                                                                                                                                                                                                               |

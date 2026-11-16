@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { calculateTax, marginalNextDollar } from './calculate';
+import { calculateTax } from './calculate';
+import { marginalNextDollar } from './marginal';
 import { taxTablesFor, AVAILABLE_YEARS } from './years';
 import type { TaxInput, IncomeSource, MarginalScenario } from './types';
 

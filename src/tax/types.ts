@@ -165,7 +165,7 @@ export interface MarginalComponent {
 
 /** The next-dollar marginal cost for one income type: base rate + add-on components. */
 export interface MarginalScenario {
-  key: 'wages' | 'ordinaryInvestment' | 'retirement' | 'preferential';
+  key: 'wages' | 'ordinaryInvestment' | 'retirement' | 'preferential' | 'shortTermGain' | 'longTermGain';
   baseRate: number;
   surtaxes: MarginalComponent[];
   surRate: number;
@@ -229,6 +229,8 @@ export interface JurisdictionResult {
 }
 
 export interface TaxResult {
+  /** The input this result was computed from, so a next-dollar probe can recalculate from it. */
+  input: TaxInput;
   filingStatus: FilingStatus;
   taxYear: number;
   /** Whether the deduction was a user-supplied custom amount (vs. the standard deduction). */
