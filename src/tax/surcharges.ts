@@ -1,4 +1,4 @@
-import type { FilingStatus, MarginalScenario, SurchargeResult, TaxYearTables } from './types';
+import type { FilingStatus, SurchargeResult, TaxYearTables } from './types';
 
 /** The income facts a surcharge is assessed against. */
 export interface SurchargeContext {
@@ -15,10 +15,8 @@ export interface SurchargeContext {
 export type SurchargeAttribution = { kind: 'wages' } | { kind: 'investment' };
 
 /**
- * A surcharge rule owns *both* how it is assessed and how it hits the next dollar,
- * so the two never drift apart. `marginalRate` returns the rate this surcharge adds
- * to one more dollar of the given income type, given its own assessed result.
- * `attribution` declares how its dollars land on sources in the breakdown.
+ * A surcharge rule owns how it is assessed. `attribution` declares how its dollars
+ * land on sources in the breakdown.
  */
 export interface SurchargeRule {
   key: string;
@@ -27,7 +25,6 @@ export interface SurchargeRule {
   rate: number;
   attribution: SurchargeAttribution;
   assess(ctx: SurchargeContext): SurchargeResult;
-  marginalRate(type: MarginalScenario['key'], assessed: SurchargeResult): number;
 }
 
 /** NIIT: 3.8% on the lesser of net investment income and MAGI over the threshold. */
@@ -57,16 +54,6 @@ export function niitRule(filingStatus: FilingStatus, niit: TaxYearTables['niit']
         amount,
         investmentIncome: ctx.netInvestmentIncome,
       };
-    },
-    // An investment/preferential dollar always incurs NIIT once MAGI is over the
-    // threshold. A wage or retirement dollar does only when the MAGI-over-threshold
-    // cap is below net investment income (raising MAGI then pulls more NII under the
-    // cap) — neither is itself investment income.
-    marginalRate(type, a) {
-      if (a.incomeOverThreshold <= 0) return 0;
-      if (type === 'wages' || type === 'retirement')
-        return a.incomeOverThreshold < (a.investmentIncome ?? 0) ? rate : 0;
-      return rate;
     },
   };
 }
@@ -99,9 +86,6 @@ export function medicareRule(
         taxedAmount: incomeOverThreshold,
         amount,
       };
-    },
-    marginalRate(type, a) {
-      return type === 'wages' && a.incomeOverThreshold > 0 ? rate : 0;
     },
   };
 }
@@ -137,10 +121,6 @@ export function socialSecurityRule(socialSecurity: TaxYearTables['socialSecurity
         amount,
       };
     },
-    // A wage dollar incurs SS only while wages are still under the cap.
-    marginalRate(type, a) {
-      return type === 'wages' && a.incomeMeasured < cap ? rate : 0;
-    },
   };
 }
 
@@ -167,9 +147,6 @@ export function medicareBaseRule(medicare: TaxYearTables['medicare']): Surcharge
         taxedAmount: ctx.wages,
         amount,
       };
-    },
-    marginalRate(type) {
-      return type === 'wages' ? rate : 0;
     },
   };
 }

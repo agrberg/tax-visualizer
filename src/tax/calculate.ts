@@ -28,6 +28,7 @@ export function calculateTax(inputRaw: TaxInput): TaxResult {
   const netLongTerm = Number.isFinite(inputRaw.longTermGains) ? inputRaw.longTermGains : 0;
 
   return {
+    input: inputRaw,
     filingStatus: inputRaw.filingStatus,
     taxYear: tables.year,
     deductionIsCustom: inputRaw.deduction !== null,
@@ -48,5 +49,3 @@ export function calculateTax(inputRaw: TaxInput): TaxResult {
     effectiveRate: income.totalIncome > 0 ? fed.tax / income.totalIncome : 0,
   };
 }
-
-export { marginalNextDollar } from './marginal';
