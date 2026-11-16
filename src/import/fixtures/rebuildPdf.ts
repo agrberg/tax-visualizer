@@ -72,7 +72,7 @@ export async function rebuildPdf(items: TextItem[], pageSizes: PageSize[]): Prom
     row.items.forEach((item, i) => {
       const page = pages[item.page - 1];
       if (!page) return;
-      const text = toWinAnsiSafe(item.text);
+      const text = toWinAnsiSafe(item.originalText.trim());
       if (text === '') return;
       const size = fittingFontSize(font, text, item.x, row.items[i + 1]?.x);
       page.drawText(text, { x: item.x, y: item.y, size, font });

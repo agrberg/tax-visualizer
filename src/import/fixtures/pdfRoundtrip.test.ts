@@ -8,9 +8,9 @@ import { readPdfInNode } from './readPdfInNode';
 // approximately (x, y). Widths are irrelevant to extraction (grouping uses only x/y), so we don't
 // assert on them.
 const LETTER = { width: 612, height: 792 };
-// `text` is the normalized token rebuildPdf draws and readPdfInNode reads back (lower-cased at
-// ingestion, see mapPageItems); originalText mirrors it since these synthetic tokens have no distinct
-// raw form.
+// rebuildPdf draws `originalText`; readPdfInNode reads it back with `text` trimmed and lower-cased at
+// ingestion (see mapPageItems). These synthetic tokens are already lower-case, so `originalText` mirrors
+// `text`.
 const item = (text: string, x: number, y: number, width: number, page: number): TextItem => ({
   text,
   originalText: text,
@@ -54,5 +54,12 @@ describe('rebuildPdf + readPdfInNode round-trip', () => {
     const { items: read } = await readPdfInNode(await rebuildPdf(twoPage, [LETTER, LETTER]));
     expect(read.find((i) => i.text === 'page-one')?.page).toBe(1);
     expect(read.find((i) => i.text === 'page-two')?.page).toBe(2);
+  });
+
+  it('draws the printed casing (originalText), which reads back lower-cased in text', async () => {
+    const mixed: TextItem[] = [{ text: 'form 1040', originalText: 'Form 1040', x: 50, y: 700, width: 40, page: 1 }];
+    const { items: read } = await readPdfInNode(await rebuildPdf(mixed, [LETTER]));
+    expect(read[0].originalText).toBe('Form 1040');
+    expect(read[0].text).toBe('form 1040');
   });
 });

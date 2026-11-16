@@ -42,9 +42,15 @@ function compactPages(items: TextItem[], pageSizes: PageSize[]): { items: TextIt
 /** Compare a built fixture's extracted fields against the profile's expectation; return mismatches. */
 function verify(profile: FixtureProfile, fields: Record<string, unknown>): string[] {
   const problems: string[] = [];
-  for (const [key, want] of Object.entries(profile.expected)) {
+  const expected: Record<string, unknown> = profile.expected;
+  for (const key of new Set([...Object.keys(expected), ...Object.keys(fields)])) {
+    if (!(key in expected)) {
+      problems.push(`  ${key}: unexpected field`);
+      continue;
+    }
     const got = fields[key];
-    if (got !== want) problems.push(`  ${key}: expected ${JSON.stringify(want)}, got ${JSON.stringify(got)}`);
+    if (got !== expected[key])
+      problems.push(`  ${key}: expected ${JSON.stringify(expected[key])}, got ${JSON.stringify(got)}`);
   }
   return problems;
 }

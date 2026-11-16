@@ -189,7 +189,7 @@ function syntheticFilingStatusRow(rows: Row[], facePage: number, filingStatus: F
   const labelItem: TextItem = {
     text: label,
     originalText: printedLabel,
-    x: x + 10,
+    x: x + 20,
     y,
     width: label.length * 5,
     page: facePage,
