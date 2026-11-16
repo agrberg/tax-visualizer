@@ -16,6 +16,7 @@ npm run format         # Prettier, write formatting fixes
 npm run format:check   # Prettier, check only (used in CI)
 npm test               # Vitest, run once
 npm run test:watch     # Vitest, watch mode
+npm run test:coverage  # Vitest with a V8 coverage report (no thresholds)
 ```
 
 Run a single test file: `npx vitest run src/tax/engine.test.ts`
