@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { normalizeInput, clearStoredData, loadScenarios, saveScenarios } from './storage';
+import { normalizeInput, clearStoredData, clearStoredInput, loadScenarios, saveScenarios } from './storage';
 import { saveScenario } from './scenarios';
 import type { TaxInput } from './tax/types';
 import { makeInput } from './tax/testUtils';
@@ -112,6 +112,33 @@ describe('clearStoredData', () => {
     });
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
     expect(() => clearStoredData()).not.toThrow();
+    expect(spy).toHaveBeenCalled();
+    spy.mockRestore();
+    vi.unstubAllGlobals();
+  });
+});
+
+describe('clearStoredInput', () => {
+  it('removes only the saved input, leaving scenarios and unrelated data in place', () => {
+    const store = stubLocalStorage();
+    store.set('tax-visualizer:input:v1', '{}');
+    store.set('tax-visualizer:saved:v1', '{}');
+    store.set('other-app:data', 'keep');
+    clearStoredInput();
+    expect(store.has('tax-visualizer:input:v1')).toBe(false);
+    expect(store.get('tax-visualizer:saved:v1')).toBe('{}');
+    expect(store.get('other-app:data')).toBe('keep');
+    vi.unstubAllGlobals();
+  });
+
+  it('swallows and logs a removeItem failure instead of throwing (recovery path)', () => {
+    vi.stubGlobal('localStorage', {
+      removeItem: () => {
+        throw new Error('storage access denied');
+      },
+    });
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    expect(() => clearStoredInput()).not.toThrow();
     expect(spy).toHaveBeenCalled();
     spy.mockRestore();
     vi.unstubAllGlobals();

@@ -78,6 +78,15 @@ export function saveScenarios(scenarios: Scenarios): void {
   }
 }
 
+/** Remove only the saved input, keeping named scenarios — the first recovery step for corrupted input. */
+export function clearStoredInput(): void {
+  try {
+    localStorage.removeItem(KEY);
+  } catch (err) {
+    console.error('Failed to clear saved tax-visualizer input:', err);
+  }
+}
+
 /** Remove only this app's persisted keys — used to recover from corrupted saved input. */
 export function clearStoredData(): void {
   try {
