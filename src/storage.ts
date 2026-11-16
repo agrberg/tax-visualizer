@@ -62,11 +62,9 @@ export function loadScenarios(): Scenarios {
     if (!raw) return {};
     const parsed = JSON.parse(raw);
     if (!parsed || typeof parsed !== 'object') return {};
-    const normalized: Scenarios = {};
-    for (const [name, value] of Object.entries(parsed as Scenarios)) {
-      normalized[name] = normalizeInput(value);
-    }
-    return normalized;
+    return Object.fromEntries(
+      Object.entries(parsed as Scenarios).map(([name, value]) => [name, normalizeInput(value)]),
+    );
   } catch {
     return {};
   }
@@ -77,6 +75,15 @@ export function saveScenarios(scenarios: Scenarios): void {
     localStorage.setItem(SCENARIOS_KEY, JSON.stringify(scenarios));
   } catch {
     // ignore quota / privacy-mode errors
+  }
+}
+
+/** Remove only the saved input, keeping named scenarios — the first recovery step for corrupted input. */
+export function clearStoredInput(): void {
+  try {
+    localStorage.removeItem(KEY);
+  } catch (err) {
+    console.error('Failed to clear saved tax-visualizer input:', err);
   }
 }
 

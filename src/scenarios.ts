@@ -18,12 +18,14 @@ export function removeScenario(scenarios: Scenarios, name: string): Scenarios {
 }
 
 export function renameScenario(scenarios: Scenarios, oldName: string, newName: string): Scenarios {
-  const value = scenarios[oldName];
-  if (!value) return { ...scenarios };
-  const next = { ...scenarios };
-  delete next[oldName];
-  next[newName] = { ...value };
-  return next;
+  if (!hasScenario(scenarios, oldName)) return { ...scenarios };
+  const { [oldName]: value, ...rest } = scenarios;
+  return { ...rest, [newName]: { ...value } };
+}
+
+// Own-property check: a name like "constructor" must not match an inherited Object.prototype member.
+export function hasScenario(scenarios: Scenarios, name: string): boolean {
+  return Object.hasOwn(scenarios, name);
 }
 
 export function scenarioNames(scenarios: Scenarios): string[] {
