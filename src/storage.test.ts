@@ -1,6 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
-import { normalizeInput, clearStoredData } from './storage';
+import { normalizeInput, clearStoredData, loadScenarios, saveScenarios } from './storage';
+import { saveScenario } from './scenarios';
 import type { TaxInput } from './tax/types';
+import { makeInput } from './tax/testUtils';
 
 // Minimal in-memory localStorage for the node test env (no DOM by default).
 function stubLocalStorage() {
@@ -112,6 +114,15 @@ describe('clearStoredData', () => {
     expect(() => clearStoredData()).not.toThrow();
     expect(spy).toHaveBeenCalled();
     spy.mockRestore();
+    vi.unstubAllGlobals();
+  });
+});
+
+describe('scenario names that collide with Object.prototype', () => {
+  it.each(['__proto__', 'constructor', 'toString'])('round-trips a scenario named %s through storage', (name) => {
+    stubLocalStorage();
+    saveScenarios(saveScenario({}, name, makeInput()));
+    expect(Object.keys(loadScenarios())).toEqual([name]);
     vi.unstubAllGlobals();
   });
 });

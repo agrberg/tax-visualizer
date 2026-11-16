@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  hasScenario,
   normalizeName,
   saveScenario,
   removeScenario,
@@ -102,4 +103,26 @@ describe('scenarioNames', () => {
   it('returns an empty array for an empty collection', () => {
     expect(scenarioNames({})).toEqual([]);
   });
+});
+
+describe.each(['__proto__', 'constructor', 'toString'])('a scenario named %s', (name) => {
+  it('does not exist in an empty store', () => {
+    expect(hasScenario({}, name)).toBe(false);
+  });
+
+  it('is listed after save and gone after remove', () => {
+    const saved = saveScenario({}, name, input());
+    expect(hasScenario(saved, name)).toBe(true);
+    expect(scenarioNames(saved)).toEqual([name]);
+    expect(scenarioNames(removeScenario(saved, name))).toEqual([]);
+  });
+
+  it('survives being a rename target', () => {
+    const renamed = renameScenario(saveScenario({}, 'plain', input()), 'plain', name);
+    expect(scenarioNames(renamed)).toEqual([name]);
+  });
+});
+
+it('renaming a missing scenario with an inherited name changes nothing', () => {
+  expect(scenarioNames(renameScenario({}, 'toString', 'x'))).toEqual([]);
 });

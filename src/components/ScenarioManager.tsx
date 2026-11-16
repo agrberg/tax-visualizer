@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { loadScenarios, saveScenarios } from '@/storage';
-import { normalizeName, saveScenario, removeScenario, renameScenario, type Scenarios } from '@/scenarios';
+import { hasScenario, normalizeName, saveScenario, removeScenario, renameScenario, type Scenarios } from '@/scenarios';
 import type { TaxInput } from '@/tax/types';
 
 /** A pending scenario action awaiting in-app confirmation (replaces window.confirm/prompt). */
@@ -59,7 +59,7 @@ export function ScenarioManager({ input, selectedName, onSelectedNameChange, onL
   const handleSave = (rawName: string) => {
     const name = normalizeName(rawName);
     if (!name) return;
-    if (scenarios[name]) {
+    if (hasScenario(scenarios, name)) {
       setDialog({ kind: 'overwrite', name });
       return;
     }
@@ -68,14 +68,13 @@ export function ScenarioManager({ input, selectedName, onSelectedNameChange, onL
   };
 
   const handleLoad = (name: string) => {
-    const scenario = scenarios[name];
-    if (!scenario) return;
-    onLoad({ ...scenario });
+    if (!hasScenario(scenarios, name)) return;
+    onLoad({ ...scenarios[name] });
     onSelectedNameChange(name);
   };
 
   const handleUpdate = (name: string) => {
-    if (!scenarios[name]) return;
+    if (!hasScenario(scenarios, name)) return;
     setDialog({ kind: 'update', name });
   };
 
@@ -85,7 +84,7 @@ export function ScenarioManager({ input, selectedName, onSelectedNameChange, onL
   };
 
   const handleDelete = (name: string) => {
-    if (!scenarios[name]) return;
+    if (!hasScenario(scenarios, name)) return;
     setDialog({ kind: 'delete', name });
   };
 
@@ -94,8 +93,7 @@ export function ScenarioManager({ input, selectedName, onSelectedNameChange, onL
   // state and the Enter key so they can't diverge.
   const renameNormalized = normalizeName(renameValue);
   const renameValid = dialog?.kind === 'rename' && renameNormalized !== null && renameNormalized !== dialog.oldName;
-  // Re-assert `!== null` so the compiler narrows the index access instead of a `?? ''` fallback.
-  const renameCollision = renameValid && renameNormalized !== null && scenarios[renameNormalized] !== undefined;
+  const renameCollision = renameValid && hasScenario(scenarios, renameNormalized);
 
   const closeDialog = () => setDialog(null);
 
