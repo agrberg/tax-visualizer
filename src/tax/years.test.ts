@@ -1,9 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { taxTablesFor, isSupportedTaxYear, DEFAULT_TAX_YEAR } from './years';
+import { taxTablesFor, isSupportedTaxYear, DEFAULT_TAX_YEAR, AVAILABLE_YEARS } from './years';
+import { FILING_STATUSES } from './filingStatus';
 
-// This spec covers only the year registry — lookup and the supported-year guard. Cross-year
-// calculation (that each year's tables produce the right tax) lives in calculate.test.ts, next to
-// the engine that owns the arithmetic.
+// This spec covers the year registry (lookup and the supported-year guard) and the structural
+// invariants every year's tables must satisfy. Cross-year calculation (that each year's tables
+// produce the right tax) lives in calculate.test.ts, next to the engine that owns the arithmetic.
 
 describe('taxTablesFor', () => {
   it('returns the requested year', () => {
@@ -23,5 +24,56 @@ describe('isSupportedTaxYear', () => {
     expect(isSupportedTaxYear(1999)).toBe(false);
     expect(isSupportedTaxYear('2026')).toBe(false);
     expect(isSupportedTaxYear(undefined)).toBe(false);
+  });
+});
+
+describe.each(AVAILABLE_YEARS)('tax tables for %i', (year) => {
+  const tables = taxTablesFor(year);
+
+  it('is registered under its own year', () => {
+    expect(tables.year).toBe(year);
+  });
+
+  it('keeps the statutory relationships between filing statuses', () => {
+    const { standardDeduction } = tables;
+    expect(standardDeduction.mfj).toBe(standardDeduction.single * 2);
+    expect(standardDeduction.mfs).toBe(standardDeduction.single);
+    expect(standardDeduction.hoh).toBeGreaterThan(standardDeduction.single);
+    expect(standardDeduction.hoh).toBeLessThan(standardDeduction.mfj);
+
+    // Both surcharge thresholds are fixed by statute, unindexed: HoH matches single, MFS is half of MFJ.
+    for (const { threshold } of [tables.niit, tables.additionalMedicare]) {
+      expect(threshold.hoh).toBe(threshold.single);
+      expect(threshold.mfj).toBeGreaterThan(threshold.single);
+      expect(threshold.mfs).toBe(threshold.mfj / 2);
+    }
+  });
+
+  describe.each(FILING_STATUSES)('%s', (status) => {
+    const brackets = tables.ordinaryBrackets[status];
+
+    it('has contiguous, increasing ordinary brackets from 0 to Infinity', () => {
+      expect(brackets[0].min).toBe(0);
+      brackets.forEach((bracket, i) => {
+        expect(bracket.min).toBeLessThan(bracket.max);
+        if (i > 0) {
+          expect(bracket.min).toBe(brackets[i - 1].max);
+          expect(bracket.rate).toBeGreaterThan(brackets[i - 1].rate);
+        }
+      });
+      expect(brackets[brackets.length - 1].max).toBe(Infinity);
+    });
+
+    it('has ordered capital-gains breakpoints', () => {
+      const { rate0Max, rate15Max } = tables.capitalGains.breakpoints[status];
+      expect(rate0Max).toBeGreaterThan(0);
+      expect(rate15Max).toBeGreaterThan(rate0Max);
+    });
+
+    it('has a positive standard deduction and surcharge thresholds', () => {
+      expect(tables.standardDeduction[status]).toBeGreaterThan(0);
+      expect(tables.niit.threshold[status]).toBeGreaterThan(0);
+      expect(tables.additionalMedicare.threshold[status]).toBeGreaterThan(0);
+    });
   });
 });
