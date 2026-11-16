@@ -1,5 +1,5 @@
 import type { TaxInput } from '../tax/types';
-import { normalizeInput } from '../storage';
+import { normalizeInput } from '../tax/input';
 
 /**
  * The result of reading a filed return. `fields` holds whatever income values,

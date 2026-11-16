@@ -84,7 +84,8 @@ Change it to `/` if you deploy to a custom domain or a `user.github.io` root.
   the selected year's tables (`taxTablesFor(input.taxYear)`) and wires together the
   pure tax logic in focused modules alongside it: `income.ts` (classification),
   `deduction.ts`, `engine.ts` (bracket fills), `federal.ts` / `jurisdiction.ts`
-  (the federal computation), `surcharges.ts` (NIIT / Additional Medicare),
+  (the federal computation), `input.ts` (the input sanitizer shared by storage,
+  share links, and import), `surcharges.ts` (NIIT / Additional Medicare),
   `marginal.ts` (next-dollar cost), and `attribution.ts` (per-source breakdown).
 - `src/tax/*.test.ts` — unit tests for those modules (`calculate`, `deduction`,
   `engine`, `surcharges`, `years`).
