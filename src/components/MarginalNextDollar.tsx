@@ -1,6 +1,6 @@
 import { Info } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { marginalNextDollar } from '@/tax/calculate';
+import { marginalNextDollar } from '@/tax/marginal';
 import type { MarginalScenario, TaxResult } from '@/tax/types';
 
 const cents = (rate: number) => `${(rate * 100).toFixed(1)}¢`;
@@ -31,6 +31,16 @@ const LABELS: Record<MarginalScenario['key'], { label: string; baseLabel: string
     baseLabel: 'cap-gains tax',
     hint: 'Qualified dividends and long-term capital gains. Taxed on the preferential 0 / 15 / 20% capital-gains ladder.',
   },
+  shortTermGain: {
+    label: 'Short-term gains (with your capital loss)',
+    baseLabel: 'income & cap-gains tax',
+    hint: 'A capital loss offsets gains, so the next dollar of short-term gain is not simply taxed like interest.',
+  },
+  longTermGain: {
+    label: 'Long-term gains (with your capital loss)',
+    baseLabel: 'income & cap-gains tax',
+    hint: 'A capital loss offsets gains, so the next dollar of long-term gain is not simply taxed on the 0 / 15 / 20% ladder.',
+  },
 };
 
 /** A component of the next dollar: its color, label, and cents — for the receipt rows. */
@@ -44,11 +54,19 @@ interface Part {
 /** What the next $1 of each income type costs in tax, with surtaxes broken out. */
 export function MarginalNextDollar({ result }: { result: TaxResult }) {
   const scenarios = marginalNextDollar(result);
+  const gainsSplitOut = scenarios.some((s) => s.key === 'longTermGain');
 
   return (
     <div className="divide-y">
       {scenarios.map((s) => {
-        const meta = LABELS[s.key];
+        const meta =
+          s.key === 'preferential' && gainsSplitOut
+            ? {
+                ...LABELS.preferential,
+                label: 'Qualified dividends',
+                hint: 'Qualified dividends are taxed on the preferential 0 / 15 / 20% ladder. A capital loss cannot offset them.',
+              }
+            : LABELS[s.key];
         const kept = Math.max(0, 1 - s.totalRate);
         const noTax = s.totalRate <= 0;
 
