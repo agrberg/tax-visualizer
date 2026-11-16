@@ -4,20 +4,18 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 import { MoneyInput } from '@/components/MoneyInput';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { FILING_STATUS_LABELS, FILING_STATUSES } from '@/tax/filingStatus';
+import { FILING_STATUS_LABELS, FILING_STATUSES, isFilingStatus } from '@/tax/filingStatus';
 import { AVAILABLE_YEARS } from '@/tax/years';
 import { SOURCE_META, formatCurrency } from '@/tax/format';
-import { allowsNegativeAmount, type FilingStatus, type IncomeSource, type TaxInput, type TaxResult } from '@/tax/types';
+import {
+  allowsNegativeAmount,
+  ORDINARY_SOURCES,
+  PREFERENTIAL_SOURCES,
+  type IncomeSource,
+  type TaxInput,
+  type TaxResult,
+} from '@/tax/types';
 import { DeductionControl } from '@/components/DeductionControl';
-
-const ORDINARY_FIELDS: IncomeSource[] = [
-  'wages',
-  'retirementIncome',
-  'interest',
-  'nonQualifiedDividends',
-  'shortTermGains',
-];
-const PREFERENTIAL_FIELDS: IncomeSource[] = ['qualifiedDividends', 'longTermGains'];
 
 interface IncomeFormProps {
   value: TaxInput;
@@ -147,7 +145,12 @@ export function IncomeForm({ value, onChange, capitalGains }: IncomeFormProps) {
         <Label htmlFor="filingStatus" className="text-sm">
           Filing status
         </Label>
-        <Select value={value.filingStatus} onValueChange={(v) => set({ filingStatus: v as FilingStatus })}>
+        <Select
+          value={value.filingStatus}
+          onValueChange={(v) => {
+            if (isFilingStatus(v)) set({ filingStatus: v });
+          }}
+        >
           <SelectTrigger id="filingStatus" className="w-full">
             <SelectValue />
           </SelectTrigger>
@@ -165,7 +168,7 @@ export function IncomeForm({ value, onChange, capitalGains }: IncomeFormProps) {
         <legend className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           Ordinary income (marginal rates)
         </legend>
-        {ORDINARY_FIELDS.map((f) => (
+        {ORDINARY_SOURCES.map((f) => (
           <MoneyField key={f} source={f} value={value[f]} onChange={(n) => set({ [f]: n })} />
         ))}
       </fieldset>
@@ -174,7 +177,7 @@ export function IncomeForm({ value, onChange, capitalGains }: IncomeFormProps) {
         <legend className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           Preferential income (0 / 15 / 20%)
         </legend>
-        {PREFERENTIAL_FIELDS.map((f) => (
+        {PREFERENTIAL_SOURCES.map((f) => (
           <MoneyField key={f} source={f} value={value[f]} onChange={(n) => set({ [f]: n })} />
         ))}
       </fieldset>
