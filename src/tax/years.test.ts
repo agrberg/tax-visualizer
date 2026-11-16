@@ -34,6 +34,21 @@ describe.each(AVAILABLE_YEARS)('tax tables for %i', (year) => {
     expect(tables.year).toBe(year);
   });
 
+  it('keeps the statutory relationships between filing statuses', () => {
+    const { standardDeduction } = tables;
+    expect(standardDeduction.mfj).toBe(standardDeduction.single * 2);
+    expect(standardDeduction.mfs).toBe(standardDeduction.single);
+    expect(standardDeduction.hoh).toBeGreaterThan(standardDeduction.single);
+    expect(standardDeduction.hoh).toBeLessThan(standardDeduction.mfj);
+
+    // Both surcharge thresholds are fixed by statute, unindexed: HoH matches single, MFS is half of MFJ.
+    for (const { threshold } of [tables.niit, tables.additionalMedicare]) {
+      expect(threshold.hoh).toBe(threshold.single);
+      expect(threshold.mfj).toBeGreaterThan(threshold.single);
+      expect(threshold.mfs).toBe(threshold.mfj / 2);
+    }
+  });
+
   describe.each(FILING_STATUSES)('%s', (status) => {
     const brackets = tables.ordinaryBrackets[status];
 
