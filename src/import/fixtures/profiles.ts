@@ -38,8 +38,8 @@ const DEDUCTION_BOUNDS = ['12a', '12b', '12c'];
 const SCHEDULE_D_BOUNDS = ['7', '15'];
 
 /** The deduction the extractor lands on: `null` (standard) when the printed amount equals the app's
- *  standard deduction for a supported year+status, else the custom number. These fixtures use
- *  deduction amounts that don't equal any year's standard, so they import as custom numbers. */
+ *  standard deduction for a supported year+status, else the custom number. The 2025 profile prints the
+ *  standard amount (imports as `null`); the other years print a non-standard amount (imports as a number). */
 function expectedDeduction(year: number, status: FilingStatus, printed: number): number | null {
   if (!isSupportedTaxYear(year)) return printed;
   return taxTablesFor(year).standardDeduction[status] === printed ? null : printed;
