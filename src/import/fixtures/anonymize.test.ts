@@ -34,7 +34,14 @@ const LABEL_FOR: Record<string, string> = {
 };
 
 function row(page: number, y: number, cells: [string, number][]): TextItem[] {
-  return cells.map(([text, x]) => ({ text, originalText: text, x, y, width: text.length * 6, page }));
+  return cells.map(([text, x]) => ({
+    text: text.trim().toLowerCase(),
+    originalText: text,
+    x,
+    y,
+    width: text.length * 6,
+    page,
+  }));
 }
 
 // A structurally faithful but entirely made-up "real" 1040 for a profile: header + filing status,
@@ -108,6 +115,21 @@ function syntheticRealForm(profile: FixtureProfile): TextItem[] {
   return items;
 }
 
+// `syntheticRealForm` shifted down one page behind a cover page, plus three rows that carry identity
+// text glued to a form marker: on the cover page, in a footer on the last face page, and on a worksheet
+// page beyond the face. Only valid for a face-only profile (no Schedule D on the shifted page 3).
+function leakyRealForm(profile: FixtureProfile): TextItem[] {
+  const shifted = syntheticRealForm(profile).map((item) => ({ ...item, page: item.page + 1 }));
+  const faceFooterPage = 3;
+  const worksheetPage = Math.max(...shifted.map((i) => i.page)) + 3;
+  return [
+    ...shifted,
+    ...row(1, 700, [['Enclosed is your Form 1040 for John Q Public showing a refund of $1,234.56', 40]]),
+    ...row(faceFooterPage, 40, [['Form 1040 (2024) John Q Public 123-45-6789 Page 2', 40]]),
+    ...row(worksheetPage, 700, [['Enter the amount from Form 1040, line 11 for John Q Public 987,654', 40]]),
+  ];
+}
+
 async function extractFromRebuilt(items: TextItem[]) {
   const pages = Math.max(...items.map((i) => i.page));
   const bytes = await rebuildPdf(
@@ -123,8 +145,8 @@ describe('anonymize', () => {
     const out = anonymize(syntheticRealForm(profileFor(2024)), profileFor(2024));
     const text = out.map((i) => i.text).join(' ');
     expect(text).not.toContain('123-45-6789');
-    expect(text).not.toContain('John');
-    expect(text).not.toContain('Main Street');
+    expect(text).not.toContain('john');
+    expect(text).not.toContain('main street');
   });
 
   it('overwrites every real amount with the profile synthetic value', () => {
@@ -138,7 +160,7 @@ describe('anonymize', () => {
     expect(text).toContain('1040');
     expect(text).toContain('2024');
     expect(text).toContain('single');
-    expect(text).toContain('Taxable interest');
+    expect(text).toContain('taxable interest');
   });
 
   it('round-trips a pre-2025 face-only return to exactly the expected fields', async () => {
@@ -154,5 +176,33 @@ describe('anonymize', () => {
     expect(fields.shortTermGains).toBe(4000);
     expect(fields.longTermGains).toBe(11000);
     expect(fields.deduction).toBeNull();
+  });
+
+  it('keeps nothing from pages outside the face and Schedule D', () => {
+    const profile = profileFor(2024);
+    const form = leakyRealForm(profile);
+    const worksheetPage = Math.max(...form.map((i) => i.page));
+    const pages = new Set(anonymize(form, profile).map((i) => i.page));
+    expect(pages.has(1)).toBe(false); // the cover page
+    expect(pages.has(worksheetPage)).toBe(false);
+  });
+
+  it('keeps only the marker from a single-item footer, not the identity text glued to it', () => {
+    const profile = profileFor(2024);
+    const text = anonymize(leakyRealForm(profile), profile)
+      .flatMap((i) => [i.text, i.originalText])
+      .join(' ')
+      .toLowerCase();
+    expect(text).not.toContain('john');
+    expect(text).not.toContain('public');
+    expect(text).not.toContain('123-45-6789');
+    expect(text).not.toContain('1,234.56');
+    expect(text).not.toContain('987,654');
+  });
+
+  it('still round-trips the leaky form to exactly the expected fields', async () => {
+    const profile = profileFor(2024);
+    const { fields } = await extractFromRebuilt(anonymize(leakyRealForm(profile), profile));
+    expect(fields).toEqual(profile.expected);
   });
 });

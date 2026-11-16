@@ -6,9 +6,10 @@ import type { FixtureLine, FixtureProfile } from './profiles';
 
 /**
  * Turn a real return's positioned text into a PII-free, layout-faithful fixture. Whitelist, not
- * blacklist: only the text the importer and its detection depend on is carried forward — the form
- * header, tax year, the checked filing-status row, each mapped line's id + label, and (when attached)
- * the Schedule D header. Every other row — name, SSN, address, dependents, employer, bank details — is
+ * blacklist: only the text the importer and its detection depend on is carried forward — each mapped
+ * line's id + label and the tax year. The form header, the checked filing-status row, and the Schedule D
+ * header are synthesized fresh at the real positions, never copied. Every other row — name, SSN,
+ * address, dependents, employer, bank details — and every page outside the 1040 face and Schedule D is
  * dropped wholesale, so there is no PII to miss. On the lines the profile names, the real amount is
  * overwritten with the profile's synthetic value (positioned exactly where the real amount sat, so the
  * extractor reads it the same way); any other stray money token on a kept row is scrubbed too.
@@ -46,15 +47,7 @@ export function anonymize(items: TextItem[], profile: FixtureProfile): TextItem[
     stampLine(scope, line, keep, stamped, written);
   }
 
-  const structuralItems = new Set<TextItem>();
-  for (const row of rows) {
-    for (const marker of FACE_MARKERS) {
-      itemsSatisfying(row, marker.length + 20, (joined) => joined.toLowerCase().includes(marker))?.forEach((i) =>
-        structuralItems.add(i),
-      );
-    }
-    itemsSatisfying(row, 40, (joined) => SCHEDULE_D_HEADER.test(joined))?.forEach((i) => structuralItems.add(i));
-  }
+  const markerItems = syntheticMarkerItems(rows, facePage, lastFacePage, scheduleDPage, profile.taxYear);
 
   keep.add(syntheticFilingStatusRow(rows, facePage, profile.filingStatus));
   ensureYearToken(rows, facePage, keep);
@@ -66,7 +59,7 @@ export function anonymize(items: TextItem[], profile: FixtureProfile): TextItem[
     row.items = row.items.filter((item) => written.has(item) || !isMoney(item.text) || LINE_ID.test(item.text.trim()));
   }
 
-  return [...keep].flatMap((row) => row.items).concat([...structuralItems]);
+  return [...keep].flatMap((row) => row.items).concat(markerItems);
 }
 
 const STATUS_LABELS: Record<FilingStatus, string> = {
@@ -99,11 +92,11 @@ function firstPageMatching(rows: Row[], predicate: (r: Row) => boolean): number 
 
 /**
  * The shortest contiguous run of `row`'s items whose joined text satisfies `matches`, or null if none
- * does. Used to keep a structural marker (the form header, the Schedule D header) without keeping the
- * *whole* row it sits on: some preparer software stamps a running footer as one baseline — "Form 1040
- * (2020) <Name> <SSN> Page 2" — so keeping the row wholesale would leak the name and SSN glued onto it.
- * `maxJoinedLength` bounds the search (a couple of matcher-lengths' slack for whitespace) so it doesn't
- * keep growing the run past where the phrase could still be forming.
+ * does. Used to locate a structural marker (the form header, the Schedule D header) inside a row that
+ * may carry more: some preparer software stamps a running footer as one baseline — "Form 1040 (2020)
+ * <Name> <SSN> Page 2" — so the marker's position comes from the matched items, and the row's remaining
+ * text is never copied. `maxJoinedLength` bounds the search (a couple of matcher-lengths' slack for
+ * whitespace) so it doesn't keep growing the run past where the phrase could still be forming.
  */
 function itemsSatisfying(row: Row, maxJoinedLength: number, matches: (joined: string) => boolean): TextItem[] | null {
   for (let start = 0; start < row.items.length; start++) {
@@ -115,6 +108,62 @@ function itemsSatisfying(row: Row, maxJoinedLength: number, matches: (joined: st
     }
   }
   return null;
+}
+
+/**
+ * One freshly written item per structural marker, positioned where the real marker's first matched
+ * item sat. The face markers are looked for only on the face pages, and the Schedule D header only on
+ * the Schedule D page, so a cover letter or worksheet that mentions "form 1040" contributes nothing.
+ * The text is the marker alone, never the real item that matched, because one item can carry a whole
+ * sentence of identity text around the phrase.
+ */
+function syntheticMarkerItems(
+  rows: Row[],
+  facePage: number,
+  lastFacePage: number,
+  scheduleDPage: number | null,
+  taxYear: number,
+): TextItem[] {
+  const faceRows = rows.filter((r) => r.page >= facePage && r.page <= lastFacePage);
+  const scheduleDRows = scheduleDPage === null ? [] : rows.filter((r) => r.page === scheduleDPage);
+  const markers: { rows: Row[]; maxJoinedLength: number; matches: (joined: string) => boolean; printed: string }[] = [
+    {
+      rows: faceRows,
+      maxJoinedLength: FACE_MARKERS[0].length + 20,
+      matches: (joined) => joined.toLowerCase().includes(FACE_MARKERS[0]),
+      printed: 'U.S. Individual Income Tax Return',
+    },
+    {
+      rows: faceRows,
+      maxJoinedLength: FACE_MARKERS[1].length + 20,
+      matches: (joined) => joined.toLowerCase().includes(FACE_MARKERS[1]),
+      printed: `Form 1040 (${taxYear})`,
+    },
+    {
+      rows: scheduleDRows,
+      maxJoinedLength: 40,
+      matches: (joined) => SCHEDULE_D_HEADER.test(joined),
+      printed: 'SCHEDULE D (Form 1040)',
+    },
+  ];
+  const items: TextItem[] = [];
+  for (const marker of markers) {
+    for (const row of marker.rows) {
+      const matched = itemsSatisfying(row, marker.maxJoinedLength, marker.matches);
+      if (!matched) continue;
+      const { x, y, page } = matched[0];
+      items.push({
+        text: marker.printed.toLowerCase(),
+        originalText: marker.printed,
+        x,
+        y,
+        width: marker.printed.length * 5,
+        page,
+      });
+      break;
+    }
+  }
+  return items;
 }
 
 /**
